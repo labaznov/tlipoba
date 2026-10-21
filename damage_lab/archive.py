@@ -101,7 +101,7 @@ def recorded(data):
     evidence = {key: item["path"] for key, item in data["evidence"].items()}
     rows = [observation(row, "panel", evidence) for row in data["panel"]]
     bench = data["benchmark"]
-    rows += [observation({**row, "evidence": bench["evidence"]}, "benchmark", evidence, "benchmark_")
+    rows += [observation({**row, "evidence": row.get("evidence", bench["evidence"])}, "benchmark", evidence, "benchmark_")
              for row in bench["values"]]
     keys = [row["key"] for row in rows]
     duplicates = sorted({key for key in keys if keys.count(key) > 1})
@@ -187,7 +187,7 @@ def systems(transfer, loadout):
         if report:
             details = [f"status: {report['status']}"]
             details += [f"{field}: {report[field]}" for field in
-                        ("observed", "mapped", "affixesObserved", "affixesMapped") if field in report]
+                        ("observed", "mapped", "affixesObserved", "affixesMapped", "decodedEffects") if field in report]
             details += [f"utility: {spirit['name']} rank {spirit['rank']}" for spirit in report.get("utilityPactspirits", [])]
             details += report.get("issues", [])
             if report.get("effectMappingComplete") is False:
@@ -196,7 +196,114 @@ def systems(transfer, loadout):
     return rows, entries
 
 
-def archive(package: Path, observations: Path, facts: Path, database: Path) -> dict:
+def slates(transfer):
+    """Expose decoded effects without inventing a Divinity board placement."""
+    entries = []
+    for position, slate in enumerate(transfer.get("systems", {}).get("divinity", {}).get("decodedSlates", [])):
+        catalog = slate["catalogBase"] or {}
+        details = [
+            f"sourceBaseId: {slate['sourceBaseId']}", f"catalogBase: {catalog.get('guid', 'unknown')}",
+            f"sourceEncoding: {slate['sourceEncoding']}",
+            f"influenceCorroborated: {json.dumps(slate['influenceCorroborated'])}",
+            f"unmappedTalentIds: {json.dumps(slate['unmappedTalentIds'])}",
+            f"provenance: transfer-report.json / systems.divinity.decodedSlates[{position}]",
+            "layout: unknown (shape, direction, board position)",
+            "damage application: not applied automatically",
+        ]
+        details += [f"{effect['list']}[{effect['slotIndex']}] {effect['tlidbId']} / {effect['modGuid']} / "
+                    f"{effect['nodeType']} / {effect['slateType']}: "
+                    + "; ".join(lines(effect["description"].replace("\\n", "\n")))
+                    for effect in slate["effects"]]
+        entries.append({"name": catalog.get("name") or f"Unknown divinity slate ({slate['sourceBaseId']})",
+                        "details": details})
+    return entries
+
+
+def nativecheck(document, source):
+    """Accept only named fields corroborated for the observed attrInfo contract."""
+    try:
+        if document.get("format") != "tli-native-stats-v1" or document.get("status") != "decoded":
+            raise ValueError("Native stats must use decoded tli-native-stats-v1 format")
+        if document.get("source", {}).get("sha256") != source:
+            raise ValueError("Native stats source sha256 does not match package/source.json")
+        if (document["profile"]["name"] != "attrInfo-v1"
+                or document["profile"]["message"] != "rpc.ViewPlayerAttrInfo"
+                or document["source"]["section"] != "sections.ServerSource.data.attrInfo"):
+            raise ValueError("Native stats profile does not match the supported attrInfo contract")
+        keys = set()
+        for entry in document["known"] + []:
+            key = entry["key"]
+            if key not in {"spell_dps": "1.10", "survival": "1.11"} or key in keys:
+                raise ValueError("Native stats contain an unsupported or duplicate known field")
+            keys.add(key)
+            if (entry["wire"] != {"spell_dps": "1.10", "survival": "1.11"}[key]
+                    or entry["wireType"] != "varint" or entry["evidence"] != "corroborated"
+                    or entry["protocolVerified"] is not False
+                    or entry["sourcePath"] != "sections.ServerSource.data.attrInfo[1].bytesHex"
+                    or not entry["corroboration"].strip()):
+                raise ValueError("Native stats known field lacks the exact corroborated wire contract")
+            if entry["value"] is True or entry["value"] is False or not 0 <= entry["value"] <= 2**63 - 1:
+                raise ValueError("Native stats known value must be a nonnegative signed varint")
+            try:
+                format(entry["value"], "d")
+            except (ValueError, TypeError):
+                raise ValueError("Native stats known value must be a nonnegative signed varint") from None
+        counts = {"known": len(document["known"]),
+                  "unknownStatIds": sum("statId" in row for row in document["unknown"] + []),
+                  "unknownEntries": len(document["unknown"]), "omitted": len(document["omitted"] + [])}
+        for key, count in counts.items():
+            if document["coverage"][key] is True or document["coverage"][key] is False or document["coverage"][key] != count:
+                raise ValueError("Native stats coverage counts do not match the decoded entries")
+        if sorted(document["coverage"]["missing"] + []) != sorted({"spell_dps", "survival"} - keys):
+            raise ValueError("Native stats missing-field coverage does not match the known entries")
+        if document["heroTraits"]["levels"] is not None:
+            raise ValueError("Native stats hero trait levels are not supported by this profile")
+        for gap in document["gaps"] + []:
+            if not gap.strip():
+                raise ValueError("Native stats gaps must contain nonempty descriptions")
+    except (KeyError, TypeError, AttributeError):
+        raise ValueError("Native stats document has invalid field structure") from None
+
+
+def automatic(data, path, source):
+    """Merge named native fields while preserving developer evidence for other stats."""
+    document = load(path)
+    nativecheck(document, source)
+    observed = {**data, "panel": [dict(row) for row in data["panel"]],
+                "benchmark": {**data["benchmark"], "values": [dict(row) for row in data["benchmark"]["values"]]},
+                "evidence": dict(data["evidence"])}
+    coverage = [f"Native stats: known: {document['coverage']['known']}; "
+                f"unknownStatIds: {document['coverage']['unknownStatIds']}; "
+                f"unknownEntries: {document['coverage']['unknownEntries']}; protocolVerified=false",
+                "Native stats: missing hero trait levels; no unverified stat IDs were named"]
+    coverage += [f"Native stats gap: {gap}" for gap in document["gaps"]]
+    if document["coverage"]["missing"]:
+        coverage.append("Native stats missing known fields: " + ", ".join(document["coverage"]["missing"]))
+    for entry in document["known"]:
+        key = entry["key"]
+        evidence = f"native_stats:{key}"
+        observed["evidence"][evidence] = {"path": str(Path(path).resolve()), "shows": entry["sourcePath"]}
+        rows = observed["panel"] if key == "spell_dps" else observed["benchmark"]["values"]
+        row = {"key": key, "label": "Spell DPS" if key == "spell_dps" else "My Survival",
+               "display": format(entry["value"], "d"), "value": entry["value"],
+               "unit": "damage/s" if key == "spell_dps" else "survival", "evidence": evidence}
+        matches = [position for position, value in enumerate(rows) if value["key"] == key]
+        if len(matches) > 1:
+            raise ValueError("Native stats cannot replace duplicate developer observations")
+        if matches:
+            previous = rows[matches[0]]["value"]
+            if previous != entry["value"]:
+                coverage.append(f"Native stats conflict: {key}; developer input {previous}; "
+                                f"automatic {entry['value']} used from wire {entry['wire']}")
+            rows[matches[0]] = row
+        else:
+            rows.append(row)
+        coverage.append(f"Native stats field: {key}; wire {entry['wire']}; {entry['wireType']}; "
+                        "evidence=corroborated; protocolVerified=false")
+    return observed, document, coverage
+
+
+def archive(package: Path, observations: Path, facts: Path, database: Path, *, native_stats: Path | None = None) -> dict:
     package, observations, facts, database = (Path(package), Path(observations), Path(facts), Path(database))
     if database.exists():
         raise FileExistsError(f"Database already exists: {database}")
@@ -211,9 +318,40 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
         raise ValueError("build.json does not match buildSha256 in manifest.json")
     guide = load(files["guide"])
     guide.pop("sourceSections", None)
-    observed, facts_data = load(observations), load(facts)
+    developer, facts_data = load(observations), load(facts)
+    observed = developer
+    coverage = []
+    bundle = None
+    if native_stats is None and "nativeStats" in manifest:
+        bundle = manifest["nativeStats"]
+        try:
+            if bundle.get("file") != "native-stats.json":
+                raise ValueError("Native stats manifest file must be exactly native-stats.json")
+            if bundle["protocolVerified"] is not False:
+                raise ValueError("Native stats manifest has an unsupported protocol verification claim")
+            if bundle["status"] == "decoded":
+                native_stats = package / "native-stats.json"
+            elif bundle["status"] in ("absent", "unsupported", "error"):
+                coverage.append(f"Native stats bundle status: {bundle['status']}; "
+                                "automatic import is incomplete and developer input remains in use")
+            else:
+                raise ValueError("Native stats manifest status is unsupported")
+        except (KeyError, TypeError, AttributeError):
+            raise ValueError("Native stats manifest has invalid field structure") from None
+    if native_stats is not None:
+        observed, documents["native_stats"], coverage = automatic(developer, native_stats, hashes["source"][0])
+        if bundle is not None and (bundle.get("known") is True or bundle.get("known") is False
+                                   or bundle.get("known") != len(documents["native_stats"]["known"])):
+            raise ValueError("Native stats manifest known count differs from its input document")
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
     rows, stats, benchmark, evidence = recorded(observed)
+    if native_stats is not None:
+        for entry in documents["native_stats"]["known"]:
+            key = entry["key"] if entry["key"] == "spell_dps" else "benchmark_survival"
+            row = next(row for row in rows if row["key"] == key)
+            row["precision"] = f"native varint; exact integer; wire {entry['wire']}; corroborated; protocolVerified=false"
+        keys = {entry["key"] for entry in documents["native_stats"]["known"]}
+        coverage.append("Native stats missing automatic fields: " + ", ".join(key for key in stats if key not in keys))
     loadouts = build["loadouts"]
     if not loadouts["loadouts"]:
         raise ValueError("No loadouts are available in build.json")
@@ -223,7 +361,6 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
     loadout = selection[0]
     character = guide["character"]
 
-    coverage = []
     if synthetic:
         coverage.append("Синтетический пример: состав билда, показатели панели и бенчмарк вымышлены; "
                         "они проверяют арифметику, перенос из игры не выполнялся")
@@ -242,6 +379,8 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
             f"не уровень персонажа ({character.get('level')}).",
         ]
     coverage += [
+        "Ручные наблюдения observations.json — developer input для разработки; "
+        "автоматический импорт итоговых характеристик неполный",
         "Округлённые значения панели хранятся с исходной записью и шагом округления; недостающие цифры не выдумывались.",
         "Коэффициенты не подгонялись под бенчмарк: независимое контрольное число не определяет множители модели.",
         "Таланты: только узлы с rank>0 и выбранные core; описания взяты из каталога Compendium и могут быть устаревшими.",
@@ -267,7 +406,7 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
             evidence_rows.append((f"evidence:{key}", path, None, None, None, 0))
             coverage.append(f"Скриншот «{key}» больше недоступен: {path}. Значения пользователя сохранены.")
 
-    inventory = {"gear": gear(guide), "skills": skills(guide, loadout),
+    inventory = {"gear": gear(guide), "skills": skills(guide, loadout), "slates": slates(transfer),
                  "talents": talents(guide, loadout, coverage),
                  "memories": [{"name": memory["name"],
                                "details": ([f"item level {memory['itemLevel']}"] if "itemLevel" in memory else [])
@@ -276,6 +415,10 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
                  "traits": [{"name": trait["name"], "details": [f"unlock level {trait['unlockLevel']}"]}
                             for trait in sorted(character.get("traits", []), key=lambda trait: trait["unlockLevel"])]}
     system_rows, inventory["systems"] = systems(transfer, loadout)
+    if inventory["slates"]:
+        coverage.append(f"Divinity: плит {len(inventory['slates'])}; decodedEffects: "
+                        f"{transfer['systems']['divinity'].get('decodedEffects', 'unknown')}; "
+                        "форма, направление и расположение не проверены, эффекты автоматически не применяются")
     coverage += observed.get("notes", [])
 
     result = {
@@ -292,6 +435,20 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
         "coverage": coverage,
         "source_sha256": hashes["source"][0],
     }
+    if native_stats is not None:
+        document = documents["native_stats"]
+        keys = {entry["key"] for entry in document["known"]}
+        result["native_stats"] = {
+            "format": document["format"], "status": document["status"], "known": len(keys),
+            "unknown_stat_ids": document["coverage"]["unknownStatIds"], "source_sha256": hashes["source"][0],
+            "protocol_verified": False, "missing_trait_levels": document["heroTraits"]["levels"] is None,
+            "missing_automatic_stats": [key for key in stats if key not in keys],
+        }
+
+    inputs = [("observations", str(observations), *fingerprint(observations)),
+              ("facts", str(facts), *fingerprint(facts))]
+    if native_stats is not None:
+        inputs.append(("native_stats", str(Path(native_stats).resolve()), *fingerprint(native_stats)))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()
@@ -305,13 +462,11 @@ def archive(package: Path, observations: Path, facts: Path, database: Path) -> d
                 ("synthetic", json.dumps(synthetic))])
             connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, NULL, ?)", [
                 (role, str(files[role]), *hashes[role], int(role in STORED)) for role in PACKAGE])
-            connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, NULL, 1)", [
-                ("observations", str(observations), *fingerprint(observations)),
-                ("facts", str(facts), *fingerprint(facts))])
+            connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, NULL, 1)", inputs)
             connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?)", evidence_rows)
             connection.executemany("INSERT INTO documents VALUES (?, ?)", [
                 (role, json.dumps(value, ensure_ascii=False))
-                for role, value in (*documents.items(), ("observations", observed), ("facts", facts_data))])
+                for role, value in (*documents.items(), ("observations", developer), ("facts", facts_data))])
             connection.executemany("INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
                 (row["key"], row["kind"], row["label"], row["display"], row["value"], row["unit"],
                  row["precision"], row["evidence"]) for row in rows])

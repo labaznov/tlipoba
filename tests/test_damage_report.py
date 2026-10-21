@@ -1,10 +1,32 @@
 import unittest
 
-from damage_lab.report import render
+from damage_lab.report import render, scenarios
 
 
 class DamageReportTests(unittest.TestCase):
     """Check report evidence and safe rendering without native snapshot leakage."""
+
+    def test_scenario_grid_applies_the_same_combat_context(self):
+        self.assertIn("<td>587</td>", scenarios(
+            {"stats": {"spell_dps": 379, "cast_rate": 6.3, "max_tangles": 3,
+                       "extra_attachments": 2, "cold_penetration": 0.13}},
+            {"basis": "panel", "active": 3, "hits": 11, "retention": 0.8,
+             "resistance": 0, "taken": 0, "uptime": 1,
+             "combat": {"reference": {"damage": [], "cast": [], "taken": []},
+                        "target": {"damage": [{"id": "test", "affix": "test", "value": 0.37,
+                                              "stacks": 1, "mode": "add"}], "cast": [], "taken": []},
+                        "tick_frequency": None, "armor": 0, "nonphysical": True,
+                        "missing": [], "notes": []}},
+        ))
+
+    def test_report_renders_decoded_slates_even_when_layout_is_unknown(self):
+        self.assertIn("Fictional slate effect", render(
+            {"name": "Fixture", "stats": {},
+             "inventory": {"slates": [{"name": "Fixture slate", "details": ["Fictional slate effect"]}]}},
+            {"dps": 123, "trace": [], "assumptions": []},
+            {"basis": "panel", "active": 3, "hits": 11, "retention": 0.8,
+             "resistance": 0, "taken": 0, "uptime": 1},
+        ))
 
     def test_synthetic_report_does_not_claim_game_measurement(self):
         self.assertTrue(all(value in render(

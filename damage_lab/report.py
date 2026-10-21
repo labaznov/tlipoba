@@ -4,7 +4,9 @@ import json
 from html import escape
 from urllib.parse import urlsplit
 
+from .combat import apply
 from .engine import calculate
+from .validation import compare
 
 
 def text(value):
@@ -34,6 +36,8 @@ def scenarios(record, condition):
         for hits in (1, 11, 13):
             for retention in (0.2, 0.8):
                 result = calculate(stats, {**condition, "active": active, "hits": hits, "retention": retention})
+                if "combat" in condition:
+                    result = apply(stats, result, condition["combat"])
                 rows.append(f"<tr><td>{active}</td><td>{result['attached']}</td><td>{hits}</td>"
                             f"<td>{retention:.0%}</td><td>{number(result['dps'])}</td></tr>")
     return ("<div class=scroll><table><thead><tr><th>Активные Tangle</th><th>Прикреплены к цели</th>"
@@ -75,7 +79,9 @@ def render(record, calculation, condition):
             for entry in record.get("inventory", {}).get(key, [])
         ) + "</div>"
         for key, label in (("gear", "Снаряжение"), ("skills", "Навыки и поддержки"),
-                           ("talents", "Таланты"), ("memories", "Воспоминания"))
+                           ("talents", "Таланты"), ("memories", "Воспоминания"),
+                           ("slates", "Плиты божественности"), ("traits", "Свойства героя"),
+                           ("systems", "Покрытие систем"))
     )
     sources = []
     for label, url in record.get("facts", {}).get("sources", {}).items():
@@ -90,6 +96,26 @@ def render(record, calculation, condition):
     if condition["basis"] == "hit":
         command += (" --lucky" if condition["lucky"] else " --no-lucky")
         command += f" --critical-more {decimal(condition['critical_more'])}"
+    if "native_stats" in record:
+        command += " --native-stats АВТОМАТИЧЕСКИЕ_СТАТЫ.json"
+    combat = ""
+    if "combat" in condition:
+        command += " --combat combat.json"
+        combat = ("<h3>Боевой контекст</h3><p>Исходное состояние относится к панели, целевое — к бою; "
+                  "расчёт использует отношение их множителей<br>JSON сохранён рядом с отчётом как combat.json</p>"
+                  f"<details><summary>Показать входные данные</summary><pre>"
+                  f"{text(json.dumps(condition['combat'], ensure_ascii=False, indent=2))}</pre></details>")
+    validation = ""
+    if "average_dps" in benchmark:
+        comparison = compare(calculation["dps"], benchmark["average_dps"])
+        error = (f"{comparison['relative_error']:+.2%}" if comparison["relative_error"] is not None
+                 else "не определено при нулевом замере")
+        ratio = (decimal(comparison["measured_to_predicted"]) if comparison["measured_to_predicted"] is not None
+                 else "не определено при нулевом расчёте")
+        validation = (f"<p>Отклонение расчёта от контрольного замера: <b>{text(error)}</b><br>"
+                      f"Отношение замера к расчёту: {text(ratio)}</p>"
+                      "<p>Это диагностика расхождения; отношение не применяется к урону<br>"
+                      "Совпадение чисел само по себе не доказывает полноту модели</p>")
     benchmarkrows = "".join(
         f"<tr><td>{label}</td><td>{number(benchmark[key])}{unit}</td></tr>"
         for key, label, unit in (("duration", "Длительность замера", " с"),
@@ -141,10 +167,10 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 </div>
 <section><h2>Условия расчёта</h2><p>Проценты задаются долями: 13% = 0.13
 Остаток 0.8 означает 80% урона первого попадания у каждого последующего попадания</p>
-<table><tbody>{conditions}</tbody></table></section>
+<table><tbody>{conditions}</tbody></table>{combat}</section>
 <section><h2>Математика сценария</h2><table><thead><tr><th>Величина или множитель</th><th>Значение</th></tr></thead>
 <tbody>{trace}<tr><td><b>Условный итог</b></td><td><b>{number(calculation['dps'])} DPS</b></td></tr></tbody></table>
-{items(calculation.get('assumptions', []))}</section>
+{items(calculation.get('assumptions', []))}{validation}</section>
 <section><h2>Сценарии, а не подтверждённые границы</h2>
 <p>Сравнение 1 и 3 Tangle, 1 / 11 / 13 попаданий, 20% и 80% остатка shotgun
 Два варианта остатка показывают неопределённость трактовки коэффициента

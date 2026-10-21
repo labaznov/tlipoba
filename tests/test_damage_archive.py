@@ -131,6 +131,46 @@ def facts(root):
     return write(root / "facts.json", {"patch": "SS14", "chromatic": {"id": 7007}})
 
 
+def slates(directory, count):
+    """Add fictional decoded slate effects without any planner placements."""
+    transfer = json.loads((directory / "transfer-report.json").read_text(encoding="utf-8"))
+    transfer["systems"]["divinity"] = {
+        "status": "partial", "observed": count, "mapped": 0, "occupiedCells": 0,
+        "effectMappingComplete": False, "decodedEffects": count,
+        "issues": ["Synthetic slate shape, direction and position are unverified"],
+        "decodedSlates": [{
+            "sourceEncoding": "rpc.WareHousePosItem", "sourceItemId": f"synthetic-item-{index}",
+            "sourceBaseId": f"synthetic-base-{index}", "sourceRareValue": 3,
+            "catalogBase": {"guid": f"synthetic-base-guid-{index}", "name": f"Synthetic slate {index}"},
+            "influenceCorroborated": True, "unmappedTalentIds": [],
+            "effects": [{"list": "enchant", "slotIndex": 2, "tlidbId": f"synthetic-effect-{index}",
+                         "modGuid": f"synthetic-mod-{index}", "nodeType": "Medium Talent",
+                         "slateType": "Synthetic School", "description": "+17% Synthetic Cold Damage"}],
+        } for index in range(count)],
+    }
+    return write(directory / "transfer-report.json", transfer)
+
+
+def native(root, directory):
+    """Write fictional native stats bound to the synthetic package source."""
+    return write(root / "native-stats.json", {
+        "format": "tli-native-stats-v1", "version": "0.1.0", "status": "decoded",
+        "profile": {"name": "attrInfo-v1", "message": "rpc.ViewPlayerAttrInfo"},
+        "source": {"section": "sections.ServerSource.data.attrInfo", "capturedAt": "2001-02-03T04:05:06+00:00",
+                   "sha256": hashlib.sha256((directory / "source.json").read_bytes()).hexdigest()},
+        "known": [{"key": key, "value": value, "wire": wire, "wireType": "varint",
+                   "evidence": "corroborated", "protocolVerified": False,
+                   "corroboration": "Independent synthetic observation",
+                   "sourcePath": "sections.ServerSource.data.attrInfo[1].bytesHex"}
+                  for key, value, wire in (("spell_dps", 43721, "1.10"), ("survival", 8033, "1.11"))],
+        "unknown": [{"wire": "1.9", "statId": 937, "value": 271},
+                    {"wire": "1.3", "type": "float32", "value": 2.7}],
+        "omitted": [], "gaps": ["Synthetic unnamed attributes have no verified names"],
+        "heroTraits": {"activeTraitIds": [999001], "source": "synthetic-traits", "levels": None},
+        "coverage": {"known": 2, "unknownStatIds": 1, "unknownEntries": 2, "omitted": 0, "missing": []},
+    })
+
+
 def dump(database):
     with contextlib.closing(sqlite3.connect(database)) as connection:
         return "\n".join(connection.iterdump())
@@ -231,6 +271,290 @@ class ArchiveContractTest(unittest.TestCase):
             result = archive(directory, observations(root), facts(root), root / "build.sqlite")
             self.assertTrue(all(value in json.dumps(result["inventory"]["talents"], ensure_ascii=False)
                                 for value in ("Замена core призмой", "Crushing Blast", "+31% vs Elites")))
+
+
+class ArchiveSlateTest(unittest.TestCase):
+    """Keep decoded slate effects visible without assuming their board layout."""
+
+    def test_keeps_six_decoded_slates_in_the_inventory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            slates(directory, 6)
+            self.assertEqual([entry["name"] for entry in archive(
+                directory, observations(root), facts(root), root / "build.sqlite",
+            )["inventory"]["slates"]], [f"Synthetic slate {index}" for index in range(6)])
+
+    def test_decoded_slate_keeps_source_effects_and_unknown_layout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            slates(directory, 1)
+            text = "\n".join(archive(directory, observations(root), facts(root), root / "build.sqlite")
+                             ["inventory"]["slates"][0]["details"])
+            self.assertTrue(all(value in text for value in (
+                "sourceBaseId: synthetic-base-0", "catalogBase: synthetic-base-guid-0",
+                "sourceEncoding: rpc.WareHousePosItem", "influenceCorroborated: true",
+                "provenance: transfer-report.json / systems.divinity.decodedSlates[0]",
+                "layout: unknown (shape, direction, board position)", "damage application: not applied automatically",
+                "enchant[2]", "synthetic-effect-0", "synthetic-mod-0", "Medium Talent", "Synthetic School",
+                "+17% Synthetic Cold Damage",
+            )))
+
+    def test_slate_without_catalog_base_keeps_its_effects_and_unknown_identifiers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            report = slates(directory, 1)
+            transfer = json.loads(report.read_text(encoding="utf-8"))
+            transfer["systems"]["divinity"]["decodedSlates"][0].update(
+                catalogBase=None, unmappedTalentIds=["synthetic-unmapped"],
+            )
+            write(report, transfer)
+            entry = archive(directory, observations(root), facts(root), root / "build.sqlite")["inventory"]["slates"][0]
+            self.assertEqual((entry["name"], "catalogBase: unknown" in entry["details"],
+                              'unmappedTalentIds: ["synthetic-unmapped"]' in entry["details"],
+                              "+17% Synthetic Cold Damage" in "\n".join(entry["details"])),
+                             ("Unknown divinity slate (synthetic-base-0)", True, True, True))
+
+    def test_system_details_and_coverage_keep_the_decoded_effect_count(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            slates(directory, 6)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite")
+            system = next(entry for entry in result["inventory"]["systems"] if entry["name"] == "divinity")
+            self.assertEqual(("decodedEffects: 6" in system["details"],
+                              "decodedEffects: 6" in "\n".join(result["coverage"])), (True, True))
+
+    def test_coverage_identifies_manual_observations_as_developer_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertTrue(any("developer input" in line and "автоматический импорт" in line
+                                and "неполный" in line for line in archive(
+                                    package(root), observations(root), facts(root), root / "build.sqlite",
+                                )["coverage"]))
+
+    def test_decoded_slates_do_not_change_planner_layout_or_character_stats(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            slates(directory, 6)
+            database = root / "build.sqlite"
+            result = archive(directory, observations(root), facts(root), database)
+            with contextlib.closing(sqlite3.connect(database)) as connection:
+                row = connection.execute("SELECT report, build FROM systems WHERE name = 'divinity'").fetchone()
+            report = json.loads(row[0])
+            self.assertEqual((report["status"], report["mapped"], report["effectMappingComplete"],
+                              report["decodedEffects"], len(report["decodedSlates"]), json.loads(row[1]),
+                              result["stats"]["spell_dps"]),
+                             ("partial", 0, False, 6, 6, {"inventory": [], "placements": []}, 31729))
+
+    def test_decoded_slate_inventory_is_preserved_in_sqlite(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            slates(directory, 1)
+            database = root / "build.sqlite"
+            archive(directory, observations(root), facts(root), database)
+            with contextlib.closing(sqlite3.connect(database)) as connection:
+                row = connection.execute("SELECT name, details FROM inventory WHERE section = 'slates'").fetchone()
+            self.assertEqual((row[0], "+17% Synthetic Cold Damage" in "\n".join(json.loads(row[1]))),
+                             ("Synthetic slate 0", True))
+
+
+class ArchiveNativeTest(unittest.TestCase):
+    """Bind corroborated automatic stats to the exact captured source."""
+
+    def test_native_spell_dps_and_survival_replace_only_their_developer_values(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory))
+            self.assertEqual((result["stats"]["spell_dps"], result["benchmark"]["survival"],
+                              result["stats"]["hit_min"], result["benchmark"]["average_dps"]),
+                             (43721, 8033, 842700, 185319))
+
+    def test_native_stats_cannot_belong_to_another_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["source"]["sha256"] = "7" * 64
+            write(path, document)
+            with self.assertRaisesRegex(ValueError, "Native stats source sha256"):
+                archive(directory, observations(root), facts(root), root / "build.sqlite", native_stats=path)
+
+    def test_native_stats_cannot_use_an_unknown_format_or_undecoded_status(self):
+        for field, value in (("format", "future-format"), ("status", "absent"), ("status", "unsupported")):
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = package(root)
+                path = native(root, directory)
+                document = json.loads(path.read_text(encoding="utf-8"))
+                document[field] = value
+                write(path, document)
+                with self.assertRaisesRegex(ValueError, "Native stats"):
+                    archive(directory, observations(root), facts(root), root / "build.sqlite", native_stats=path)
+
+    def test_native_fields_require_the_exact_corroborated_wire_contract(self):
+        for field, value in (("key", "cast_rate"), ("wire", "1.11"), ("wireType", "float64"),
+                             ("evidence", "inferred"), ("protocolVerified", True), ("sourcePath", "other"),
+                             ("corroboration", ""), ("value", -1), ("value", True), ("value", 1.5)):
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = package(root)
+                path = native(root, directory)
+                document = json.loads(path.read_text(encoding="utf-8"))
+                document["known"][0][field] = value
+                write(path, document)
+                with self.assertRaisesRegex(ValueError, "Native stats"):
+                    archive(directory, observations(root), facts(root), root / "build.sqlite", native_stats=path)
+
+    def test_native_summary_discloses_named_count_unknown_count_and_missing_automatic_stats(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory))
+            self.assertEqual(result["native_stats"], {
+                "format": "tli-native-stats-v1", "status": "decoded", "known": 2, "unknown_stat_ids": 1,
+                "source_sha256": hashlib.sha256((directory / "source.json").read_bytes()).hexdigest(),
+                "protocol_verified": False, "missing_trait_levels": True,
+                "missing_automatic_stats": ["hit_min", "hit_max", "cast_rate", "crit_chance", "crit_multiplier",
+                                            "max_tangles", "extra_attachments", "cold_penetration", "armour_mitigation"],
+            })
+
+    def test_native_provenance_uses_json_evidence_and_preserves_the_input_document_and_hash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            database = root / "build.sqlite"
+            result = archive(directory, observations(root), facts(root), database, native_stats=path)
+            rows = {row["key"]: row for row in result["observations"]}
+            with contextlib.closing(sqlite3.connect(database)) as connection:
+                source = connection.execute("SELECT path, sha256, stored FROM sources WHERE role='native_stats'").fetchone()
+                original = json.loads(connection.execute("SELECT json FROM documents WHERE role='observations'").fetchone()[0])
+                imported = json.loads(connection.execute("SELECT json FROM documents WHERE role='native_stats'").fetchone()[0])
+            self.assertEqual((source, original["panel"][0]["value"], imported["known"][0]["value"],
+                              rows["spell_dps"]["evidence"], rows["benchmark_survival"]["evidence"],
+                              "wire 1.10" in rows["spell_dps"]["precision"],
+                              "exact integer" in rows["spell_dps"]["precision"]),
+                             ((str(path.resolve()), hashlib.sha256(path.read_bytes()).hexdigest(), 1),
+                              31729, 43721, str(path.resolve()), str(path.resolve()), True, True))
+
+    def test_native_coverage_discloses_conflicting_values_and_unverified_fields(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            text = "\n".join(archive(directory, observations(root), facts(root), root / "build.sqlite",
+                                    native_stats=native(root, directory))["coverage"])
+            self.assertTrue(all(value in text for value in (
+                "Native stats conflict: spell_dps", "31729", "43721", "Native stats conflict: survival", "9127", "8033",
+                "protocolVerified=false", "unknownStatIds: 1", "missing hero trait levels", "hit_min",
+                "Synthetic unnamed attributes have no verified names",
+            )))
+
+    def test_detects_the_decoded_native_stats_declared_by_the_package_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            (directory / "native-stats.json").write_bytes(native(root, directory).read_bytes())
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["nativeStats"] = {"file": "native-stats.json", "status": "decoded", "known": 2, "protocolVerified": False}
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite")
+            self.assertEqual((result["stats"]["spell_dps"], result["native_stats"]["known"]), (43721, 2))
+
+    def test_native_manifest_cannot_select_a_path_outside_the_fixed_package_file(self):
+        for name in ("../native-stats.json", "nested/native-stats.json", "C:/native-stats.json"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = package(root)
+                manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                manifest["nativeStats"] = {"file": name, "status": "decoded", "known": 2, "protocolVerified": False}
+                write(directory / "manifest.json", manifest)
+                with self.assertRaisesRegex(ValueError, "Native stats manifest file"):
+                    archive(directory, observations(root), facts(root), root / "build.sqlite")
+
+    def test_missing_native_survival_keeps_developer_input_with_an_explicit_gap(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["known"] = document["known"][:1]
+            document["coverage"].update(known=1, missing=["survival"])
+            write(path, document)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite", native_stats=path)
+            self.assertEqual((result["benchmark"]["survival"], result["native_stats"]["known"],
+                              "Native stats missing known fields: survival" in "\n".join(result["coverage"])),
+                             (9127, 1, True))
+
+    def test_native_coverage_counts_cannot_disagree_with_the_input_entries(self):
+        for field in ("known", "unknownStatIds", "unknownEntries", "omitted"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = package(root)
+                path = native(root, directory)
+                document = json.loads(path.read_text(encoding="utf-8"))
+                document["coverage"][field] += 1
+                write(path, document)
+                with self.assertRaisesRegex(ValueError, "Native stats coverage counts"):
+                    archive(directory, observations(root), facts(root), root / "build.sqlite", native_stats=path)
+
+    def test_native_fields_cannot_be_duplicated(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["known"].append(dict(document["known"][0]))
+            document["coverage"]["known"] = 3
+            write(path, document)
+            with self.assertRaisesRegex(ValueError, "Native stats contain an unsupported or duplicate"):
+                archive(directory, observations(root), facts(root), root / "build.sqlite", native_stats=path)
+
+    def test_unavailable_native_bundle_keeps_an_explicit_developer_fallback(self):
+        for status in ("absent", "unsupported", "error"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = package(root)
+                manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                manifest["nativeStats"] = {"file": "native-stats.json", "status": status, "known": 0, "protocolVerified": False}
+                write(directory / "manifest.json", manifest)
+                result = archive(directory, observations(root), facts(root), root / "build.sqlite")
+                self.assertEqual((result["stats"]["spell_dps"], any(
+                    f"Native stats bundle status: {status}" in line and "developer input" in line
+                    for line in result["coverage"])), (31729, True))
+
+    def test_explicit_native_input_takes_priority_over_manifest_selection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["nativeStats"] = {"file": "../unselected.json", "status": "decoded", "known": 2, "protocolVerified": False}
+            write(directory / "manifest.json", manifest)
+            self.assertEqual(archive(directory, observations(root), facts(root), root / "build.sqlite",
+                                     native_stats=native(root, directory))["stats"]["spell_dps"], 43721)
+
+    def test_invalid_native_hash_does_not_leave_a_database(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            del document["source"]["sha256"]
+            write(path, document)
+            database = root / "build.sqlite"
+            try:
+                archive(directory, observations(root), facts(root), database, native_stats=path)
+            except ValueError:
+                pass
+            self.assertFalse(database.exists())
 
 
 class ArchiveDatabaseTest(unittest.TestCase):

@@ -48,6 +48,11 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Calculation integrity
 
+- Automatic import is a product requirement: acquire the complete build and available stats through a verified game API, build export or local read-only game adapter
+- Never make screenshots or manually transcribed character values a required player workflow; optional development evidence does not replace an importer
+- Treat missing hero ranks, rolls and stats as importer coverage gaps to investigate; do not declare the feature complete by asking players to fill them in
+- Investigate code/ID import first and verify the actual endpoint contract; do not invent server routes or send real build codes to unrelated services
+
 - Separate observed character values, source facts and scenario assumptions
 - Keep season, source URL and verification date with facts; preserve conflicting evidence instead of silently choosing it
 - Unknown mappings or mechanics must produce an explicit omission, conditional result or error

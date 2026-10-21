@@ -17,6 +17,10 @@ _BINDINGS = {
     "21715": ("Additional Tangle Attach Quantity", (("extra_attachments", "count", 1),)),
     "11000": ("Cold Penetration", (("cold_penetration", "fraction", 100),)),
 }
+_OPTIONAL = {
+    "11201": ("Armor DMG Mitigation Penetration", (("armor_penetration", "fraction", 100),)),
+}
+_KNOWN = _BINDINGS | _OPTIONAL
 
 
 def _integer(value, name):
@@ -101,8 +105,8 @@ def _attribute(attribute):
                 raise ValueError("Panel log raw numeric token must match its finite number")
         except (TypeError, OverflowError) as error:
             raise ValueError("Panel log raw numeric token must match its finite number") from error
-    if attribute["id"] in _BINDINGS:
-        name, bindings = _BINDINGS[attribute["id"]]
+    if attribute["id"] in _KNOWN:
+        name, bindings = _KNOWN[attribute["id"]]
         cardinality = len(attribute["values"]) == len(bindings)
         if attribute["id"] == "21212" and len(attribute["values"]) == 2:
             cardinality = Decimal(attribute["raw_values"][0]) == Decimal(attribute["raw_values"][1])
@@ -169,11 +173,16 @@ def select(document, expected_spell_dps):
     if len(signatures) != 1:
         raise ValueError("Panel log matching cohorts are ambiguous")
     cohort = max(matches, key=lambda row: (row["timestamp"], row["frame"]))
+    if any((state["timestamp"], state["frame"]) > (cohort["timestamp"], cohort["frame"])
+           and any(attribute["id"] == "10103" for attribute in state["attributes"])
+           for state in resolved):
+        issues.append("Newer panel states do not match the native Spell DPS anchor; "
+                      "the selected historical state does not verify the current state")
     rows = []
     for attribute in cohort["attributes"]:
-        if attribute["id"] not in _BINDINGS:
+        if attribute["id"] not in _KNOWN:
             continue
-        label, bindings = _BINDINGS[attribute["id"]]
+        label, bindings = _KNOWN[attribute["id"]]
         for index, (key, unit, divisor) in enumerate(bindings):
             token = attribute["raw_values"][index]
             value = float(Decimal(token) / divisor)
@@ -189,7 +198,7 @@ def select(document, expected_spell_dps):
                                     "frame": cohort["frame"], "line_numbers": attribute["line_numbers"][:]}})
     return {"rows": rows, "summary": {"format": document["format"], "status": "corroborated",
                                       "known": len(rows), "unknown_attributes": sum(
-                                          attribute["id"] not in _BINDINGS for attribute in cohort["attributes"]),
+                                          attribute["id"] not in _KNOWN for attribute in cohort["attributes"]),
                                       "cohort": {"timestamp": cohort["timestamp"], "frame": cohort["frame"]},
                                       "identity_verified": False, "source_sha256": document["source"]["sha256"]},
             "issues": issues}

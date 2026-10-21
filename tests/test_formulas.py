@@ -212,3 +212,46 @@ class FormulasTests(unittest.TestCase):
         from damage_lab.formulas import tangle_rate
 
         self.assertEqual(tangle_rate(1e-308, frequency=30), 1e-308)
+
+    def test_armor_can_explicitly_subtract_penetration_after_effectiveness(self):
+        from damage_lab.formulas import armor
+
+        self.assertAlmostEqual(armor(13579, True, effectiveness=0.6, penetration=0.08,
+                                     order="after_effectiveness"), 0.11296986577801147)
+
+    def test_armor_can_explicitly_subtract_penetration_before_effectiveness(self):
+        from damage_lab.formulas import armor
+
+        self.assertAlmostEqual(armor(13579, True, effectiveness=0.6, penetration=0.08,
+                                     order="before_effectiveness"), 0.14496986577801147)
+
+    def test_explicit_armor_parameters_require_both_fractions_and_a_known_order(self):
+        from damage_lab.formulas import armor
+
+        for options in ({"effectiveness": 0.6}, {"penetration": 0.08},
+                        {"order": "after_effectiveness"},
+                        {"effectiveness": 0.6, "penetration": 0.08},
+                        {"effectiveness": 0.6, "penetration": 0.08, "order": "best_fit"}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                armor(13579, True, **options)
+
+    def test_armor_fractions_cannot_be_boolean_nonfinite_or_outside_zero_to_one(self):
+        from damage_lab.formulas import armor
+
+        for field in ("effectiveness", "penetration"):
+            for value in (-0.01, 1.01, True, False, float("inf"), float("nan"), "0.6"):
+                options = {"effectiveness": 0.6, "penetration": 0.08, "order": "after_effectiveness", field: value}
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    armor(13579, True, **options)
+
+    def test_armor_penetration_can_make_physical_mitigation_negative(self):
+        from damage_lab.formulas import armor
+
+        self.assertAlmostEqual(armor(4321, False, effectiveness=1, penetration=0.15,
+                                     order="after_effectiveness"), -0.022495123772090566)
+
+    def test_explicit_armor_caps_the_base_before_effectiveness_and_penetration(self):
+        from damage_lab.formulas import armor
+
+        self.assertAlmostEqual(armor(1234567, True, effectiveness=0.6, penetration=0.08,
+                                     order="after_effectiveness"), 0.4)

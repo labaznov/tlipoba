@@ -83,11 +83,26 @@ def tangle_rate(rate, frequency=None):
     return 30 / ticks
 
 
-def armor(value, nonphysical):
-    """Return monster armor mitigation before armor-penetration ordering."""
+def armor(value, nonphysical, *, effectiveness=None, penetration=None, order=None):
+    """Return monster mitigation with an optional explicit ordering hypothesis.
+
+    Explicit effectiveness is the final applicable fraction, not a bonus on top
+    of the legacy nonphysical default; penetration ordering is not verified.
+    """
     if nonphysical is not True and nonphysical is not False:
         raise ValueError("Nonphysical must be a boolean")
     _finite(value, "Armor")
     if value < 0:
         raise ValueError("Armor cannot be negative")
-    return min(0.8, value / (0.9 * value + 30000)) * (0.6 if nonphysical else 1)
+    mitigation = min(0.8, value / (0.9 * value + 30000))
+    if effectiveness is None and penetration is None and order is None:
+        return mitigation * (0.6 if nonphysical else 1)
+    if effectiveness is None or penetration is None or order not in ("after_effectiveness", "before_effectiveness"):
+        raise ValueError("Explicit armor requires effectiveness, penetration and a known order")
+    for label, fraction in (("Armor effectiveness", effectiveness), ("Armor penetration", penetration)):
+        _finite(fraction, label)
+        if not 0 <= fraction <= 1:
+            raise ValueError(f"{label} must be between zero and one")
+    if order == "before_effectiveness":
+        return (mitigation - penetration) * effectiveness
+    return mitigation * effectiveness - penetration

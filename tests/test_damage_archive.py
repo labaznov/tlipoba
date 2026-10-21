@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from damage_lab.archive import archive
 from examples.make_fixture import fixture
@@ -190,6 +191,25 @@ def panel(root, anchor):
                                         ("11000", "Cold Penetration", ["9.25"]),
                                     ))]}],
     })
+
+
+def game(root, anchor):
+    """Write a fictional raw game log with one complete numeric panel state."""
+    path = root / "game.log"
+    prefix = "[2001.02.03-04.05.07:000][713]TLLua: Display: [Game] RoleAttrMgr@"
+    path.write_text("\n".join(line for identity, name, tokens in (
+        ("10103", "Spell DPS", [anchor]),
+        ("11800", "Total Spell Damage", ["731.125", "1117.625"]),
+        ("21000", "Spells cast per second", ["4.8125"]),
+        ("21212", "Spell Critical Strike Chance", ["31.75"]),
+        ("21400", "Spell Critical Strike Damage", ["287.5"]),
+        ("21714", "Max Tangle Quantity", ["3"]),
+        ("21715", "Additional Tangle Attach Quantity", ["2"]),
+        ("11000", "Cold Penetration", ["9.25"]),
+    ) for line in (prefix + f"Attri.Id  {name}  {identity}",
+                   prefix + ", ".join(f"[{index}] = {token}" for index, token in enumerate(tokens, 1)))) + "\n",
+                    encoding="utf-8")
+    return path
 
 
 def dump(database):
@@ -694,6 +714,92 @@ class ArchiveImportTest(unittest.TestCase):
 
 class ArchivePanelLogTest(unittest.TestCase):
     """Corroborate automatic panel evidence using the same package native anchor."""
+
+    def test_raw_and_normalized_logs_cannot_be_supplied_together(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            with self.assertRaisesRegex(ValueError, "game_log and panel_log are mutually exclusive"):
+                archive(directory, None, facts(root), root / "build.sqlite",
+                        native_stats=native(root, directory), panel_log=panel(root, "43721.25"),
+                        game_log=game(root, "43721.25"))
+
+    def test_raw_game_log_imports_without_manual_or_intermediate_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = game(root, "43721.25")
+            result = archive(directory, None, facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory), game_log=path)
+            self.assertEqual((result["stats"]["spell_dps"], result["stats"]["cast_rate"], result["missing_stats"],
+                              result["panel_log"]["input_kind"], result["panel_log"]["identity_verified"],
+                              next(row["evidence"] for row in result["observations"] if row["key"] == "hit_min"),
+                              sorted(path.name for path in root.iterdir())),
+                             (43721.25, 4.8125, [], "game_log", False, str(path.resolve()),
+                              ["build.sqlite", "facts.json", "game.log", "native-stats.json", "package"]))
+
+    def test_optional_armor_penetration_keeps_its_fraction_and_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = panel(root, "43721.25")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["cohorts"][0]["attributes"].append({
+                "id": "11201", "name": "Armor DMG Mitigation Penetration", "status": "resolved",
+                "values": [7.375], "raw_values": ["7.375"], "line_numbers": [41, 42]})
+            write(path, data)
+            result = archive(directory, None, facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory), panel_log=path)
+            row = next(row for row in result["observations"] if row["key"] == "armor_penetration")
+            self.assertEqual((result["stats"]["armor_penetration"], row["unit"], row["source"]["attr_id"],
+                              row["source"]["raw_value"], result["missing_stats"], result["panel_log"]["known"]),
+                             (.07375, "fraction", "11201", "7.375", [], 10))
+
+    def test_raw_snapshot_provenance_cannot_reread_a_growing_log(self):
+        from damage_lab.logstats import select
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = game(root, "43721.25")
+            original = path.read_bytes()
+
+            def selecting(document, expected):
+                with path.open("ab") as handle:
+                    handle.write(b"Unrelated private-growth-canary\n")
+                return select(document, expected)
+
+            with patch("damage_lab.logstats.select", new=selecting):
+                result = archive(directory, None, facts(root), root / "build.sqlite",
+                                 native_stats=native(root, directory), game_log=path)
+            with contextlib.closing(sqlite3.connect(root / "build.sqlite")) as connection:
+                source = connection.execute("SELECT path, sha256, bytes, stored FROM sources WHERE role='game_log'").fetchone()
+                evidence = connection.execute("SELECT sha256, bytes FROM sources WHERE role='evidence:panel_log:cast_rate'").fetchone()
+                document = json.loads(connection.execute("SELECT json FROM documents WHERE role='panel_log'").fetchone()[0])
+                self.assertEqual((source, evidence, result["panel_log"]["source_sha256"],
+                                  document["source"]["bytesRead"], len(path.read_bytes()) > len(original),
+                                  "private-growth-canary" in dump(root / "build.sqlite")),
+                                 ((str(path.resolve()), hashlib.sha256(original).hexdigest(), len(original), 0),
+                                  (hashlib.sha256(original).hexdigest(), len(original)),
+                                  hashlib.sha256(original).hexdigest(), len(original), True, False))
+
+    def test_raw_log_cannot_use_manual_dps_as_its_native_anchor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "corroborated native Spell DPS anchor"):
+                archive(package(root), observations(root), facts(root), root / "build.sqlite",
+                        game_log=game(root, "31729"))
+
+    def test_ambiguous_raw_cohorts_cannot_choose_a_damage_state(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = game(root, "43721.25")
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(path.read_text(encoding="utf-8").replace("[713]", "[719]").replace("4.8125", "4.9375"))
+            with self.assertRaisesRegex(ValueError, "ambiguous"):
+                archive(directory, None, facts(root), root / "build.sqlite",
+                        native_stats=native(root, directory), game_log=path)
 
     def test_native_anchored_log_completes_required_stats_without_manual_observations(self):
         with tempfile.TemporaryDirectory() as temporary:

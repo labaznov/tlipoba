@@ -27,6 +27,76 @@ def document():
 class LogstatsTests(unittest.TestCase):
     """Verify exact ID bindings and conservative state selection."""
 
+    def test_newer_unmatched_states_warn_that_the_selected_state_is_historical(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        payload["cohorts"][1]["attributes"][0].update(values=[4759.2], raw_values=["4759.2"])
+        self.assertIn("Newer panel states do not match the native Spell DPS anchor; "
+                      "the selected historical state does not verify the current state",
+                      select(payload, 3217)["issues"])
+
+    def test_a_later_restored_matching_state_does_not_warn_about_older_changes(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].extend([deepcopy(payload["cohorts"][0]), deepcopy(payload["cohorts"][0])])
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        payload["cohorts"][1]["attributes"][0].update(values=[4759.2], raw_values=["4759.2"])
+        payload["cohorts"][2]["timestamp"] = "2026-10-19T13:19:41.757Z"
+        self.assertEqual(select(payload, 3217)["issues"], [])
+
+    def test_a_newer_panel_without_spell_dps_does_not_claim_an_anchor_mismatch(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        payload["cohorts"][1]["attributes"].pop(0)
+        self.assertEqual(select(payload, 3217)["issues"], [])
+
+    def test_optional_armor_penetration_is_normalized_from_the_exact_log_id(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "11201", "name": "Armor DMG Mitigation Penetration", "status": "resolved",
+            "values": [7.375], "raw_values": ["7.375"], "line_numbers": [51, 52],
+        })
+        self.assertEqual(next(row["value"] for row in select(payload, 3217)["rows"]
+                              if row["key"] == "armor_penetration"), 0.07375)
+
+    def test_absent_armor_penetration_does_not_invent_a_zero(self):
+        from damage_lab.logstats import select
+
+        self.assertNotIn("armor_penetration", [row["key"] for row in select(document(), 3217)["rows"]])
+
+    def test_optional_known_armor_field_requires_its_exact_label_and_cardinality(self):
+        from damage_lab.logstats import select
+
+        for name, tokens in (("Armor", ["7.375"]), ("Armor DMG Mitigation Penetration", ["7.375", "8"]),
+                             ("Armor DMG Mitigation Penetration", ["-7.375"])):
+            payload = document()
+            payload["cohorts"][0]["attributes"].append({
+                "id": "11201", "name": name, "status": "resolved", "values": [float(token) for token in tokens],
+                "raw_values": tokens, "line_numbers": [51, 52],
+            })
+            with self.subTest(name=name, tokens=tokens), self.assertRaises(ValueError):
+                select(payload, 3217)
+
+    def test_optional_known_armor_field_is_counted_as_named_instead_of_unknown(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "11201", "name": "Armor DMG Mitigation Penetration", "status": "resolved",
+            "values": [7.375], "raw_values": ["7.375"], "line_numbers": [51, 52],
+        })
+        self.assertEqual((select(payload, 3217)["summary"]["known"],
+                          select(payload, 3217)["summary"]["unknown_attributes"]), (10, 0))
+
     def test_percent_tokens_become_exact_fraction_with_log_provenance(self):
         from damage_lab.logstats import select
 

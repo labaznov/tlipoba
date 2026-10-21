@@ -6,6 +6,29 @@ from damage_lab.report import render, render_import, scenarios
 class DamageReportTests(unittest.TestCase):
     """Check report evidence and safe rendering without native snapshot leakage."""
 
+    def test_fractional_penetration_trace_displays_eight_percent_instead_of_zero(self):
+        self.assertIn("<td>Пробивание редукции брони из панели</td><td>8%</td>", render(
+            {"stats": {}},
+            {"dps": 108, "trace": [{"label": "Пробивание редукции брони из панели",
+                                     "value": 0.08, "unit": "fraction"}], "assumptions": []},
+            {"basis": "panel", "active": 2, "hits": 3, "retention": 0.2, "resistance": 0.23,
+             "taken": 0.11, "uptime": 0.87},
+        ))
+
+    def test_raw_log_report_reproduction_does_not_require_an_intermediate_json(self):
+        result = render(
+            {"stats": {}, "panel_log": {
+                "format": "tli-panel-log-v1", "status": "corroborated", "known": 9, "unknown_attributes": 17,
+                "cohort": {"timestamp": "2001.02.03-04.05.06", "frame": 271},
+                "identity_verified": False, "source_sha256": "b" * 64, "input_kind": "game_log",
+            }},
+            {"dps": 123, "trace": [], "assumptions": []},
+            {"basis": "panel", "active": 2, "hits": 3, "retention": 0.2, "resistance": 0.23,
+             "taken": 0.11, "uptime": 0.87, "observations_provided": False},
+        )
+        self.assertTrue("--game-log ИГРОВОЙ_ЖУРНАЛ.log" in result and "--panel-log" not in result
+                        and "--observations" not in result and "identity_verified: false" in result)
+
     def test_import_report_preserves_level_parameters_without_applying_them_again(self):
         result = render_import({"skill_values": [{
             "name": "Fictional <skill>", "level": 17, "status": "resolved",

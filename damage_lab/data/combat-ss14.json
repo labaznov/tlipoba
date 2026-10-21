@@ -25,6 +25,7 @@
     "iceBond": "https://tlidb.com/en/Ice_Bond",
     "armor": "https://tlidb.com/en/Armor",
     "armorPen": "https://tlidb.com/en/Armor_DMG_Mitigation_Penetration",
+    "armorEffectiveness": "https://tlidb.com/en/Armor_Effective_Rate",
     "resistancePen": "https://tlidb.com/en/Resistance_Penetration",
     "hero": "https://tlidb.com/en/Zealot_of_War",
     "burningRed": "https://tlidb.com/en/Burning_Red",
@@ -271,10 +272,10 @@
       "id": "target.nonphysical_armor",
       "formula": "nonphysical_armor_reduction = 0.6*physical_armor_reduction",
       "unit": "fraction",
-      "domain": "Non-Physical damage forms affected by armor before unresolved penetration ordering",
+      "domain": "Default effectiveness for Non-Physical damage before unresolved penetration ordering",
       "status": "verified",
-      "sourceKeys": ["armor"],
-      "notes": ["Armor lines 40-46; Cold hit damage is non-Physical"]
+      "sourceKeys": ["armor", "armorEffectiveness"],
+      "notes": ["Armor lines 40-46; Cold hit damage is non-Physical", "The 60% rate is a default; modified final effectiveness requires explicit input"]
     },
     {
       "id": "target.armor_penetration",
@@ -292,7 +293,7 @@
       "domain": "Combining the non-Physical armor coefficient and armor mitigation penetration",
       "status": "unresolved",
       "sourceKeys": ["armor", "armorPen"],
-      "notes": ["The sources do not state whether 0.6 is applied before or after subtracting penetration"]
+      "notes": ["The sources do not state whether effectiveness is applied before or after subtracting penetration", "Explicit conditional order profiles do not establish the actual game ordering"]
     },
     {
       "id": "target.resistance_penetration",

@@ -191,6 +191,19 @@ def read(path, digest, meta):
             meta['incompleteFinalLine'] = {'line': number + 1, 'bytes': len(carry)}
 
 
+def snapshot(path: Path) -> dict:
+    """Return filtered panel records and provenance for the bytes present at open."""
+    path = Path(path)
+    digest, meta = hashlib.sha256(), {}
+    result = harvest(read(path, digest, meta))
+    result['source'].update(sha256=digest.hexdigest(), **meta, path=str(path.resolve()),
+                            kind='jsonl' if path.suffix.lower() in ('.jsonl', '.json') else 'log')
+    if meta['incompleteFinalLine']:
+        result['gaps'].append(f'Final line {meta["incompleteFinalLine"]["line"]} was unterminated at the '
+                              'snapshot boundary and was not parsed.')
+    return result
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description='Harvest stat-panel dumps from a saved UE_game.log or filtered JSONL.')
     parser.add_argument('source', type=Path, help='saved log text, or .jsonl with {line, text} records')
@@ -199,14 +212,8 @@ def main(argv=None) -> int:
     if args.output.exists():
         print(f'Refusing to overwrite {args.output}', file=sys.stderr)
         return 2
-    digest, meta = hashlib.sha256(), {}
     try:
-        result = harvest(read(args.source, digest, meta))
-        result['source'].update(sha256=digest.hexdigest(), **meta,
-                                kind='jsonl' if args.source.suffix.lower() in ('.jsonl', '.json') else 'log')
-        if meta['incompleteFinalLine']:
-            result['gaps'].append(f'Final line {meta["incompleteFinalLine"]["line"]} was unterminated at the '
-                                  'snapshot boundary and was not parsed.')
+        result = snapshot(args.source)
         text = json.dumps(result, ensure_ascii=False, indent=1, allow_nan=False)
     except (OSError, ValueError) as error:
         print(f'panellog: {str(error).rstrip(chr(46))}', file=sys.stderr)

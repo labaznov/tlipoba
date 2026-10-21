@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .archive import BENCHMARK, REQUIRED_STATS
+from .archive import BENCHMARK, OPTIONAL_STATS, REQUIRED_STATS
 from .report import render_import
 from .skillvalues import SOURCE
 
@@ -21,6 +21,10 @@ def logsummary(data):
         "format", "status", "known", "unknown_attributes", "identity_verified", "source_sha256",
     )}
     result["cohort"] = {key: copy.deepcopy(data["cohort"][key]) for key in ("timestamp", "frame")}
+    if "input_kind" in data:
+        if data["input_kind"] not in ("game_log", "panel_log"):
+            raise ValueError("Panel log input kind must be game_log or panel_log")
+        result["input_kind"] = data["input_kind"]
     return result
 
 
@@ -34,7 +38,7 @@ def snapshot(data):
     for key in ("capturedAt", "character", "synthetic", "source_sha256"):
         if key in data:
             result[key] = copy.deepcopy(data[key])
-    result["stats"] = {key: value for key, value in data["stats"].items() if key in REQUIRED_STATS}
+    result["stats"] = {key: value for key, value in data["stats"].items() if key in REQUIRED_STATS + OPTIONAL_STATS}
     result["benchmark"] = {key: value for key, value in data["benchmark"].items() if key in BENCHMARK}
     result["inventory"] = {
         section: [{"name": entry["name"], "details": copy.deepcopy(entry["details"])} for entry in entries]
@@ -43,7 +47,8 @@ def snapshot(data):
     }
     result["observations"] = []
     for entry in data.get("observations", []):
-        if entry["key"] not in REQUIRED_STATS and entry["key"] not in {f"benchmark_{key}" for key in BENCHMARK}:
+        if (entry["key"] not in REQUIRED_STATS + OPTIONAL_STATS
+                and entry["key"] not in {f"benchmark_{key}" for key in BENCHMARK}):
             continue
         row = {key: copy.deepcopy(entry[key]) for key in ("key", "label", "value", "unit", "precision", "evidence")}
         if "source" in entry:
@@ -82,7 +87,9 @@ def parser():
     interface.add_argument("--facts", type=Path, default=Path(__file__).parent / "data" / "combat-ss14.json",
                            help="База правил; по умолчанию встроенная SS14")
     interface.add_argument("--native-stats", type=Path, help="Автоматические показатели того же снимка")
-    interface.add_argument("--panel-log", type=Path, help="Локальный лог панели с проверяемой привязкой к снимку")
+    logs = interface.add_mutually_exclusive_group()
+    logs.add_argument("--panel-log", type=Path, help="Нормализованный JSON панели для сопоставления с native Spell DPS")
+    logs.add_argument("--game-log", type=Path, help="Исходный игровой журнал без промежуточного JSON")
     return interface
 
 
@@ -100,6 +107,8 @@ def main(argv=None, *, archiver=None):
             inputs = {"native_stats": arguments.native_stats} if arguments.native_stats else {}
             if arguments.panel_log:
                 inputs["panel_log"] = arguments.panel_log
+            if arguments.game_log:
+                inputs["game_log"] = arguments.game_log
             record = snapshot(archiver(arguments.package, None, arguments.facts, stage / "database.sqlite", **inputs))
             (stage / "import.json").write_text(
                 json.dumps(record, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")

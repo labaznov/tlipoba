@@ -16,6 +16,44 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with an isolated local archive fake."""
 
+    def test_game_log_allows_conditional_calculation_without_intermediate_json(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "game.log").write_text("71423", encoding="utf-8")
+
+            def source(package, observations, facts, database, *, game_log):
+                with contextlib.closing(sqlite3.connect(database)) as connection:
+                    connection.execute("CREATE TABLE fixture (value INTEGER)")
+                return {"name": "Automatic raw fixture", "synthetic": True, "stats": {
+                    "spell_dps": int(game_log.read_text(encoding="utf-8")), "hit_min": 913,
+                    "hit_max": 1437, "cast_rate": 4.73, "crit_chance": 0.4137, "crit_multiplier": 2.87,
+                    "max_tangles": 2, "extra_attachments": 1, "cold_penetration": 0.07},
+                    "panel_log": {"format": "tli-panel-log-v1", "status": "corroborated", "known": 9,
+                                  "unknown_attributes": 17, "cohort": {"timestamp": "2001.02.03-04.05.06", "frame": 271},
+                                  "identity_verified": False, "source_sha256": "b" * 64,
+                                  "input_kind": "game_log"}}
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                main(["--package", str(root), "--facts", "fixture.json", "--output", str(root / "result"),
+                      "--game-log", str(root / "game.log"), "--basis", "panel", "--active", "2",
+                      "--hits", "3", "--retention", "0.2", "--resistance", "0.23",
+                      "--taken", "0.11", "--uptime", "0.87"], archiver=source)
+            result = json.loads((root / "result" / "calculation.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["status"], result["condition"]["observations_provided"],
+                              result["calculation"]["single_projectile_dps"], result["panel_log"]["input_kind"]),
+                             ("conditional", False, 71423, "game_log"))
+
+    def test_calculation_cannot_choose_both_raw_and_normalized_log_inputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaisesRegex(SystemExit, "2"):
+                    main(["--package", str(root), "--facts", "fixture.json", "--output", str(root / "result"),
+                          "--game-log", "game.log", "--panel-log", "panel.json", "--basis", "panel",
+                          "--active", "2", "--hits", "3", "--retention", "0.2", "--resistance", "0.23",
+                          "--taken", "0.11", "--uptime", "0.87"],
+                         archiver=lambda package, observations, facts, database, **inputs: {"stats": {}})
+
     def test_panel_log_allows_conditional_calculation_without_manual_observations(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

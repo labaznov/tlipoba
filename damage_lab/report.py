@@ -36,6 +36,16 @@ def measurement(value, unit):
     return display, unit
 
 
+def tracing(step):
+    """Format explicit trace units while keeping legacy damage totals rounded."""
+    if "factor" in step:
+        return "× " + decimal(step["factor"])
+    if "unit" in step:
+        value, unit = measurement(step["value"], step["unit"])
+        return text(value if unit == "%" else f"{value} {unit}")
+    return number(step["value"])
+
+
 def items(values):
     return "<ul>" + "".join(f"<li>{text(value)}</li>" for value in values) + "</ul>"
 
@@ -175,7 +185,7 @@ def render(record, calculation, condition):
     panel = number(stats["spell_dps"]) if "spell_dps" in stats else "Нет данных"
     trace = "".join(
         f"<tr><td>{text(step['label'])}</td><td>"
-        + ("× " + decimal(step["factor"]) if "factor" in step else number(step["value"]))
+        + tracing(step)
         + "</td></tr>" for step in calculation.get("trace", [])
     )
     conditions = "".join(f"<tr><td>{text(label)}</td><td>{text(value)}</td></tr>" for label, value in (
@@ -214,7 +224,8 @@ def render(record, calculation, condition):
     if "native_stats" in record:
         command += " --native-stats АВТОМАТИЧЕСКИЕ_СТАТЫ.json"
     if "panel_log" in record:
-        command += " --panel-log ПАНЕЛЬ_СТАТОВ.json"
+        command += (" --game-log ИГРОВОЙ_ЖУРНАЛ.log" if record["panel_log"].get("input_kind") == "game_log"
+                    else " --panel-log ПАНЕЛЬ_СТАТОВ.json")
     combat = ""
     if "combat" in condition:
         command += " --combat combat.json"

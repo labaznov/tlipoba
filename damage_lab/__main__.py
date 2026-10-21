@@ -31,7 +31,9 @@ def parser():
     result.add_argument("--critical-more", type=float, help="Критический more, доля: 26%% = 0.26; для --basis hit")
     result.add_argument("--combat", type=Path, help="JSON исходного и целевого боевого состояния, без повторного учёта панели")
     result.add_argument("--native-stats", type=Path, help="Автоматически извлечённые статы того же source.json; импорт пока частичный")
-    result.add_argument("--panel-log", type=Path, help="Локальный лог панели для сопоставления с native Spell DPS")
+    logs = result.add_mutually_exclusive_group()
+    logs.add_argument("--panel-log", type=Path, help="Нормализованный JSON панели для сопоставления с native Spell DPS")
+    logs.add_argument("--game-log", type=Path, help="Исходный игровой журнал без промежуточного JSON")
     return result
 
 
@@ -66,6 +68,8 @@ def main(argv=None, *, archiver=None):
             inputs = {"native_stats": arguments.native_stats} if arguments.native_stats else {}
             if arguments.panel_log:
                 inputs["panel_log"] = arguments.panel_log
+            if arguments.game_log:
+                inputs["game_log"] = arguments.game_log
             record = archiver(arguments.package, arguments.observations, arguments.facts,
                               stage / "database.sqlite", **inputs)
             if arguments.observations is None:

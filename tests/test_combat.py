@@ -21,6 +21,103 @@ def context():
 class CombatTests(unittest.TestCase):
     """Explicit scenario factors preserve a neutral anchor."""
 
+    def test_armor_order_after_effectiveness_uses_the_explicit_conditional_vector(self):
+        scenario = context()
+        scenario.update(armor=13579, armor_effectiveness=0.6, armor_penetration=0.08,
+                        armor_penetration_order="after_effectiveness")
+        self.assertAlmostEqual(apply({"cast_rate": 8.7}, {
+            "dps": 100, "trace": [], "assumptions": [],
+        }, scenario)["dps"], 88.70301342219885)
+
+    def test_explicit_armor_order_stays_in_the_unresolved_coverage(self):
+        scenario = context()
+        scenario.update(armor=13579, armor_effectiveness=0.6, armor_penetration=0.08,
+                        armor_penetration_order="before_effectiveness")
+        self.assertIn("Порядок применения пробивания и эффективности брони не подтверждён",
+                      apply({"cast_rate": 8.7}, {"dps": 100, "trace": [], "assumptions": []},
+                            scenario)["combat"]["missing"])
+
+    def test_explicit_null_armor_fields_cannot_choose_the_legacy_default(self):
+        scenario = context()
+        scenario.update(armor_penetration=None, armor_effectiveness=None, armor_penetration_order=None)
+        with self.assertRaises(ValueError):
+            apply({"cast_rate": 8.7}, {"dps": 100, "trace": [], "assumptions": []}, scenario)
+
+    def test_panel_selector_uses_the_imported_armor_penetration(self):
+        scenario = context()
+        scenario.update(armor=13579, armor_effectiveness=0.6, armor_penetration="panel",
+                        armor_penetration_order="after_effectiveness")
+        self.assertAlmostEqual(apply({"cast_rate": 8.7, "armor_penetration": 0.08}, {
+            "dps": 100, "trace": [], "assumptions": [],
+        }, scenario)["dps"], 88.70301342219885)
+
+    def test_panel_selector_cannot_replace_missing_armor_penetration_with_zero(self):
+        scenario = context()
+        scenario.update(armor_effectiveness=0.6, armor_penetration="panel",
+                        armor_penetration_order="after_effectiveness")
+        with self.assertRaisesRegex(ValueError, "Panel armor penetration is missing"):
+            apply({"cast_rate": 8.7}, {"dps": 100, "trace": [], "assumptions": []}, scenario)
+
+    def test_numeric_armor_penetration_cannot_override_an_imported_value(self):
+        scenario = context()
+        scenario.update(armor_effectiveness=0.6, armor_penetration=0.09,
+                        armor_penetration_order="after_effectiveness")
+        with self.assertRaisesRegex(ValueError, "must match"):
+            apply({"cast_rate": 8.7, "armor_penetration": 0.08},
+                  {"dps": 100, "trace": [], "assumptions": []}, scenario)
+
+    def test_boolean_panel_penetration_cannot_equal_a_numeric_scenario(self):
+        for value in (False, True):
+            scenario = context()
+            scenario.update(armor_effectiveness=0.6, armor_penetration=0 if value is False else 1,
+                            armor_penetration_order="after_effectiveness")
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                apply({"cast_rate": 8.7, "armor_penetration": value},
+                      {"dps": 100, "trace": [], "assumptions": []}, scenario)
+
+    def test_panel_penetration_trace_shows_the_number_without_an_extra_multiplier(self):
+        scenario = context()
+        scenario.update(armor_effectiveness=0.6, armor_penetration="panel",
+                        armor_penetration_order="after_effectiveness")
+        self.assertIn({"label": "Пробивание редукции брони из панели", "value": 0.08, "unit": "fraction"},
+                      apply({"cast_rate": 8.7, "armor_penetration": 0.08},
+                            {"dps": 100, "trace": [], "assumptions": []}, scenario)["trace"])
+
+    def test_armor_result_keeps_the_resolved_panel_source_and_chosen_hypothesis(self):
+        scenario = context()
+        scenario.update(armor_effectiveness=0.6, armor_penetration="panel",
+                        armor_penetration_order="before_effectiveness")
+        result = apply({"cast_rate": 8.7, "armor_penetration": 0.08},
+                       {"dps": 100, "trace": [], "assumptions": []}, scenario)
+        self.assertEqual(tuple(result["combat"][field] for field in (
+            "armor_effectiveness", "armor_penetration", "armor_penetration_order", "armor_penetration_source")),
+                         (0.6, 0.08, "before_effectiveness", "panel"))
+
+    def test_explicit_armor_hypothesis_replaces_the_obsolete_anchor_limitation(self):
+        scenario = context()
+        scenario.update(armor_effectiveness=0.6, armor_penetration=0.08,
+                        armor_penetration_order="after_effectiveness")
+        limitation = "Броня учитывается только при явном боевом контексте; пробивание брони не реализовано"
+        self.assertNotIn(limitation, apply({"cast_rate": 8.7}, {
+            "dps": 100, "trace": [], "assumptions": [limitation, "Пробивание брони не моделируется"],
+        }, scenario)["assumptions"])
+
+    def test_order_before_effectiveness_replays_the_other_conditional_vector(self):
+        scenario = context()
+        scenario.update(armor=13579, armor_effectiveness=0.6, armor_penetration=0.08,
+                        armor_penetration_order="before_effectiveness")
+        self.assertAlmostEqual(apply({"cast_rate": 8.7}, {
+            "dps": 100, "trace": [], "assumptions": [],
+        }, scenario)["dps"], 85.50301342219885)
+
+    def test_negative_armor_mitigation_increases_damage_without_clamping(self):
+        scenario = context()
+        scenario.update(armor=4321, nonphysical=False, armor_effectiveness=1, armor_penetration=0.15,
+                        armor_penetration_order="after_effectiveness")
+        self.assertAlmostEqual(apply({"cast_rate": 8.7}, {
+            "dps": 100, "trace": [], "assumptions": [],
+        }, scenario)["dps"], 102.24951237720906)
+
     def test_carino_heat_uses_both_the_observed_and_target_state(self):
         scenario = context()
         scenario["carino"] = {"rank": 2, "eternal": True,
@@ -256,8 +353,14 @@ class CombatTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Reference cast factor must be positive"):
             apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)
 
-    def test_context_cannot_accept_armor_penetration(self):
-        scenario = context()
-        scenario["armor_penetration"] = 0.13
-        with self.assertRaisesRegex(ValueError, "Combat context requires exactly"):
-            apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)
+    def test_context_cannot_accept_partial_armor_penetration_parameters(self):
+        for fields in (("armor_penetration",), ("armor_effectiveness",), ("armor_penetration_order",),
+                       ("armor_penetration", "armor_effectiveness"),
+                       ("armor_penetration", "armor_penetration_order"),
+                       ("armor_effectiveness", "armor_penetration_order")):
+            scenario = context()
+            values = {"armor_penetration": 0.13, "armor_effectiveness": 0.6,
+                      "armor_penetration_order": "after_effectiveness"}
+            scenario.update({field: values[field] for field in fields})
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, "Combat context requires exactly"):
+                apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)

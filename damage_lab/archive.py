@@ -16,11 +16,13 @@ PACKAGE = {"build": "build.json", "guide": "guide-data.json", "manifest": "manif
 STORED = ("build", "manifest", "transfer")
 REQUIRED_STATS = ("spell_dps", "hit_min", "hit_max", "cast_rate", "crit_chance", "crit_multiplier",
                   "max_tangles", "extra_attachments", "cold_penetration")
+OPTIONAL_STATS = ("armor_penetration",)
 BENCHMARK = ("average_dps", "duration", "highest_5s", "average_5s", "survival")
 EXPECTED_UNITS = {
     "spell_dps": "damage/s", "hit_min": "damage", "hit_max": "damage", "cast_rate": "casts/s",
     "crit_chance": "fraction", "crit_multiplier": "multiplier", "max_tangles": "count",
     "extra_attachments": "count", "cold_penetration": "fraction",
+    "armor_penetration": "fraction",
     "benchmark_average_dps": "damage/s", "benchmark_duration": "s",
     "benchmark_highest_5s": "damage/s", "benchmark_average_5s": "damage/s", "benchmark_survival": "survival",
 }
@@ -307,19 +309,21 @@ def automatic(data, path, source):
     return observed, document, coverage
 
 
-def logged(data, path, native):
+def logged(data, path, native, *, raw=False):
     """Enrich native-bound observations with one corroborated log cohort."""
     from .logstats import select
+    from .panellog import snapshot
 
     anchors = [] if native is None else [entry["value"] for entry in native["known"] if entry["key"] == "spell_dps"]
     if len(anchors) != 1:
         raise ValueError("Panel log requires a corroborated native Spell DPS anchor")
-    document = load(path)
+    document = snapshot(path) if raw else load(path)
     selection = select(document, anchors[0])
     summary = {key: selection["summary"][key] for key in (
         "format", "status", "known", "unknown_attributes", "cohort", "identity_verified", "source_sha256",
     )}
     summary["cohort"] = {key: summary["cohort"][key] for key in ("timestamp", "frame")}
+    summary["input_kind"] = "game_log" if raw else "panel_log"
     if summary["status"] != "corroborated" or summary["identity_verified"] is not False:
         raise ValueError("Panel log must remain corroborated without a verified player identity")
     selection["summary"] = summary
@@ -332,7 +336,7 @@ def logged(data, path, native):
     coverage += [f"Panel log issue: {issue}" for issue in selection["issues"]]
     for entry in selection["rows"]:
         key = entry["key"]
-        if key not in REQUIRED_STATS:
+        if key not in REQUIRED_STATS + OPTIONAL_STATS:
             raise ValueError("Panel log contains an unsupported normalized characteristic")
         evidence = f"panel_log:{key}"
         observed["evidence"][evidence] = {"path": str(Path(path).resolve()), "shows": entry["source"]}
@@ -353,8 +357,11 @@ def logged(data, path, native):
 
 
 def archive(package: Path, observations: Path | None, facts: Path, database: Path, *,
-            native_stats: Path | None = None, panel_log: Path | None = None) -> dict:
+            native_stats: Path | None = None, panel_log: Path | None = None,
+            game_log: Path | None = None) -> dict:
     """Archive a package with optional developer observations and explicit import gaps."""
+    if panel_log is not None and game_log is not None:
+        raise ValueError("game_log and panel_log are mutually exclusive")
     package, facts, database = (Path(package), Path(facts), Path(database))
     if observations is not None:
         observations = Path(observations)
@@ -401,8 +408,10 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
                                    or bundle.get("known") != len(documents["native_stats"]["known"])):
             raise ValueError("Native stats manifest known count differs from its input document")
     panel = None
-    if panel_log is not None:
-        observed, documents["panel_log"], panel, issues = logged(observed, panel_log, documents.get("native_stats"))
+    if panel_log is not None or game_log is not None:
+        observed, documents["panel_log"], panel, issues = logged(
+            observed, game_log if game_log is not None else panel_log, documents.get("native_stats"),
+            raw=game_log is not None)
         documents["panel_log_selection"] = panel
         coverage += issues
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
@@ -480,7 +489,10 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     evidence_rows = []
     for key, path in evidence.items():
         shot = Path(path)
-        if synthetic:
+        if game_log is not None and key in [f"panel_log:{entry['key']}" for entry in panel["rows"]]:
+            source = documents["panel_log"]["source"]
+            evidence_rows.append((f"evidence:{key}", path, source["sha256"], source["bytesRead"], None, 0))
+        elif synthetic:
             evidence_rows.append((f"evidence:{key}", path, None, None, None, 0))
         elif shot.is_file():
             digest, size = fingerprint(shot)
@@ -535,15 +547,18 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     if panel is not None:
         result["panel_log"] = panel["summary"]
 
-    inputs = [("facts", str(facts), *fingerprint(facts))]
+    inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
     if observations is not None:
-        inputs.append(("observations", str(observations), *fingerprint(observations)))
+        inputs.append(("observations", str(observations), *fingerprint(observations), 1))
         documents["observations"] = developer
     if native_stats is not None:
-        inputs.append(("native_stats", str(Path(native_stats).resolve()), *fingerprint(native_stats)))
+        inputs.append(("native_stats", str(Path(native_stats).resolve()), *fingerprint(native_stats), 1))
     if panel_log is not None:
-        inputs.append(("panel_log", str(Path(panel_log).resolve()), *fingerprint(panel_log)))
+        inputs.append(("panel_log", str(Path(panel_log).resolve()), *fingerprint(panel_log), 1))
+    if game_log is not None:
+        source = documents["panel_log"]["source"]
+        inputs.append(("game_log", str(Path(game_log).resolve()), source["sha256"], source["bytesRead"], 0))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()
@@ -557,7 +572,7 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
                 ("synthetic", json.dumps(synthetic))])
             connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, NULL, ?)", [
                 (role, str(files[role]), *hashes[role], int(role in STORED)) for role in PACKAGE])
-            connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, NULL, 1)", inputs)
+            connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, NULL, ?)", inputs)
             connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?)", evidence_rows)
             connection.executemany("INSERT INTO documents VALUES (?, ?)", [
                 (role, json.dumps(value, ensure_ascii=False))

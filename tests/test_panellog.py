@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from damage_lab import panellog
 from damage_lab.panellog import CHUNK, harvest, main, read
 
 
@@ -27,6 +28,18 @@ class PanelLogTest(unittest.TestCase):
 
     def test_raw_decimal_tokens_are_preserved(self):
         self.assertEqual(harvest(rows())["cohorts"][0]["attributes"][0]["raw_values"], ["7123.456789"])
+
+    def test_snapshot_returns_a_hashed_document_without_an_intermediate_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "game.log"
+            content = ("\n".join(rows()) + "\n").encode()
+            source.write_bytes(content)
+            result = panellog.snapshot(source)
+            self.assertEqual((result["source"]["sha256"], result["source"]["snapshotBytes"],
+                              result["source"]["bytesRead"], result["source"]["path"],
+                              result["identity"]["status"], sorted(path.name for path in Path(folder).iterdir())),
+                             (hashlib.sha256(content).hexdigest(), len(content), len(content),
+                              str(source.resolve()), "unverified", ["game.log"]))
 
     def test_ranges_preserve_index_order(self):
         data = [log("Attri.Id  Total Spell Damage  11800"), log("[1] = 3.71e2, [2] = 923.61")]

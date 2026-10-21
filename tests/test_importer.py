@@ -39,6 +39,70 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_preserves_available_optional_armor_penetration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def source(package, observations, facts, database):
+                data = archive(package, observations, facts, database)
+                data["stats"]["armor_penetration"] = 0.1375
+                data["observations"].append({
+                    "key": "armor_penetration", "label": "Armor DMG Mitigation Penetration", "value": 0.1375,
+                    "unit": "fraction", "evidence": "synthetic-game.log", "precision": "exact synthetic value",
+                })
+                return data
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                main(["--package", str(root), "--output", str(root / "result")], archiver=source)
+            result = json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["stats"]["armor_penetration"], result["observations"][-1]["key"],
+                              result["missing_stats"]), (0.1375, "armor_penetration", ["cast_rate"]))
+
+    def test_game_log_is_passed_directly_to_the_automatic_archive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "game.log"
+            path.write_text("71423", encoding="utf-8")
+
+            def source(package, observations, facts, database, *, game_log):
+                data = archive(package, observations, facts, database)
+                data["stats"]["spell_dps"] = int(game_log.read_text(encoding="utf-8"))
+                return data
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                main(["--package", str(root), "--output", str(root / "result"),
+                      "--game-log", str(path)], archiver=source)
+            self.assertEqual(json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+                             ["stats"]["spell_dps"], 71423)
+
+    def test_import_cannot_choose_both_raw_and_normalized_log_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaisesRegex(SystemExit, "2"):
+                    main(["--package", str(root), "--output", str(root / "result"),
+                          "--game-log", "game.log", "--panel-log", "panel.json"], archiver=archive)
+
+    def test_import_preserves_the_log_input_kind_without_its_private_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def source(package, observations, facts, database):
+                data = archive(package, observations, facts, database)
+                data["panel_log"] = {
+                    "format": "tli-panel-log-v1", "status": "corroborated", "known": 9,
+                    "unknown_attributes": 17, "cohort": {"timestamp": "2001.02.03-04.05.06", "frame": 271},
+                    "identity_verified": False, "source_sha256": "b" * 64,
+                    "input_kind": "game_log", "source_path": "PRIVATE-MARKER",
+                }
+                return data
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                main(["--package", str(root), "--output", str(root / "result")], archiver=source)
+            result = json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["panel_log"]["input_kind"], "PRIVATE-MARKER" in json.dumps(result)),
+                             ("game_log", False))
+
     def test_import_keeps_catalog_skill_parameters_without_extra_payloads(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -24,7 +24,7 @@ def parser():
     result.add_argument("--active", required=True, type=int, help="Число активных Tangle")
     result.add_argument("--hits", required=True, type=int, help="Попадания в одну цель за каст одного Tangle")
     result.add_argument("--retention", required=True, type=float, help="Оставшаяся доля каждого следующего попадания, 0..1")
-    result.add_argument("--resistance", required=True, type=float, help="Сопротивление холоду цели, доля: 40%% = 0.4")
+    result.add_argument("--resistance", required=True, type=float, help="Эффективное сопротивление холоду цели, доля: 40%% = 0.4")
     result.add_argument("--taken", required=True, type=float, help="Внешний increased damage taken, доля: 20%% = 0.2")
     result.add_argument("--uptime", required=True, type=float, help="Доля времени нанесения урона, 0..1")
     result.add_argument("--lucky", action=argparse.BooleanOptionalAction, default=None, help="Явно задать Lucky для --basis hit")

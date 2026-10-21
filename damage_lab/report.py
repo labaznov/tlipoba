@@ -182,7 +182,7 @@ def render(record, calculation, condition):
         ("Основа", condition["basis"]), ("Активные Tangle", condition["active"]),
         ("Попаданий за один каст", condition["hits"]),
         ("Оставшаяся доля каждого следующего попадания", decimal(condition["retention"])),
-        ("Сопротивление холоду цели, доля", decimal(condition["resistance"])),
+        ("Эффективное сопротивление холоду цели, доля", decimal(condition["resistance"])),
         ("Внешний increased damage taken, доля", decimal(condition["taken"])),
         ("Доля времени нанесения урона", decimal(condition["uptime"])),
     ))

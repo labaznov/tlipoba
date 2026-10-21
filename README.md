@@ -78,6 +78,10 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 
 Результаты исследования: [существующие калькуляторы](docs/research/existing-calculators.md), [импорт по коду и API](docs/research/build-import-api.md), [формулы Carino и нерешённые вопросы](docs/research/carino-combat-formulas.md). Публичный игровой API для полного импорта пока не подтверждён; декодирование кода в 16 байт само по себе не загружает билд.
 
+[Проверка формулы панели по двум состояниям](docs/research/panel-formula-evidence.md) сужает варианты, но пока не устанавливает полный Spell DPS. Необъяснённое отношение не используется как множитель расчёта.
+
+Статьи встроенной справки исследуются отдельно: [урон и крит](docs/research/help-damage-critical.md), [конверсия и защита](docs/research/help-defense-conversion.md), [рост после уровня 20](docs/research/help-skill-levels.md). Зеркало TLIDB помогает получить тексты автоматически; их версия ещё требует сверки с клиентом.
+
 ## Развитие
 
 Финальная цель и границы описаны в [docs/VISION.md](docs/VISION.md), ближайшие этапы — в [docs/ROADMAP.md](docs/ROADMAP.md). Порядок параллельной работы агентов и правила данных находятся в [AGENTS.md](AGENTS.md).

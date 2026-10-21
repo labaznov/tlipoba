@@ -31,6 +31,9 @@
     "oldLocalizedHyperlink": "https://tlidb.com/vi/Hyperlink",
     "builderTangle": "https://github.com/Tyrayla/TLIBuilder/blob/main/docs/verification/tangle.md",
     "builderShotgun": "https://github.com/Tyrayla/TLIBuilder/blob/main/docs/verification/shotgun.md",
+    "helpIndex": "https://tlidb.com/en/Help",
+    "skillLevel": "https://tlidb.com/en/Skill_Level",
+    "historicalSkillLevel": "https://torchlight.xd.com/us/news/single?id=nezvlurrIS2B",
     "builderPooling": "https://github.com/Tyrayla/TLIBuilder/blob/main/docs/ADDITIONAL_DAMAGE_POOLING.md"
   },
   "sourceClasses": {
@@ -362,6 +365,24 @@
       "status": "unresolved",
       "sourceKeys": ["burningRed", "oldLocalizedHyperlink"],
       "notes": ["Current English text gives 100%, while the older localized Hyperlink gives 160%", "Interpreting 100% bonus as effect*2 requires confirmation; do not import the older 160% value"]
+    },
+    {
+      "id": "skill.post20_base_and_more",
+      "formula": null,
+      "unit": "damage multiplier",
+      "domain": "Base damage and level scaling of damaging skills; not every support parameter",
+      "status": "unresolved",
+      "sourceKeys": ["skillLevel", "historicalSkillLevel"],
+      "notes": ["Help separates a fixed post-20 damage base from multiplicative level bonuses", "TLIDB Help lists 10% for levels21-30 and8% above30; historical official FrozenCanvas content lists12% and10%", "Current client/version profile is unverified; do not infer no scaling from flat base rows or apply level bonuses to panel aggregates again"]
+    },
+    {
+      "id": "panel.spell_dps_definition",
+      "formula": null,
+      "unit": "damage/s",
+      "domain": "Interpreting panel Spell DPS as a per-projectile per-Tangle anchor",
+      "status": "unresolved",
+      "sourceKeys": ["damage", "crit", "speed", "tangle"],
+      "notes": ["Help gives hit damage and speed rules but does not establish this panel decomposition", "Two-state residual diagnostics are research evidence, not an extra damage factor"]
     }
   ],
   "limits": [

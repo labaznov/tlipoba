@@ -118,6 +118,8 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 
 [Расчёт исходного spell hit](docs/RAW_DAMAGE.md) собирает базовый Physical→Cold hit, отдельные flat/increased/more, ожидание крита и скорость до защиты цели. Синтетический пример: `python -m examples.calculate_raw_spell`. Неизвестные source gates блокируют числовой результат; этот блок пока не подключён к полному автоматическому расчёту персонажа.
 
+[Математический оператор роста навыка](docs/SKILL_GROWTH.md) принимает два явно выбранных rates и сохраняет малые приращения без выбора профиля SS14. Он не восстанавливает effective level и не умножает готовый Spell DPS.
+
 [Боевой слой raw spell](docs/RAW_COMBAT.md) соединяет этот результат с явными Tangle/topology, Cold defence, бронёй, damage taken и uptime. Крит и скорость не считаются повторно; неизвестные inheritance/topology/target gates блокируют полный DPS. Полностью вымышленный пример: `python -m examples.calculate_raw_combat`.
 
 [Частичный источник из журнала](docs/research/passive-log-import.md) содержит состав некоторых систем, но обрезает таблицы навыков и не печатает таланты или native stats. Он исследуется как дополнительный пассивный адаптер; полного импорта из него пока нет.

@@ -16,6 +16,14 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_log_import_command_needs_no_package_or_combat_parameters(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            (root / "input.log").write_bytes(b"ordinary unrelated log line\r\n")
+            code = main(["import-log", "--game-log", str(root / "input.log"), "--output", str(root / "result")])
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            self.assertEqual((code, data["import_complete"], data["events"]), (0, False, []))
+
     def test_static_gear_ledger_is_preserved_without_reapplying_its_damage(self):
         from test_damage_archive import facts, observations, package
         from test_staticbundle import fixture

@@ -6,6 +6,47 @@ from damage_lab.engine import calculate, cold, critical, topology
 class DamageEngineTests(unittest.TestCase):
     """Check damage expectations against independently calculated examples."""
 
+    def test_cold_requires_explicit_affix_metadata(self):
+        for field in ("affix", "stacks", "mode"):
+            with self.subTest(field=field):
+                row = {"id": "a", "affix": "shared", "scope": "all", "value": 0.2,
+                       "stacks": 1, "mode": "add"}
+                del row[field]
+                with self.assertRaisesRegex(ValueError, "requires"):
+                    cold(103, 0, 0, 1, 0, 0, 0, [row])
+
+    def test_cold_cannot_return_an_overflowed_hit(self):
+        with self.assertRaisesRegex(ValueError, "Cold hit must be finite"):
+            cold(1e15, 0, 0, 1, 0, 0, 0, [
+                {"id": str(index), "affix": str(index), "scope": "all", "value": 1e6,
+                 "stacks": 1, "mode": "add"} for index in range(50)
+            ])
+
+    def test_repeated_additional_affix_is_one_pool(self):
+        self.assertAlmostEqual(cold(103, 0, 0, 1, 0, 0, 0, [
+            {"id": "a", "affix": "shared", "scope": "all", "value": 0.2, "stacks": 1, "mode": "add"},
+            {"id": "b", "affix": "shared", "scope": "all", "value": 0.3, "stacks": 1, "mode": "add"},
+        ]), 154.5)
+
+    def test_matching_affix_pools_are_shared_across_conversion_scopes(self):
+        self.assertAlmostEqual(cold(103, 0, 0, 1, 0, 0, 0, [
+            {"id": "a", "affix": "shared", "scope": "physical", "value": 0.2, "stacks": 1, "mode": "add"},
+            {"id": "b", "affix": "shared", "scope": "cold", "value": 0.3, "stacks": 1, "mode": "add"},
+        ]), 154.5)
+
+    def test_native_cold_does_not_share_the_physical_only_pool(self):
+        self.assertAlmostEqual(cold(103, 0, 19, 1, 0, 0, 0, [
+            {"id": "a", "affix": "shared", "scope": "physical", "value": 0.2, "stacks": 1, "mode": "add"},
+            {"id": "b", "affix": "shared", "scope": "cold", "value": 0.3, "stacks": 1, "mode": "add"},
+        ]), 179.2)
+
+    def test_one_affix_cannot_mix_stack_modes_across_conversion_scopes(self):
+        with self.assertRaises(ValueError):
+            cold(103, 0, 0, 1, 0, 0, 0, [
+                {"id": "a", "affix": "shared", "scope": "physical", "value": 0.2, "mode": "add", "stacks": 1},
+                {"id": "b", "affix": "shared", "scope": "cold", "value": 0.3, "mode": "multiply", "stacks": 1},
+            ])
+
     def test_lucky_critical_strike_uses_two_rolls(self):
         self.assertAlmostEqual(critical(0.37, 4.2, lucky=True), 2.92992)
 
@@ -14,9 +55,9 @@ class DamageEngineTests(unittest.TestCase):
 
     def test_converted_physical_keeps_origin_modifiers_without_buffing_native_cold(self):
         self.assertAlmostEqual(cold(127, 19, 23, 1.37, 0.83, 0.41, 0.29, [
-            {"id": "x", "scope": "all", "value": 0.17},
-            {"id": "y", "scope": "physical", "value": 0.31},
-            {"id": "z", "scope": "cold", "value": 0.23},
+            {"id": "x", "affix": "x", "scope": "all", "value": 0.17, "stacks": 1, "mode": "add"},
+            {"id": "y", "affix": "y", "scope": "physical", "value": 0.31, "stacks": 1, "mode": "add"},
+            {"id": "z", "affix": "z", "scope": "cold", "value": 0.23, "stacks": 1, "mode": "add"},
         ]), 826.0268920839)
 
     def test_panel_dps_does_not_receive_critical_bonuses_twice(self):
@@ -46,8 +87,8 @@ class DamageEngineTests(unittest.TestCase):
     def test_a_modifier_cannot_be_applied_twice(self):
         with self.assertRaises(ValueError):
             cold(19, 3, 7, 1.2, 0.3, 0.2, 0.4, [
-                {"id": "same", "scope": "all", "value": 0.31},
-                {"id": "same", "scope": "cold", "value": 0.71},
+                {"id": "same", "affix": "a", "scope": "all", "value": 0.31, "stacks": 1, "mode": "add"},
+                {"id": "same", "affix": "b", "scope": "cold", "value": 0.71, "stacks": 1, "mode": "add"},
             ])
 
     def test_active_tangles_cannot_exceed_the_character_maximum(self):

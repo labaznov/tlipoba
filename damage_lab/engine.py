@@ -2,6 +2,8 @@
 
 import math
 
+from .formulas import additional
+
 
 def bounded(value, minimum, maximum, name):
     if not math.isfinite(value) or not minimum <= value <= maximum:
@@ -42,18 +44,29 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
     for name, value in (("Global increased", increased), ("Physical increased", origin),
                         ("Cold increased", destination)):
         bounded(value, -1, 1e6, name)
-    factors = {"all": 1, "physical": 1, "cold": 1}
+    pools = {"all": [], "physical": [], "cold": []}
     identities = set()
     for modifier in modifiers:
+        if not all(field in modifier for field in ("id", "affix", "scope", "value", "stacks", "mode")):
+            raise ValueError("Cold modifier requires id, affix, scope, value, stacks and mode")
         if modifier["id"] in identities:
             raise ValueError(f"Duplicate modifier {modifier['id']}")
         identities.add(modifier["id"])
-        if modifier["scope"] not in factors:
+        if modifier["scope"] not in pools:
             raise ValueError(f"Unknown damage scope {modifier['scope']}")
-        factors[modifier["scope"]] *= 1 + bounded(modifier["value"], -1, 1e6, "More damage")
+        pools[modifier["scope"]].append({
+            "id": modifier["id"], "affix": modifier["affix"],
+            "value": bounded(modifier["value"], -1, 1e6, "More damage"),
+            "stacks": modifier["stacks"], "mode": modifier["mode"],
+        })
+    converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])
+    native_factor = additional(pools["all"] + pools["cold"])
     converted = (base + physical * effectiveness) * max(0, 1 + increased + origin + destination)
     native = flat * effectiveness * max(0, 1 + increased + destination)
-    return (converted * factors["physical"] + native) * factors["all"] * factors["cold"]
+    result = converted * converted_factor + native * native_factor
+    if not math.isfinite(result):
+        raise ValueError("Cold hit must be finite")
+    return result
 
 
 def calculate(panel, condition):
@@ -95,5 +108,5 @@ def calculate(panel, condition):
                 "Внешний taken применяется только если он ещё не учтён в исходной панели",
                 "Число созданных Tangle и прикреплённых к цели Tangle различаются",
                 "Баффы Heat Up, Burning Red, проклятие, Frostbite и Euphoria зависят от состояния боя",
-                "Броня цели и её ослабление пока не моделируются, расчёт предполагает нулевую броню",
+                "Броня учитывается только при явном боевом контексте; пробивание брони не реализовано",
             ]}

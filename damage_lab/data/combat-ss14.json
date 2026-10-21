@@ -1,0 +1,375 @@
+{
+  "patch": "SS14",
+  "checkedAt": "2026-10-21",
+  "statusMeaning": {
+    "verified": "Explicitly stated by the cited source, not independently reproduced in the SS14 client",
+    "inferred": "Derived with the listed assumptions and not a default exact mechanic",
+    "unresolved": "No verified formula or mapping, so do not apply automatically"
+  },
+  "sources": {
+    "official": "https://torchlight.xd.com/ss14pn/?lang=en",
+    "damage": "https://tlidb.com/en/Damage_Calculation",
+    "stacks": "https://tlidb.com/en/Stacks_and_Multiplication_Rules",
+    "speed": "https://tlidb.com/en/Skill_Speed",
+    "legacyHelp": "https://tlidb.com/en/Character_Build",
+    "crit": "https://tlidb.com/en/Critical_Strike",
+    "lucky": "https://tlidb.com/en/Lucky",
+    "tangle": "https://tlidb.com/en/Tangle",
+    "chromatic": "https://tlidb.com/en/Chromatic_Shot",
+    "shotgun": "https://tlidb.com/en/Shotgun_Effect",
+    "frostbite": "https://tlidb.com/en/Frostbite",
+    "freezeHelp": "https://tlidb.com/en/Frostbite_and_Freeze",
+    "frail": "https://tlidb.com/en/Frail",
+    "bitingCold": "https://tlidb.com/en/Biting_Cold",
+    "curse": "https://tlidb.com/en/Curse",
+    "iceBond": "https://tlidb.com/en/Ice_Bond",
+    "armor": "https://tlidb.com/en/Armor",
+    "armorPen": "https://tlidb.com/en/Armor_DMG_Mitigation_Penetration",
+    "resistancePen": "https://tlidb.com/en/Resistance_Penetration",
+    "hero": "https://tlidb.com/en/Zealot_of_War",
+    "burningRed": "https://tlidb.com/en/Burning_Red",
+    "oldLocalizedHyperlink": "https://tlidb.com/vi/Hyperlink",
+    "builderTangle": "https://github.com/Tyrayla/TLIBuilder/blob/main/docs/verification/tangle.md",
+    "builderShotgun": "https://github.com/Tyrayla/TLIBuilder/blob/main/docs/verification/shotgun.md",
+    "builderPooling": "https://github.com/Tyrayla/TLIBuilder/blob/main/docs/ADDITIONAL_DAMAGE_POOLING.md"
+  },
+  "sourceClasses": {
+    "official": "official_patch_notes",
+    "tlidb": "datamined_game_description_or_help_transcription_not_officially_release_verified",
+    "builder": "first_person_community_observation_or_engine_design_not_independently_reproduced"
+  },
+  "rules": [
+    {
+      "id": "damage.additional_pools",
+      "formula": "base * (1 + sum(increased)) * product(1 + sum(additional_in_same_affix_pool))",
+      "unit": "damage",
+      "domain": "Matching damage scopes with explicitly resolved affix identities",
+      "status": "verified",
+      "sourceKeys": ["damage", "stacks"],
+      "notes": ["Damage Calculation lines 33-37; Stacks and Multiplication Rules lines 33-38", "Same stat key does not establish same affix identity"]
+    },
+    {
+      "id": "damage.affix_identity",
+      "formula": null,
+      "unit": "identity",
+      "domain": "Joining item, support, talent and conditional additional modifiers",
+      "status": "unresolved",
+      "sourceKeys": ["stacks", "builderPooling"],
+      "notes": ["Same-affix addition is stated, but universal identity by normalized text is not established", "TLIBuilder sections 1 and 7 describe verbal confirmation with pending in-game spot checks"]
+    },
+    {
+      "id": "damage.stack_mode",
+      "formula": "ordinary_stack_factor = 1 + n*p; explicitly_multiplies_factor = (1+p)^n",
+      "unit": "multiplier",
+      "domain": "One affix with n stacks and fractional amount p",
+      "status": "verified",
+      "sourceKeys": ["stacks"],
+      "notes": ["Stacks and Multiplication Rules lines 35-38", "Respect caps and the affix scope before computing n"]
+    },
+    {
+      "id": "cast.smooth_rate",
+      "formula": "(1/base_interval) * (1+sum(increased_speed)) * product(additional_speed_factors)",
+      "unit": "casts/s",
+      "domain": "Spell casting before any separately established tick regime",
+      "status": "verified",
+      "sourceKeys": ["speed", "legacyHelp"],
+      "notes": ["Skill Speed lines 38-40; Character Build / Cast Speed lines 397-403"]
+    },
+    {
+      "id": "cast.documented_cap",
+      "formula": "min(30, smooth_rate)",
+      "unit": "casts/s",
+      "domain": "A skill's cast rate, not total hits from multiple casters or projectiles",
+      "status": "verified",
+      "sourceKeys": ["legacyHelp"],
+      "notes": ["Character Build / Cast Speed line 403", "This aggregate Help page has stale unrelated sections, so recheck the cap in the client"]
+    },
+    {
+      "id": "tangle.interval",
+      "formula": "tangle_trigger_interval = corresponding_spell_cast_interval",
+      "unit": "s",
+      "domain": "Active attached Tangle",
+      "status": "verified",
+      "sourceKeys": ["tangle"],
+      "notes": ["Tangle / lower Help section line 280"]
+    },
+    {
+      "id": "tangle.population",
+      "formula": "base_max = 2; ordinary_documented_ceiling = 4; base_duration = 8; base_attach_range = 8",
+      "unit": "count; s; m",
+      "domain": "Ordinary Tangle without explicit exceptional hero overrides",
+      "status": "verified",
+      "sourceKeys": ["tangle"],
+      "notes": ["Tangle / lower Help lines 272-283", "At the maximum, another creation replaces the oldest; unattached tangles are inactive"]
+    },
+    {
+      "id": "tangle.single_target_count",
+      "formula": "min(created_tangles, base_per_target_attachment + additional_per_target_attachment)",
+      "unit": "count",
+      "domain": "One attachable enemy with no exceptional attachment replacement rules",
+      "status": "inferred",
+      "sourceKeys": ["tangle"],
+      "notes": ["Global capacity and per-target attachment bonuses are separate constraints", "Base per-target attachment is not numerically defined in the retrieved Help; keep it explicit"]
+    },
+    {
+      "id": "tangle.enhancement",
+      "formula": null,
+      "unit": "multiplier",
+      "domain": "Tangle Damage Enhancement",
+      "status": "unresolved",
+      "sourceKeys": ["tangle", "builderTangle"],
+      "notes": ["Tangle page lists the affix but no enhancement equation", "Candidate 1+sum(enhancement) is not established here", "TLIBuilder Tangle notes list enhancement and count multiplier checks as pending"]
+    },
+    {
+      "id": "tangle.inheritance",
+      "formula": null,
+      "unit": "damage; probability; speed",
+      "domain": "Panel damage, player crit, Lucky, Heat and Tangle-specific flat critical rating",
+      "status": "unresolved",
+      "sourceKeys": ["tangle", "crit"],
+      "notes": ["Tangle triggers the corresponding spell, but no complete snapshot/dynamic inheritance contract is supplied", "Do not add Tangle-specific rating to base rating or apply Lucky twice without verifying panel semantics"]
+    },
+    {
+      "id": "tangle.tick30_candidate",
+      "formula": "ticks = max(1, ceil(30/smooth_rate)); rate = 30/ticks",
+      "unit": "casts/s per Tangle",
+      "domain": "Conditional reproduction of TLIBuilder's tick model",
+      "status": "inferred",
+      "sourceKeys": ["builderTangle"],
+      "notes": ["Author observation dated 2026-06-19: rates 6.04 and 7.44 both yielded 6.0", "Documentation lines 14-26; not independently reproduced in SS14", "Do not silently replace an observed rate with this candidate"]
+    },
+    {
+      "id": "crit.rating_and_damage",
+      "formula": "rating = sum(base_rating)*(1+sum(increased_rating))*product(additional_rating_factors); chance_percent = rating/100; crit_hit = ordinary_hit * displayed_critical_damage_percent/100",
+      "unit": "rating; percent; damage",
+      "domain": "An applicable hit with established critical rating inputs",
+      "status": "verified",
+      "sourceKeys": ["crit"],
+      "notes": ["Critical Strike lines 38-44", "Default critical damage is 150%; do not add another base 150% to a displayed total"]
+    },
+    {
+      "id": "crit.lucky_expectation",
+      "formula": "p_lucky = 1-(1-p)^2; mean_critical_factor = 1+p_lucky*(critical_multiplier-1)",
+      "unit": "probability; multiplier",
+      "domain": "Two independent critical checks with ordinary fractional chance p, when Lucky is not already included",
+      "status": "inferred",
+      "sourceKeys": ["lucky", "crit"],
+      "notes": ["Lucky glossary line 36 defines two rolls choosing the better result", "Formula is probability algebra; it is not Lucky Damage and does not change the damage-roll distribution"]
+    },
+    {
+      "id": "chromatic.ss14_level20",
+      "formula": "base_physical_min = 498; base_physical_max = 831; added_effectiveness = 1.23; base_projectiles = 1; intrinsic_projectile_bonus = 2; falloff_coefficient = 0.8",
+      "unit": "damage; fraction; count",
+      "domain": "Chromatic Shot level 20, live SS14",
+      "status": "verified",
+      "sourceKeys": ["official", "chromatic"],
+      "notes": ["Official 14 October addendum / 技能调整 · 五彩魔矢 lines 100-103", "Chromatic Shot Details and level 20", "Do not extrapolate level 21+ from a flat or missing progression tail"]
+    },
+    {
+      "id": "shotgun.retention_mapping",
+      "formula": null,
+      "unit": "fraction; multiplier",
+      "domain": "Chromatic Shot subsequent same-target hits",
+      "status": "unresolved",
+      "sourceKeys": ["shotgun", "official", "builderShotgun"],
+      "notes": ["Glossary confirms a full first hit and reduced subsequent hits", "Candidate retention=1-falloff yields 1+(hits-1)*0.2", "TLIBuilder's Chain Lightning verification is partial and explicitly lacks numeric DPS confirmation"]
+    },
+    {
+      "id": "projectiles.panel_bonus_semantics",
+      "formula": null,
+      "unit": "count",
+      "domain": "UI Projectile Quantity Bonus versus actual generated projectiles",
+      "status": "unresolved",
+      "sourceKeys": ["chromatic"],
+      "notes": ["The skill separates base 1 from intrinsic +2, but does not define the UI field", "Do not add base and intrinsic to a panel aggregate until inclusion is verified"]
+    },
+    {
+      "id": "frostbite.rating",
+      "formula": "default_rating = 10; ordinary_max_rating = 120; freeze_when_rating > 100",
+      "unit": "rating",
+      "domain": "A target with Frostbite and no explicit exception",
+      "status": "verified",
+      "sourceKeys": ["freezeHelp", "frostbite"],
+      "notes": ["Frostbite and Freeze lines 37-60; Frostbite lower glossary line 1020", "Rating is fixed on infliction rather than repeatedly accumulating 10 per hit", "The short introduction says at 100 while details say above 100; boundary requires client verification"]
+    },
+    {
+      "id": "frostbite.unscaled_taken",
+      "formula": "cold_taken_bonus_fraction = target_frostbite_rating/100",
+      "unit": "fraction",
+      "domain": "Frostbite baseline before unresolved Frostbite Effect scaling",
+      "status": "verified",
+      "sourceKeys": ["frostbite"],
+      "notes": ["Frostbite glossary line 36 specifies 1% additional Cold Damage taken per rating"]
+    },
+    {
+      "id": "frostbite.effect_and_panel_max",
+      "formula": null,
+      "unit": "rating; multiplier",
+      "domain": "Frostbite Effect and UI Max Frostbite Rating",
+      "status": "unresolved",
+      "sourceKeys": ["freezeHelp", "frostbite"],
+      "notes": ["No retrieved explicit equation establishes the effect-to-rating or effect-to-damage relationship", "Do not silently treat the UI maximum as an increase above a base", "Candidate taken factor 1+rating/100*(1+effect) requires a controlled test"]
+    },
+    {
+      "id": "frail.baseline",
+      "formula": "spell_taken_bonus = 0.15",
+      "unit": "fraction",
+      "domain": "A spell hit against a target actually affected by unscaled Frail",
+      "status": "verified",
+      "sourceKeys": ["frail"],
+      "notes": ["Frail glossary lines 34-36"]
+    },
+    {
+      "id": "biting_cold.level20",
+      "formula": "cold_taken_bonus = 0.39; base_duration = 5; base_cooldown = 8",
+      "unit": "fraction; s",
+      "domain": "Biting Cold level 20 without additional Curse Effect or duration scaling",
+      "status": "verified",
+      "sourceKeys": ["bitingCold"],
+      "notes": ["Biting Cold lines 38-60; only applies while the curse is present"]
+    },
+    {
+      "id": "curse.effect",
+      "formula": "debuff_amount = base_amount*(1+sum(increased_curse_effect))*product(additional_curse_effect_factors)",
+      "unit": "debuff amount",
+      "domain": "Negative values provided by Curse Skills",
+      "status": "verified",
+      "sourceKeys": ["curse"],
+      "notes": ["Curse / Curse Effect lines 90-92", "This formula changes magnitude, not uptime"]
+    },
+    {
+      "id": "taken.distinct_status_pools",
+      "formula": "product(1+bonus_for_each_distinct_applicable_taken_affix_pool)",
+      "unit": "multiplier",
+      "domain": "Cold spell hit with Frail, Frostbite and Biting Cold whose identities and uptime are established",
+      "status": "inferred",
+      "sourceKeys": ["damage", "stacks", "frail", "frostbite", "bitingCold"],
+      "notes": ["Applying generic additional-pool rules to these three statuses requires distinct identities", "No retrieved explicit worked example confirms this exact three-status combination"]
+    },
+    {
+      "id": "ice_bond.level20",
+      "formula": "other_skills_cold_more = 0.24; sentry_duration = 8",
+      "unit": "fraction; s",
+      "domain": "Euphoria active, other skills against Frostbitten enemies",
+      "status": "verified",
+      "sourceKeys": ["iceBond"],
+      "notes": ["Ice Bond lines 58-70", "Outgoing conditional damage, not the curse's damage-taken source"]
+    },
+    {
+      "id": "target.monster_armor",
+      "formula": "min(0.8, armor/(0.9*armor+30000))",
+      "unit": "fractional physical damage reduction",
+      "domain": "Monster armor, armor >= 0",
+      "status": "verified",
+      "sourceKeys": ["armor"],
+      "notes": ["Armor lines 40-55", "The player formula has an enemy-level term and must not be substituted here"]
+    },
+    {
+      "id": "target.nonphysical_armor",
+      "formula": "nonphysical_armor_reduction = 0.6*physical_armor_reduction",
+      "unit": "fraction",
+      "domain": "Non-Physical damage forms affected by armor before unresolved penetration ordering",
+      "status": "verified",
+      "sourceKeys": ["armor"],
+      "notes": ["Armor lines 40-46; Cold hit damage is non-Physical"]
+    },
+    {
+      "id": "target.armor_penetration",
+      "formula": "effective_armor_reduction = applicable_armor_reduction - armor_mitigation_penetration",
+      "unit": "fraction",
+      "domain": "Hit damage with Armor DMG Mitigation Penetration",
+      "status": "verified",
+      "sourceKeys": ["armorPen"],
+      "notes": ["Armor DMG Mitigation Penetration lines 35-38", "Can produce negative reduction; do not clamp to zero"]
+    },
+    {
+      "id": "target.nonphysical_penetration_order",
+      "formula": null,
+      "unit": "fraction",
+      "domain": "Combining the non-Physical armor coefficient and armor mitigation penetration",
+      "status": "unresolved",
+      "sourceKeys": ["armor", "armorPen"],
+      "notes": ["The sources do not state whether 0.6 is applied before or after subtracting penetration"]
+    },
+    {
+      "id": "target.resistance_penetration",
+      "formula": "calculation_resistance = target_effective_resistance - matching_penetration",
+      "unit": "fraction",
+      "domain": "Matching damage type, with no Ignore Resistance override",
+      "status": "verified",
+      "sourceKeys": ["resistancePen"],
+      "notes": ["Resistance Penetration lines 35-39", "The defender's actual resistance stat does not change"]
+    },
+    {
+      "id": "carino.magazine",
+      "formula": "initial_capacity = 6; base_reload_time = 0.8; capacity_bonus = 3*(eligible_global_projectile_bonus+eligible_global_split_bonus)",
+      "unit": "ammo; s",
+      "domain": "Zealot of War base trait, excluding skill-intrinsic and linked-support quantities from eligible bonuses",
+      "status": "verified",
+      "sourceKeys": ["hero"],
+      "notes": ["Zealot of War lines 52-91", "Do not feed a skill-panel quantity aggregate directly into eligible global bonuses"]
+    },
+    {
+      "id": "carino.incinerated_glory",
+      "formula": "heat_gained = ammo_consumed; per_stack_more_by_trait_level = [0.016,0.02,0.023,0.026,0.03]",
+      "unit": "stacks; fraction",
+      "domain": "Incinerated Glory while ammunition exists, trait levels 1 through 5",
+      "status": "verified",
+      "sourceKeys": ["hero"],
+      "notes": ["Incinerated Glory lines 103-141; Heat is lost after reload", "The trait level must be supplied explicitly"]
+    },
+    {
+      "id": "carino.eternal_flames",
+      "formula": "additional_attack_and_cast_speed_per_heat = 0.004",
+      "unit": "fraction per stack",
+      "domain": "Eternal Flames, before applicable Heat Up Effect",
+      "status": "verified",
+      "sourceKeys": ["hero"],
+      "notes": ["Eternal Flames lines 251-272; do not compound ordinary stacks unless explicitly marked multiplies"]
+    },
+    {
+      "id": "carino.heat_ceiling_and_consumption",
+      "formula": null,
+      "unit": "stacks; ammo per cast",
+      "domain": "Tangle casts and maximum Heat Up",
+      "status": "unresolved",
+      "sourceKeys": ["hero", "tangle"],
+      "notes": ["Maximum Heat equal to magazine and shared per-Tangle ammo consumption are plausible but not explicit in retrieved descriptions"]
+    },
+    {
+      "id": "carino.extreme_heat",
+      "formula": "elite_kill_extension_by_trait_level = [3,4,5,5,5]",
+      "unit": "s",
+      "domain": "Extreme Heat trait levels 1 through 5",
+      "status": "verified",
+      "sourceKeys": ["hero"],
+      "notes": ["Extreme Heat lines 186-215; max Heat enters Burning Red, then reload when it ends", "Ceasefire's start-at-max behavior is not selected by this trait"]
+    },
+    {
+      "id": "carino.burning_red",
+      "formula": "base_duration = 10; stated_heat_effect_bonus = 1.0",
+      "unit": "s; fraction",
+      "domain": "Current English Burning Red glossary",
+      "status": "verified",
+      "sourceKeys": ["burningRed"],
+      "notes": ["Burning Red lines 34-38; no Overheated or reload during the mode, reload after it", "Cannot trigger Empower, Curse or Warcry skills during the mode"]
+    },
+    {
+      "id": "carino.burning_red_effect_interpretation",
+      "formula": null,
+      "unit": "multiplier",
+      "domain": "Numerical scaling of Heat Up Effect during Burning Red",
+      "status": "unresolved",
+      "sourceKeys": ["burningRed", "oldLocalizedHyperlink"],
+      "notes": ["Current English text gives 100%, while the older localized Hyperlink gives 160%", "Interpreting 100% bonus as effect*2 requires confirmation; do not import the older 160% value"]
+    }
+  ],
+  "limits": [
+    "No real player captures, panel values, identifiers or benchmarks are included",
+    "TLIDB is a fan-maintained datamine and explicitly warns that its data may differ from the final release",
+    "Do not evaluate the formula strings as code or automatically apply inferred and unresolved rules",
+    "Observed panel aggregates must not receive the same item or support factors a second time",
+    "The existing-calculator docs supply research leads, not a license to copy their compiled catalog",
+    "Exact DPS remains unsupported while Tangle inheritance, shotgun retention, Heat timing and target states are unresolved"
+  ]
+}

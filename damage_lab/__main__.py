@@ -98,6 +98,9 @@ def main(argv=None, *, archiver=None):
             if "trait_ranks" in record:
                 from .importer import ranksummary
                 result["trait_ranks"] = ranksummary(record["trait_ranks"])
+            if "import_coverage" in record:
+                from .importcoverage import summary
+                result["import_coverage"] = summary(record["import_coverage"])
             (stage / "calculation.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
             (stage / "index.html").write_text(render(record, calculation, condition), encoding="utf-8")

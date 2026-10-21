@@ -39,6 +39,30 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_preserves_the_automatic_acquisition_audit(self):
+        from test_damage_archive import coverage_bundle, package
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            path = package(root)
+            coverage_bundle(path)
+            main(["--package", str(path), "--output", str(root / "result")])
+            self.assertIs(json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+                          ["import_coverage"]["import_complete"], False)
+
+    def test_acquisition_summary_drops_unknown_properties_at_each_depth(self):
+        from damage_lab.importcoverage import project
+        from damage_lab.importer import snapshot
+        from test_importcoverage import document
+
+        data = record()
+        block = project(document(), "a" * 64, None)
+        for row in (block, block["source"], block["guide"], block["domains"]["equipment"],
+                    block["domains"]["equipment"]["counts"], block["gaps"][0]):
+            row["raw"] = "PRIVATE-AUDIT-MARKER"
+        data["import_coverage"] = block
+        self.assertNotIn("PRIVATE-AUDIT-MARKER", json.dumps(snapshot(data)["import_coverage"]))
+
     def test_import_keeps_bundled_candidate_ranks_unresolved(self):
         from test_damage_archive import package, trait_bundle
 

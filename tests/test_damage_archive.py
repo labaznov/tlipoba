@@ -11,6 +11,131 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+def coverage_bundle(directory, guide=True):
+    """Write a fictional acquisition audit tied to exact package bytes."""
+    from test_importcoverage import document
+
+    data = document(guide=guide)
+    source = hashlib.sha256((directory / "source.json").read_bytes()).hexdigest()
+    digest = hashlib.sha256((directory / "guide-data.json").read_bytes()).hexdigest() if guide else None
+    data["source"]["sha256"] = source
+    data["guide"] = {"supplied": guide, "sha256": digest, "binding": "unverified" if guide else "not_supplied"}
+    path = write(directory / "import-coverage.json", data)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["importCoverage"] = {
+        "file": "import-coverage.json", "status": "diagnostic", "importComplete": False,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "sourceSha256": source,
+        "guideSha256": digest, "domains": len(data["domains"]),
+    }
+    write(directory / "manifest.json", manifest)
+    return path
+
+
+class CoverageBundleTests(unittest.TestCase):
+    """Keep acquisition completeness separate from combat interpretation."""
+
+    def test_bundled_acquisition_audit_is_imported_without_manual_values(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            coverage_bundle(directory)
+            self.assertIs(archive(directory, None, facts(root), root / "out.sqlite")
+                          ["import_coverage"]["import_complete"], False)
+
+    def test_audit_projection_and_artifact_provenance_are_stored_in_sqlite(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            coverage_bundle(directory)
+            archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual((json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='import_coverage'").fetchone()[0])["import_complete"],
+                    connection.execute("SELECT stored FROM sources WHERE role='import_coverage'").fetchone()[0]),
+                                 (False, 1))
+
+    def test_audit_artifact_requires_its_exact_hash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = coverage_bundle(directory)
+            path.write_bytes(path.read_bytes() + b" ")
+            with self.assertRaisesRegex(ValueError, "hash"):
+                archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_audit_manifest_cannot_escape_or_claim_completeness_or_another_guide(self):
+        for field, value in (("file", "../import-coverage.json"), ("importComplete", True),
+                             ("sourceSha256", "b" * 64), ("guideSha256", "b" * 64),
+                             ("domains", True), ("domains", 8), ("status", "verified")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                directory = package(root)
+                coverage_bundle(directory)
+                manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                manifest["importCoverage"][field] = value
+                write(directory / "manifest.json", manifest)
+                with self.assertRaises(ValueError):
+                    archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_audit_cannot_change_its_source_despite_a_rehashed_artifact(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = coverage_bundle(directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["source"]["sha256"] = "b" * 64
+            write(path, data)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["importCoverage"]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            write(directory / "manifest.json", manifest)
+            with self.assertRaisesRegex(ValueError, "source"):
+                archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_a_diagnostic_audit_cannot_expand_the_known_domain_contract(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = coverage_bundle(directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["domains"]["extraDomain"] = {}
+            write(path, data)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["importCoverage"].update(domains=10, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            write(directory / "manifest.json", manifest)
+            with self.assertRaises(ValueError):
+                archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_failed_audit_keeps_partial_import_without_domain_claims(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = coverage_bundle(directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data.update(status="error", domains={}, importComplete=False)
+            write(path, data)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["importCoverage"].update(status="error", domains=0,
+                                               sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertEqual((result["import_status"], "import_coverage" in result), ("partial", False))
+
+    def test_an_audit_without_a_guide_does_not_claim_to_have_read_the_package_guide(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            coverage_bundle(directory, guide=False)
+            self.assertEqual(archive(directory, None, facts(root), root / "out.sqlite")
+                             ["import_coverage"]["guide"],
+                             {"supplied": False, "sha256": None, "binding": "not_supplied"})
+
+    def test_legacy_package_exposes_the_missing_automatic_audit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertIn("Automatic import coverage audit is unavailable in this legacy package",
+                          archive(package(root), None, facts(root), root / "out.sqlite")["coverage"])
+
+
 def trait_bundle(directory):
     """Write synthetic rank evidence bound to this package's source bytes."""
     from test_traitranks import document

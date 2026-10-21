@@ -37,6 +37,116 @@ def pages(record):
     })]
 
 
+def coverage():
+    """Return fictional import evidence without asserting combat activation."""
+    return {
+        "format": "tli-import-coverage-v1", "version": "0.2.0", "tool": "synthetic-coverage", "import_complete": False,
+        "source": {"sha256": "c" * 64, "captured_at": "2026-02-19T08:37:11Z", "captured_at_status": "observed"},
+        "guide": {"supplied": True, "sha256": "d" * 64, "binding": "unverified"},
+        "domains": {name: {"composition": "observed", "effective": "unverified", "paths": [], "counts": {}}
+                    for name in ("equipment", "skill_layout", "hero_traits", "talents", "slates", "pactspirits",
+                                 "native_stats", "panel_skill_identity", "support_activation")},
+        "gaps": [{"domain": "support_activation", "composition": "observed", "gap": "Synthetic activation gap",
+                  "next": "Synthetic next evidence"}], "rules": [],
+    }
+
+
+class ImportCoverageReportTests(unittest.TestCase):
+    """Show composition evidence separately from unresolved effective mechanics."""
+
+    def test_both_reports_show_import_coverage_as_incomplete_evidence(self):
+        self.assertTrue(all(all(value in result for value in (
+            "Покрытие импорта", "import_complete: false", "Импорт остаётся неполным",
+            "Состав", "Эффекты", "support_activation", "observed", "unverified",
+            "Наблюдение не подтверждает активацию", "Synthetic activation gap", "Synthetic next evidence",
+        )) for result in pages({"import_coverage": coverage()})))
+
+    def test_import_coverage_cannot_claim_a_complete_or_unspecified_import(self):
+        for value in (True, None, 0, "false"):
+            with self.subTest(value=value):
+                data = coverage()
+                data["import_complete"] = value
+                with self.assertRaisesRegex(ValueError, "incomplete"):
+                    pages({"import_coverage": data})
+
+    def test_both_reports_keep_import_source_and_guide_provenance(self):
+        self.assertTrue(all(all(value in result for value in (
+            "tli-import-coverage-v1", "Версия: 0.2.0", "c" * 64, "2026-02-19T08:37:11Z",
+            "Статус времени: observed", "Сопроводительные данные: предоставлены", "d" * 64,
+            "Связь с источником: unverified",
+        )) for result in pages({"import_coverage": coverage()})))
+
+    def test_both_reports_escape_import_coverage_text(self):
+        data = coverage()
+        data["gaps"][0]["gap"] = "<script>coverage()</script>"
+        data["rules"] = ["<em>coverage rule</em>"]
+        data["domains"]["equipment"]["paths"] = ["<b>coverage path</b>"]
+        self.assertTrue(all(all(value in result for value in (
+            "&lt;script&gt;coverage()&lt;/script&gt;", "&lt;em&gt;coverage rule&lt;/em&gt;", "&lt;b&gt;coverage path&lt;/b&gt;",
+        )) and "<script>coverage()</script>" not in result
+                            for result in pages({"import_coverage": data})))
+
+    def test_both_reports_show_domain_provenance_without_turning_gaps_into_zeroes(self):
+        data = coverage()
+        data["domains"]["equipment"]["paths"] = ["sections.SyntheticEquipment.data"]
+        data["domains"]["skill_layout"].update(composition="empty", effective="unknown")
+        data["domains"]["talents"].update(composition="invalid", effective="unknown")
+        data["domains"]["pactspirits"].update(composition="absent", effective="unknown")
+        self.assertTrue(all(all(value in result for value in (
+            "Пути источника", "sections.SyntheticEquipment.data", "empty", "invalid", "absent", "unknown",
+            "Не извлечено",
+        )) for result in pages({"import_coverage": data})))
+
+    def test_both_reports_show_named_counts_and_coverage_rules(self):
+        data = coverage()
+        data["domains"]["equipment"]["counts"] = {"items": 7, "affixes_without_rolls": 13, "invalid_affixes": 0}
+        data["domains"]["support_activation"]["counts"] = {"installed_supports": 19}
+        data["rules"] = ["Synthetic installed skills never imply activation"]
+        self.assertTrue(all(all(value in result for value in (
+            "synthetic-coverage", "Количество", "items: 7", "affixes_without_rolls: 13", "invalid_affixes: 0",
+            "installed_supports: 19", "Synthetic installed skills never imply activation",
+        )) for result in pages({"import_coverage": data})))
+
+    def test_both_reports_keep_known_domain_limits_separate_from_activation(self):
+        data = coverage()
+        data["domains"]["skill_layout"]["guide_support_level_values"] = {"resolved": 5, "missing_level": 11}
+        data["domains"]["hero_traits"].update(rank_status="rank_rule_unverified", base_trait_rank="no_verified_source",
+                                              rank_source="trait_ranks.candidates (trait-ranks.json)")
+        data["domains"]["native_stats"].update(semantics="named_fields_corroborated_only; unnamed_ids_unmapped",
+                                               protocol_verified=False)
+        data["domains"]["panel_skill_identity"]["identity"] = "chosen_skill_unverified"
+        data["domains"]["support_activation"].update(activation="unknown", reason="Synthetic layout flags are not activation")
+        self.assertTrue(all(all(value in result for value in (
+            "guide_support_level_values", "resolved: 5", "missing_level: 11", "rank_rule_unverified",
+            "no_verified_source", "trait_ranks.candidates (trait-ranks.json)", "protocol_verified: false",
+            "named_fields_corroborated_only; unnamed_ids_unmapped", "chosen_skill_unverified",
+            "Synthetic layout flags are not activation",
+        )) for result in pages({"import_coverage": data})))
+
+    def test_both_reports_ignore_unknown_private_coverage_fields(self):
+        data = coverage()
+        for row in (data, data["source"], data["guide"], data["domains"]["equipment"],
+                    data["domains"]["equipment"]["counts"], data["gaps"][0]):
+            row["private"] = "PRIVATE-COVERAGE-CANARY"
+        data["domains"]["skill_layout"]["guide_support_level_values"] = {"resolved": 3, "private": "PRIVATE-COVERAGE-CANARY"}
+        data["domains"]["private"] = "PRIVATE-COVERAGE-CANARY"
+        self.assertTrue(all("PRIVATE-COVERAGE-CANARY" not in result
+                            for result in pages({"import_coverage": data})))
+
+    def test_legacy_reports_without_import_coverage_remain_valid(self):
+        self.assertTrue(all("Покрытие импорта" not in result for result in pages({})))
+
+    def test_unavailable_coverage_provenance_remains_unknown(self):
+        data = coverage()
+        data["source"].update(captured_at=None, captured_at_status="absent")
+        data["guide"].update(supplied=False, sha256=None, binding="not_supplied")
+        data["domains"]["skill_layout"]["guide_support_level_values"] = None
+        self.assertTrue(all(all(value in result for value in (
+            "Время источника: Не установлено", "Статус времени: absent", "Сопроводительные данные: не предоставлены",
+            "SHA-256 сопроводительных данных: Не указан", "guide_support_level_values: Не извлечено",
+        )) for result in pages({"import_coverage": data})))
+
+
 class TraitRankReportTests(unittest.TestCase):
     """Show candidate ranks as unresolved evidence without applying them to damage."""
 

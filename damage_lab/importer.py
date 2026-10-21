@@ -92,6 +92,9 @@ def snapshot(data):
         result["panel_log"] = logsummary(data["panel_log"])
     if "trait_ranks" in data:
         result["trait_ranks"] = ranksummary(data["trait_ranks"])
+    if "import_coverage" in data:
+        from .importcoverage import summary
+        result["import_coverage"] = summary(data["import_coverage"])
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

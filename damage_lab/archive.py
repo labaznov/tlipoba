@@ -84,6 +84,40 @@ def ranked(package, bundle, source):
     return project(document, source), (str(path.resolve()), digest, len(raw), 1)
 
 
+def audited(package, bundle, source, guide):
+    """Bind an acquisition audit to its persisted inputs without verifying effects."""
+    from .importcoverage import project
+
+    fields = {"file", "status", "importComplete", "sha256", "sourceSha256", "guideSha256", "domains"}
+    if (type(bundle) is not dict or not fields.issubset(bundle)
+            or bundle["file"] != "import-coverage.json" or bundle["importComplete"] is not False
+            or bundle["status"] not in ("diagnostic", "error") or bundle["sourceSha256"] != source
+            or bundle["guideSha256"] not in (None, guide)
+            or type(bundle["domains"]) is not int
+            or bundle["domains"] != (9 if bundle["status"] == "diagnostic" else 0)):
+        raise ValueError("Import coverage manifest has an invalid diagnostic contract")
+    path = package / "import-coverage.json"
+    with path.open("rb") as stream:
+        raw = stream.read(64 * 1024 * 1024 + 1)
+    if len(raw) > 64 * 1024 * 1024:
+        raise ValueError("Import coverage artifact exceeds the supported size")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != bundle["sha256"]:
+        raise ValueError("Import coverage artifact hash differs from its manifest")
+    document = json.loads(raw.decode("utf-8"))
+    if (type(document) is not dict or document.get("format") != "tli-import-coverage-v1"
+            or document.get("importComplete") is not False or type(document.get("source")) is not dict
+            or document["source"].get("sha256") != source or type(document.get("guide")) is not dict
+            or document["guide"].get("sha256") != bundle["guideSha256"]
+            or type(document.get("domains")) is not dict or len(document["domains"]) != bundle["domains"]):
+        raise ValueError("Import coverage artifact differs from its source, guide or manifest count")
+    if bundle["status"] == "error":
+        if document.get("status") != "error" or document["domains"]:
+            raise ValueError("Import coverage error artifact cannot contain domain claims")
+        return None, (str(path.resolve()), digest, len(raw), 0)
+    return project(document, source, bundle["guideSha256"]), (str(path.resolve()), digest, len(raw), 1)
+
+
 def lines(text):
     return [line for line in str(text).split("\n") if line]
 
@@ -455,6 +489,17 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Hero trait rank bundle failed; automatic rank acquisition remains incomplete")
     else:
         coverage.append("Hero trait rank candidates are unavailable in this legacy package")
+    audit = None
+    audit_origin = None
+    if "importCoverage" in manifest:
+        audit, audit_origin = audited(package, manifest["importCoverage"], hashes["source"][0], hashes["guide"][0])
+        if audit is not None:
+            documents["import_coverage"] = audit
+            coverage.append("Automatic import audit separates observed composition from unverified combat effects")
+        else:
+            coverage.append("Automatic import coverage audit failed; domain acquisition remains unassessed")
+    else:
+        coverage.append("Automatic import coverage audit is unavailable in this legacy package")
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
     rows, stats, benchmark, evidence = recorded(observed, partial=observations is None)
     missing = [key for key in REQUIRED_STATS if key not in stats]
@@ -589,6 +634,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["panel_log"] = panel["summary"]
     if ranks is not None:
         result["trait_ranks"] = ranks
+    if audit is not None:
+        result["import_coverage"] = audit
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -604,6 +651,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("game_log", str(Path(game_log).resolve()), source["sha256"], source["bytesRead"], 0))
     if origin is not None:
         inputs.append(("trait_ranks", *origin))
+    if audit_origin is not None:
+        inputs.append(("import_coverage", *audit_origin))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

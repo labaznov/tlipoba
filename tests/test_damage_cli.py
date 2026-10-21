@@ -14,6 +14,25 @@ from examples.make_fixture import fixture
 
 
 class DamageCliTests(unittest.TestCase):
+    """Check CLI outputs with isolated archives and synthetic packages."""
+
+    def test_calculation_keeps_the_audit_without_altering_the_damage(self):
+        from test_damage_archive import coverage_bundle, facts, observations, package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            results = []
+            for name in ("before", "audited"):
+                if name == "audited":
+                    coverage_bundle(path)
+                main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
+                      "--output", str(root / name), "--basis", "panel", "--active", "2", "--hits", "3",
+                      "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
+                results.append(json.loads((root / name / "calculation.json").read_text(encoding="utf-8")))
+            self.assertEqual((results[1]["import_coverage"]["import_complete"], results[1]["calculation"]["dps"]),
+                             (False, results[0]["calculation"]["dps"]))
+
     def test_calculation_preserves_rank_candidates_without_applying_a_rank(self):
         from test_damage_archive import facts, observations, package, trait_bundle
 
@@ -27,8 +46,6 @@ class DamageCliTests(unittest.TestCase):
             self.assertEqual([row["rank"] for row in json.loads(
                 (root / "result" / "calculation.json").read_text(encoding="utf-8"))["trait_ranks"]["traits"]],
                              [None, None])
-
-    """Check CLI outputs with an isolated local archive fake."""
 
     def test_game_log_allows_conditional_calculation_without_intermediate_json(self):
         with tempfile.TemporaryDirectory() as folder:

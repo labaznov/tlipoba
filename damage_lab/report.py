@@ -105,6 +105,65 @@ def skilldetails(record):
             f"<th>Значения</th></tr></thead><tbody>{rows}</tbody></table></div></section>")
 
 
+def importdetails(record):
+    """Display observed composition without promoting it to effective mechanics."""
+    if "import_coverage" not in record:
+        return ""
+    data = record["import_coverage"]
+    if data["import_complete"] is not False:
+        raise ValueError("Import coverage must remain incomplete")
+    rows = []
+    for name, label, keys in (
+        ("equipment", "Снаряжение", ("items", "invalid_records", "affixes", "affixes_with_rolls", "affixes_without_rolls", "invalid_affixes")),
+        ("skill_layout", "Навыки и поддержки", ("groups", "main_skills", "supports", "integer_levels", "invalid_levels", "invalid_records", "empty_slots")),
+        ("hero_traits", "Свойства героя", ("selected_traits", "memories", "invalid_records")),
+        ("talents", "Таланты", ("trees", "nodes_with_points", "invalid_records")),
+        ("slates", "Плиты божественности", ("slates", "empty_slots", "invalid_records")),
+        ("pactspirits", "Духи пакта", ("pactspirits", "empty_slots", "invalid_records")),
+        ("native_stats", "Характеристики из пакета", ("named", "unnamed_stat_pairs", "other_unnamed_fields")),
+        ("panel_skill_identity", "Принадлежность панели навыку", ()),
+        ("support_activation", "Активация поддержек", ("installed_supports",)),
+    ):
+        domain = data["domains"][name]
+        counts = [f"{key}: {domain['counts'][key]}" for key in keys if key in domain["counts"]]
+        details = [f"{key}: {json.dumps(domain[key], ensure_ascii=False)}" for key in {
+            "hero_traits": ("rank_status", "base_trait_rank", "rank_source"),
+            "native_stats": ("semantics", "protocol_verified"),
+            "panel_skill_identity": ("identity",),
+            "support_activation": ("activation", "reason"),
+        }.get(name, ()) if key in domain]
+        if name == "skill_layout" and "guide_support_level_values" in domain:
+            values = domain["guide_support_level_values"]
+            details.append("guide_support_level_values: " + ("Не извлечено" if values is None else "; ".join(
+                f"{key}: {values[key]}" for key in ("resolved", "missing_level", "duplicate_level", "invalid_value",
+                                                  "unverified_flat_tail", "not_level_scaled", "absent", "unknown_status", "invalid")
+                if key in values)))
+        rows.append(f"<tr><td>{text(label)}<br>{text(name)}</td><td>{text(domain['composition'])}</td>"
+                    f"<td>{text(domain['effective'])}{items(details) if details else ''}</td>"
+                    f"<td>{items(counts) if counts else 'Не извлечено'}</td>"
+                    f"<td>{items(domain['paths']) if domain['paths'] else 'Не извлечено'}</td></tr>")
+    gaps = "".join(
+        f"<tr><td>{text(row['domain'])}</td><td>{text(row['composition'])}</td>"
+        f"<td>{text(row['gap'])}</td><td>{text(row['next'])}</td></tr>"
+        for row in data["gaps"]
+    )
+    source = data["source"]
+    guide = data["guide"]
+    return ("<section><h2>Покрытие импорта</h2><p>Импорт остаётся неполным<br>import_complete: false</p>"
+            "<p>Наблюдение не подтверждает активацию: состав, эффективные значения и условия срабатывания проверяются отдельно</p>"
+            f"<p>Формат: {text(data['format'])}; Версия: {text(data['version'])}; источник: {text(data['tool'])}<br>"
+            f"SHA-256 источника: {text(source['sha256'])}<br>"
+            f"Время источника: {text(source['captured_at']) if source['captured_at'] is not None else 'Не установлено'}<br>"
+            f"Статус времени: {text(source['captured_at_status'])}<br>"
+            f"Сопроводительные данные: {'предоставлены' if guide['supplied'] else 'не предоставлены'}<br>"
+            f"SHA-256 сопроводительных данных: {text(guide['sha256']) if guide['sha256'] is not None else 'Не указан'}<br>"
+            f"Связь с источником: {text(guide['binding'])}</p>"
+            "<div class=scroll><table><thead><tr><th>Область</th><th>Состав</th><th>Эффекты</th><th>Количество</th><th>Пути источника</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></div><h3>Пробелы и следующие проверки</h3>"
+            "<div class=scroll><table><thead><tr><th>Область</th><th>Состав</th><th>Пробел</th><th>Следующая проверка</th>"
+            f"</tr></thead><tbody>{gaps}</tbody></table></div><h3>Границы покрытия</h3>{items(data['rules'])}</section>")
+
+
 def rankdetails(record):
     """Display unresolved trait candidates separately from applied combat parameters."""
     if "trait_ranks" not in record:
@@ -201,6 +260,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {logdetails(record)}
 {skilldetails(record)}
 {rankdetails(record)}
+{importdetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -365,6 +425,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {logdetails(record)}
 <section><h2>Состав билда</h2>{inventory}</section>
 {rankdetails(record)}
+{importdetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

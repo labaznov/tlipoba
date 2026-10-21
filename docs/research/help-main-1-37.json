@@ -1,0 +1,693 @@
+{
+  "format": "tli-help-review-chunk-v1",
+  "checkedAt": "2026-10-21",
+  "articles": [
+    {
+      "url": "https://tlidb.com/en/Damage_Form",
+      "title": "Damage Form",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Five damage forms have different mechanic eligibility; hit, DoT, secondary, reflected and true damage cannot share one unconditional modifier pipeline.",
+      "findings": [],
+      "unknowns": [
+        "Exact exceptions require source-specific effects"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Damage_Type",
+      "title": "Damage Type",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Damage is Physical, Fire, Cold, Lightning or Erosion; nonphysical types have corresponding resistance.",
+      "findings": [],
+      "unknowns": [
+        "No base damage roll distribution is specified"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Damage_Calculation",
+      "title": "Damage Calculation",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Ordinary damage increases add before distinct additional factors multiply.",
+      "findings": [],
+      "unknowns": [
+        "Same-affix grouping is defined separately; panel inclusion is not described"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "D=B*(1+sum(increased))*product(1+more_i)",
+          "domain": "Applicable damage sources with known modifier grouping",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Critical_Strike",
+      "title": "Critical Strike",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Hit damage can crit; repeated hits of one skill usually share a critical determination. Base rating comes from the weapon for attacks and skill for spells; default critical damage is 150%.",
+      "findings": [],
+      "unknowns": [
+        "Percentage units must be bound to the actual stat field; panel DPS and Lucky inclusion are unspecified"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "rating=sum(base_rating)*(1+sum(increased))*product(1+additional_i)",
+          "domain": "Applicable critical rating sources",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        },
+        {
+          "expression": "critical_hit=ordinary_hit*critical_damage_percent/100",
+          "domain": "A successful critical hit",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Double_Damage",
+      "title": "Double Damage",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Applicable double-damage chances combine before one hit-only determination.",
+      "findings": [],
+      "unknowns": [
+        "The text does not establish interaction order with other conditional modifiers"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "E[damage]=ordinary_hit*(1+q)",
+          "domain": "A Bernoulli double-damage check with established effective q in [0,1]",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Amplified_Damage_Over_Time",
+      "title": "Amplified Damage Over Time",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Affliction builds according to the inflicter's per-second stat, is shared by DoTs and caps at 100; each point grants 1% additional DoT taken before effect scaling.",
+      "findings": [],
+      "unknowns": [
+        "Application ownership and time-varying uptime must be supplied"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "taken_factor=1+0.01*affliction*effect",
+          "domain": "Affliction rating at or below its applicable cap",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Damage_Over_Time_Reaping",
+      "title": "Damage Over Time Reaping",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Reaping settles the owner's active DoTs for a specified duration as true damage; recovery speed and reaping-duration bonuses affect separate quantities.",
+      "findings": [],
+      "unknowns": [
+        "The recovery-speed formula and repeated-effect snapshots are not supplied"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Damage_Type_Conversion",
+      "title": "Damage Type Conversion",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Dealt conversion is hit-only and moves Physical→Lightning→Cold→Fire→Erosion. Competing conversions above 100% normalize; original and destination ordinary bonuses combine. Taken conversion applies to all damage forms.",
+      "findings": [],
+      "unknowns": [
+        "Multi-hop ancestry and special hero conversion need separate verification"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "normalized_fraction_i=p_i/max(1,sum(p))",
+          "domain": "Competing conversions from one source type; fractional units",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Resistance_Penetration",
+      "title": "Resistance Penetration",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Penetration modifies effective resistance during damage calculation without changing the actual resistance stat and applies to hit, DoT, secondary and reflected damage.",
+      "findings": [],
+      "unknowns": [
+        "The article does not define a floor for post-penetration resistance"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Armor_DMG_Mitigation_Penetration",
+      "title": "Armor DMG Mitigation Penetration",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "On hits, armor mitigation penetration subtracts from armor-provided reduction without changing armor; reduction can become negative.",
+      "findings": [],
+      "unknowns": [
+        "Ordering relative to nonphysical effectiveness remains unverified"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Others",
+      "title": "Others",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Severe injury compares damage accumulated within 0.5 seconds against half maximum life plus shield, then resets the recorded total. Elimination, fatal and overflown damage are distinct concepts.",
+      "findings": [],
+      "unknowns": [
+        "Related achievement rewards are outside this Help-body review"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "threshold=0.5*(maximum_life+maximum_shield)",
+          "domain": "Severe-injury trigger; strictly exceeds threshold in a 0.5-second window",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Life",
+      "title": "Life",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Players start with 50 maximum life and gain 13 per level gained. Low life is at most 35%, full life at least 95%; temporary life participates in current and maximum totals.",
+      "findings": [],
+      "unknowns": [
+        "Level indexing and applicable modifier pools require an explicit character model"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Shield",
+      "title": "Shield",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Energy shield is deducted before life. Base recharge delay is two seconds and default recharge rate is 20% per second; injury-buffer deductions are excluded from the damage-delay condition.",
+      "findings": [],
+      "unknowns": [
+        "Recharge stacking and interruption modifiers are not specified here"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Regain",
+      "title": "Regain",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Regain restores a portion of missing life or shield on hit; each has its own base 0.5-second interval and 30% cap.",
+      "findings": [],
+      "unknowns": [
+        "Recovery scaling and exact cap modifications require separate sources"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Resistance",
+      "title": "Resistance",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Effective resistance uses the smaller of current resistance and its applicable maximum; baseline maximum is 60%, with an absolute maximum of 90%.",
+      "findings": [],
+      "unknowns": [
+        "Resistance-themed talent snippets are not universal baseline bonuses"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "R_effective=min(R_current,R_max)",
+          "domain": "Before penetration and with applicable maximum resistance established",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Armor",
+      "title": "Armor",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Armor affects hits, secondary and reflected damage; reduction caps at 80%, with default 60% effectiveness against nonphysical damage. Player and monster formulas differ; double armor changes calculation input only.",
+      "findings": [],
+      "unknowns": [
+        "Current target armor, modified effectiveness and penetration order are not inferred"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "player_reduction=A/(0.9*A+3000+300*min(enemy_level,90))",
+          "domain": "Player armor before cap and applicable effectiveness",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        },
+        {
+          "expression": "monster_reduction=A/(0.9*A+30000)",
+          "domain": "Monster armor before cap and applicable effectiveness",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Evade",
+      "title": "Evade",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Evaded hits deal no damage and do not trigger on-hit effects. Monsters cannot evade; player evasion starts at zero and gains two per level. Evade chance caps at 75%.",
+      "findings": [],
+      "unknowns": [
+        "The lower clamp and exact level-to-enemy-accuracy table are not provided"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "q=1-1.15*accuracy/(accuracy+0.5*evasion**0.75)",
+          "domain": "Player incoming-hit evasion before applicable clamps; enemy accuracy stated range 130..680",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Block",
+      "title": "Block",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Attack and spell block use the corresponding tags. Chances add to 100%; default block ratio is 30%, default maximum 60%, absolute maximum 80%. Block ratio applies before additional damage blocked.",
+      "findings": [],
+      "unknowns": [
+        "Not all blocked damage qualifies as attack or spell"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Damage_Mitigation",
+      "title": "Damage Mitigation",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Distinct additional damage-reduction sources multiply independently; each source is capped at 90%.",
+      "findings": [],
+      "unknowns": [
+        "Effect-specific overrides and eligibility must be established"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "remaining=product(1-m_i)",
+          "domain": "Applicable independent additional mitigation sources, each m_i<=0.9",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Chance_to_Avoid_Damage",
+      "title": "Chance to Avoid Damage",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Avoidance applies to hit, reflected and secondary damage, with stacked chance capped at 60%. The hit still occurs and attacker on-hit effects remain; separate damage types roll separately.",
+      "findings": [],
+      "unknowns": [
+        "This is not equivalent to evade and does not establish inter-type independence"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Injury_Buffer",
+      "title": "Injury Buffer",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Injury buffer stacks proportionally to 80% and defers part of hit deductions across four seconds; it does not change hit damage or create new damage events.",
+      "findings": [],
+      "unknowns": [
+        "Related item and skill catalogs were not exhaustively reviewed"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Critical_Strike_Damage_Mitigation",
+      "title": "Critical Strike Damage Mitigation",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Critical mitigation reduces only the additional critical portion and can reach 100%.",
+      "findings": [],
+      "unknowns": [
+        "Exact placement relative to critical-only more effects is not specified"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "critical_factor=1+(m-1)*(1-r)",
+          "domain": "Interpretation of reducing critical excess; m>=1 and effective r in [0,1]",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Deflection",
+      "title": "Deflection",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Each consumed stack grants 6% additional damage reduction; default maximum stacks are four and absolute maximum ten. All stacks normally disappear on hit.",
+      "findings": [],
+      "unknowns": [
+        "The text does not resolve additive versus multiplicative per-stack aggregation; effect-specific exceptions differ"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Strength",
+      "title": "Strength",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Each eligible Strength point grants 0.5% additional skill damage; matching main attributes add their contributions before the final bonus. Direct ailments and summoned minion damage are included.",
+      "findings": [],
+      "unknowns": [
+        "Character attribute field bindings and current-client coefficients remain separate verification tasks"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "F=1+0.005*sum(eligible_main_stats)",
+          "domain": "Unmodified main-attribute damage ratios for the skill's matching tags",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Dexterity",
+      "title": "Dexterity",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Dexterity grants 0.5% additional damage per eligible point, including directly inflicted ailments and summoned minions. Multiple main-stat contributions sum before applying the bonus.",
+      "findings": [],
+      "unknowns": [
+        "The skill catalog does not identify current character attributes"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "F=1+0.005*sum(eligible_main_stats)",
+          "domain": "Unmodified matching main-attribute contributions",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Intelligence",
+      "title": "Intelligence",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Intelligence has the same 0.5% per eligible point damage rule; matching attributes sum into one main-stat damage bonus.",
+      "findings": [],
+      "unknowns": [
+        "Unknown native stat IDs cannot be named by fitting this coefficient"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "F=1+0.005*sum(eligible_main_stats)",
+          "domain": "Unmodified matching main-attribute contributions",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Mana",
+      "title": "Mana",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Base maximum mana is 40 and gains five per level gained; default regeneration is listed as seven and 1.75% per second. Low/full thresholds are 35%/95%; insufficient mana prevents the skill.",
+      "findings": [],
+      "unknowns": [
+        "Flat versus percentage regeneration entries are not proven separate additive sources; temporary-mana wording is ambiguous"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Movement_Speed",
+      "title": "Movement Speed",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Base movement is 6.5 meters per second; ordinary modifiers add and additional modifiers multiply.",
+      "findings": [],
+      "unknowns": [
+        "Caps and special movement skills are not defined"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "speed=6.5*(1+sum(increased))*product(1+additional_i)",
+          "domain": "Ordinary movement with applicable factors and grouping established",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Stacks_and_Multiplication_Rules",
+      "title": "Stacks and Multiplication Rules",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Repeated additional bonuses of the same affix add unless explicitly marked to multiply.",
+      "findings": [],
+      "unknowns": [
+        "Identity must be an exact affix identity, not merely similar wording"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Sealed_Mana_Compensation",
+      "title": "Sealed Mana Compensation",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Sealed-mana compensation divides initial reserved mana by one plus compensation.",
+      "findings": [],
+      "unknowns": [
+        "Reservation eligibility, cap and negative-value behavior require separate validation"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "sealed=initial_sealed/(1+compensation)",
+          "domain": "Applicable passive-skill reservation with a positive denominator",
+          "status": "documented",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Effective_and_Excess",
+      "title": "Effective and Excess",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Effective denotes the portion within a fixed cap; excess is the portion above it.",
+      "findings": [],
+      "unknowns": [
+        "This definition alone does not establish individual caps or a negative floor"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Lucky",
+      "title": "Lucky",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Lucky uses the best of two rolls, very lucky the best of three, unlucky the worst of two. Lucky and unlucky cancel; very lucky plus unlucky becomes lucky.",
+      "findings": [],
+      "unknowns": [
+        "Which random variable is affected and panel inclusion must be bound separately"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": [
+        {
+          "expression": "q_lucky=1-(1-q)**2",
+          "domain": "Two independent Bernoulli rolls with a favorable success outcome",
+          "status": "derived",
+          "assumptions": [
+            "Applicability and input units must be independently bound; current client equivalence is unverified"
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Ill_Omen_Base_Mechanics",
+      "title": "Ill Omen Base Mechanics",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Ill Omen accumulates through DoT on cursed monsters, with ten base maximum stacks. Per-stack thresholds are 8% maximum life for nonelites and 5% for elites; full stacks eliminate nonelites or deal 20% maximum-life true damage to elites.",
+      "findings": [],
+      "unknowns": [
+        "Supreme bosses trigger only once; current stack state and eligible damage must be established"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Obtain_Ill_Omen",
+      "title": "Obtain Ill Omen",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Equipped Ominous enables accumulation from qualifying damage and occupies one curse limit. Skill level affects area and duration; another simultaneous curse requires additional curse capacity.",
+      "findings": [],
+      "unknowns": [
+        "The exact threshold accounting of reaping and extra settled damage needs event-level validation"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Stack_Ill_Omen",
+      "title": "Stack Ill Omen",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Cumulative efficiency accelerates Ill Omen accumulation and caps at 100%; initial extra stacks are a different progression input.",
+      "findings": [],
+      "unknowns": [
+        "The mathematical transformation of efficiency into a threshold is not specified"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Ill_Omen_Trigger_Effect",
+      "title": "Ill Omen Trigger Effect",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Trigger progression can spread stacks and grant restoration, movement or DoT buffs.",
+      "findings": [],
+      "unknowns": [
+        "No universal numeric buff or spread formula is supplied"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Ill_Omen_Additional_Progression",
+      "title": "Ill Omen Additional Progression",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Additional base effects can attach to every stack; Reap Purification deals maximum-life-based true damage on stack gain.",
+      "findings": [],
+      "unknowns": [
+        "The coefficient and interaction with the ordinary full-stack trigger are not supplied"
+      ],
+      "reviewScope": "Help/manual definition only; unrelated skill, item, achievement and talent catalogs are not exhaustively reviewed",
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "formulas": []
+    }
+  ]
+}

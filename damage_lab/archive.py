@@ -9,6 +9,8 @@ import sqlite3
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from .skillvalues import extract
+
 PACKAGE = {"build": "build.json", "guide": "guide-data.json", "manifest": "manifest.json",
            "transfer": "transfer-report.json", "source": "source.json"}
 STORED = ("build", "manifest", "transfer")
@@ -97,11 +99,13 @@ def observation(row, kind, evidence, prefix=""):
             "evidence": evidence[row["evidence"]]}
 
 
-def recorded(data):
+def recorded(data, *, partial=False):
+    """Normalize available values while requiring complete explicit developer inputs."""
     evidence = {key: item["path"] for key, item in data["evidence"].items()}
     rows = [observation(row, "panel", evidence) for row in data["panel"]]
     bench = data["benchmark"]
-    rows += [observation({**row, "evidence": row.get("evidence", bench["evidence"])}, "benchmark", evidence, "benchmark_")
+    rows += [observation({**row, "evidence": row["evidence"] if "evidence" in row else bench["evidence"]},
+                         "benchmark", evidence, "benchmark_")
              for row in bench["values"]]
     keys = [row["key"] for row in rows]
     duplicates = sorted({key for key in keys if keys.count(key) > 1})
@@ -111,9 +115,9 @@ def recorded(data):
     benchmark = {row["key"][len("benchmark_"):]: row["value"] for row in rows if row["kind"] == "benchmark"}
     for name, required, present in (("stats", REQUIRED_STATS, stats), ("benchmark", BENCHMARK, benchmark)):
         missing = [key for key in required if key not in present]
-        if missing:
+        if missing and not partial:
             raise ValueError(f"Missing {name}: {', '.join(missing)}")
-    return rows, stats, {key: benchmark[key] for key in BENCHMARK}, evidence
+    return rows, stats, {key: benchmark[key] for key in BENCHMARK if key in benchmark}, evidence
 
 
 def gear(guide):
@@ -303,8 +307,57 @@ def automatic(data, path, source):
     return observed, document, coverage
 
 
-def archive(package: Path, observations: Path, facts: Path, database: Path, *, native_stats: Path | None = None) -> dict:
-    package, observations, facts, database = (Path(package), Path(observations), Path(facts), Path(database))
+def logged(data, path, native):
+    """Enrich native-bound observations with one corroborated log cohort."""
+    from .logstats import select
+
+    anchors = [] if native is None else [entry["value"] for entry in native["known"] if entry["key"] == "spell_dps"]
+    if len(anchors) != 1:
+        raise ValueError("Panel log requires a corroborated native Spell DPS anchor")
+    document = load(path)
+    selection = select(document, anchors[0])
+    summary = {key: selection["summary"][key] for key in (
+        "format", "status", "known", "unknown_attributes", "cohort", "identity_verified", "source_sha256",
+    )}
+    summary["cohort"] = {key: summary["cohort"][key] for key in ("timestamp", "frame")}
+    if summary["status"] != "corroborated" or summary["identity_verified"] is not False:
+        raise ValueError("Panel log must remain corroborated without a verified player identity")
+    selection["summary"] = summary
+    observed = {**data, "panel": [dict(row) for row in data["panel"]],
+                "benchmark": {**data["benchmark"], "values": [dict(row) for row in data["benchmark"]["values"]]},
+                "evidence": dict(data["evidence"])}
+    coverage = [f"Panel log: known: {summary['known']}; unknown_attributes: {summary['unknown_attributes']}; "
+                "identity_verified=false",
+                "Panel log corroborates the native Spell DPS state; player identity and combat mechanics remain unverified"]
+    coverage += [f"Panel log issue: {issue}" for issue in selection["issues"]]
+    for entry in selection["rows"]:
+        key = entry["key"]
+        if key not in REQUIRED_STATS:
+            raise ValueError("Panel log contains an unsupported normalized characteristic")
+        evidence = f"panel_log:{key}"
+        observed["evidence"][evidence] = {"path": str(Path(path).resolve()), "shows": entry["source"]}
+        row = {field: entry[field] for field in ("key", "label", "value", "display", "unit")}
+        row["evidence"] = evidence
+        matches = [position for position, value in enumerate(observed["panel"]) if value["key"] == key]
+        if len(matches) > 1:
+            raise ValueError("Panel log cannot replace duplicate observations")
+        if matches:
+            previous = observed["panel"][matches[0]]["value"]
+            if previous != entry["value"]:
+                coverage.append(f"Panel log conflict: {key}; previous input {previous}; corroborated log {entry['value']} used")
+            observed["panel"][matches[0]] = row
+        else:
+            observed["panel"].append(row)
+    coverage.append(f"Panel log refines rounded native Spell DPS anchor {anchors[0]} with full-precision log values")
+    return observed, document, selection, coverage
+
+
+def archive(package: Path, observations: Path | None, facts: Path, database: Path, *,
+            native_stats: Path | None = None, panel_log: Path | None = None) -> dict:
+    """Archive a package with optional developer observations and explicit import gaps."""
+    package, facts, database = (Path(package), Path(facts), Path(database))
+    if observations is not None:
+        observations = Path(observations)
     if database.exists():
         raise FileExistsError(f"Database already exists: {database}")
     files = {role: package / name for role, name in PACKAGE.items()}
@@ -318,7 +371,9 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
         raise ValueError("build.json does not match buildSha256 in manifest.json")
     guide = load(files["guide"])
     guide.pop("sourceSections", None)
-    developer, facts_data = load(observations), load(facts)
+    documents["skill_values"] = extract(guide)
+    developer = load(observations) if observations is not None else {"evidence": {}, "panel": [], "benchmark": {"values": []}}
+    facts_data = load(facts)
     observed = developer
     coverage = []
     bundle = None
@@ -333,7 +388,9 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
                 native_stats = package / "native-stats.json"
             elif bundle["status"] in ("absent", "unsupported", "error"):
                 coverage.append(f"Native stats bundle status: {bundle['status']}; "
-                                "automatic import is incomplete and developer input remains in use")
+                                "automatic import is incomplete; "
+                                + ("developer input remains in use" if observations is not None
+                                   else "no manual observations were provided"))
             else:
                 raise ValueError("Native stats manifest status is unsupported")
         except (KeyError, TypeError, AttributeError):
@@ -343,15 +400,35 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
         if bundle is not None and (bundle.get("known") is True or bundle.get("known") is False
                                    or bundle.get("known") != len(documents["native_stats"]["known"])):
             raise ValueError("Native stats manifest known count differs from its input document")
+    panel = None
+    if panel_log is not None:
+        observed, documents["panel_log"], panel, issues = logged(observed, panel_log, documents.get("native_stats"))
+        documents["panel_log_selection"] = panel
+        coverage += issues
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
-    rows, stats, benchmark, evidence = recorded(observed)
+    rows, stats, benchmark, evidence = recorded(observed, partial=observations is None)
+    missing = [key for key in REQUIRED_STATS if key not in stats]
     if native_stats is not None:
         for entry in documents["native_stats"]["known"]:
             key = entry["key"] if entry["key"] == "spell_dps" else "benchmark_survival"
             row = next(row for row in rows if row["key"] == key)
             row["precision"] = f"native varint; exact integer; wire {entry['wire']}; corroborated; protocolVerified=false"
+    if panel is not None:
+        for entry in panel["rows"]:
+            row = next(row for row in rows if row["key"] == entry["key"])
+            row["precision"] = entry["precision"]
+            row["source"] = {key: entry["source"][key] for key in (
+                "attr_id", "index", "raw_value", "timestamp", "frame", "line_numbers",
+            )}
+            if "raw_values" in entry["source"]:
+                row["source"]["raw_values"] = list(entry["source"]["raw_values"])
+    if native_stats is not None:
         keys = {entry["key"] for entry in documents["native_stats"]["known"]}
-        coverage.append("Native stats missing automatic fields: " + ", ".join(key for key in stats if key not in keys))
+        if panel is not None:
+            keys.update(entry["key"] for entry in panel["rows"])
+        pending = [key for key in REQUIRED_STATS if key not in keys]
+        pending += [key for key in stats if key not in keys and key not in pending]
+        coverage.append("Native stats missing automatic fields: " + ", ".join(pending))
     loadouts = build["loadouts"]
     if not loadouts["loadouts"]:
         raise ValueError("No loadouts are available in build.json")
@@ -363,13 +440,14 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
 
     if synthetic:
         coverage.append("Синтетический пример: состав билда, показатели панели и бенчмарк вымышлены; "
-                        "они проверяют арифметику, перенос из игры не выполнялся")
+                        "они проверяют арифметику, перенос из игры не выполнялся" if observations is not None
+                        else "Синтетический пример: состав пакета вымышлен, импорт из живой игры не выполнялся")
     elif not transfer.get("complete") or not transfer.get("canClaimFullTransfer"):
         coverage.append("Перенос неполный (transfer-report complete=false): перенос и расчёт нельзя называть полными.")
     coverage += [f"transfer-report: {issue}" for issue in transfer.get("issues", [])]
     if manifest.get("status") not in (None, "ready"):
         coverage.append(f"manifest status: {manifest['status']}")
-    if not synthetic:
+    if observations is not None and not synthetic:
         coverage += [
             "Статпанель агрегирована: игра показывает итог без разложения по источникам; "
             "состояние боя (баффы, стаки, заряды, проклятия) в момент скриншотов неизвестно.",
@@ -378,19 +456,25 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
             f"Бенчмарк «{observed['benchmark']['label']}»: подпись цели/окна бенчмарка, "
             f"не уровень персонажа ({character.get('level')}).",
         ]
+    if observations is None:
+        coverage.append("Автоматический импорт неполный; отсутствуют характеристики: " + ", ".join(missing))
+        coverage.append("Missing benchmark fields: " + ", ".join(key for key in BENCHMARK if key not in benchmark))
+    else:
+        coverage += [
+            "Ручные наблюдения observations.json — developer input для разработки; "
+            "автоматический импорт итоговых характеристик неполный",
+            "Округлённые значения панели хранятся с исходной записью и шагом округления; недостающие цифры не выдумывались.",
+            "Коэффициенты не подгонялись под бенчмарк: независимое контрольное число не определяет множители модели.",
+        ]
     coverage += [
-        "Ручные наблюдения observations.json — developer input для разработки; "
-        "автоматический импорт итоговых характеристик неполный",
-        "Округлённые значения панели хранятся с исходной записью и шагом округления; недостающие цифры не выдумывались.",
-        "Коэффициенты не подгонялись под бенчмарк: независимое контрольное число не определяет множители модели.",
         "Таланты: только узлы с rank>0 и выбранные core; описания взяты из каталога Compendium и могут быть устаревшими.",
         "source.json и sourceSections остаются локальными: в базе и результате только SHA256 source.json.",
     ]
     truncated = [row["label"] for row in rows if row["label"].endswith(("...", "…"))]
-    if truncated and not synthetic:
+    if truncated and observations is not None and not synthetic:
         coverage.append("Подписи обрезаны игрой, полные названия не восстанавливались: " + ", ".join(truncated) + ".")
     for item in guide["gear"]:
-        if any("Lucky Critical Strike" in affix["text"] for affix in item.get("affixes", [])):
+        if "crit_chance" in stats and any("Lucky Critical Strike" in affix["text"] for affix in item.get("affixes", [])):
             coverage.append(f"Lucky Critical Strike на {item['name']}: crit_chance — исходный шанс панели, "
                             "а не эффективная вероятность двух бросков.")
     evidence_rows = []
@@ -423,15 +507,19 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
 
     result = {
         "synthetic": synthetic,
+        "import_status": "partial",
+        "missing_stats": missing,
         "name": manifest.get("identity", {}).get("title") or guide["name"],
         "capturedAt": manifest["capturedAt"],
         "character": f"{character['englishName']} / {character['class']} / {character['trait']}",
         "stats": stats,
-        "observations": [{field: row[field] for field in ("key", "label", "value", "unit", "evidence", "precision")}
+        "observations": [{**{field: row[field] for field in ("key", "label", "value", "unit", "evidence", "precision")},
+                          **({"source": row["source"]} if "source" in row else {})}
                          for row in rows],
         "benchmark": benchmark,
         "facts": facts_data,
         "inventory": inventory,
+        "skill_values": documents["skill_values"],
         "coverage": coverage,
         "source_sha256": hashes["source"][0],
     }
@@ -442,13 +530,20 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
             "format": document["format"], "status": document["status"], "known": len(keys),
             "unknown_stat_ids": document["coverage"]["unknownStatIds"], "source_sha256": hashes["source"][0],
             "protocol_verified": False, "missing_trait_levels": document["heroTraits"]["levels"] is None,
-            "missing_automatic_stats": [key for key in stats if key not in keys],
+            "missing_automatic_stats": pending,
         }
+    if panel is not None:
+        result["panel_log"] = panel["summary"]
 
-    inputs = [("observations", str(observations), *fingerprint(observations)),
-              ("facts", str(facts), *fingerprint(facts))]
+    inputs = [("facts", str(facts), *fingerprint(facts))]
+    documents["facts"] = facts_data
+    if observations is not None:
+        inputs.append(("observations", str(observations), *fingerprint(observations)))
+        documents["observations"] = developer
     if native_stats is not None:
         inputs.append(("native_stats", str(Path(native_stats).resolve()), *fingerprint(native_stats)))
+    if panel_log is not None:
+        inputs.append(("panel_log", str(Path(panel_log).resolve()), *fingerprint(panel_log)))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()
@@ -466,7 +561,7 @@ def archive(package: Path, observations: Path, facts: Path, database: Path, *, n
             connection.executemany("INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?)", evidence_rows)
             connection.executemany("INSERT INTO documents VALUES (?, ?)", [
                 (role, json.dumps(value, ensure_ascii=False))
-                for role, value in (*documents.items(), ("observations", developer), ("facts", facts_data))])
+                for role, value in documents.items()])
             connection.executemany("INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
                 (row["key"], row["kind"], row["label"], row["display"], row["value"], row["unit"],
                  row["precision"], row["evidence"]) for row in rows])

@@ -171,6 +171,27 @@ def native(root, directory):
     })
 
 
+def panel(root, anchor):
+    """Write a fictional complete panel cohort with full numeric tokens."""
+    return write(root / "panel-log.json", {
+        "format": "tli-panel-log-v1", "source": {"sha256": "b" * 64}, "gaps": [],
+        "cohorts": [{"timestamp": "2001-02-03T04:05:07.000Z", "frame": 713, "status": "resolved", "issues": [],
+                     "attributes": [{"id": identity, "name": name, "status": "resolved",
+                                     "values": [float(token) for token in tokens], "raw_values": tokens,
+                                     "line_numbers": [17 + index * 2, 18 + index * 2]}
+                                    for index, (identity, name, tokens) in enumerate((
+                                        ("10103", "Spell DPS", [anchor]),
+                                        ("11800", "Total Spell Damage", ["731.125", "1117.625"]),
+                                        ("21000", "Spells cast per second", ["4.8125"]),
+                                        ("21212", "Spell Critical Strike Chance", ["31.75"]),
+                                        ("21400", "Spell Critical Strike Damage", ["287.5"]),
+                                        ("21714", "Max Tangle Quantity", ["3"]),
+                                        ("21715", "Additional Tangle Attach Quantity", ["2"]),
+                                        ("11000", "Cold Penetration", ["9.25"]),
+                                    ))]}],
+    })
+
+
 def dump(database):
     with contextlib.closing(sqlite3.connect(database)) as connection:
         return "\n".join(connection.iterdump())
@@ -555,6 +576,249 @@ class ArchiveNativeTest(unittest.TestCase):
             except ValueError:
                 pass
             self.assertFalse(database.exists())
+
+
+class ArchiveImportTest(unittest.TestCase):
+    """Import available package data without fabricating developer observations."""
+
+    def test_imports_native_stats_and_inventory_without_manual_observations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            result = archive(directory, None, facts(root), root / "build.sqlite", native_stats=native(root, directory))
+            self.assertEqual((result["stats"], result["benchmark"], result["import_status"], result["missing_stats"],
+                              [row["key"] for row in result["observations"]], len(result["inventory"]["gear"])),
+                             ({"spell_dps": 43721}, {"survival": 8033}, "partial",
+                              ["hit_min", "hit_max", "cast_rate", "crit_chance", "crit_multiplier",
+                               "max_tangles", "extra_attachments", "cold_penetration"],
+                              ["spell_dps", "benchmark_survival"], 1))
+
+    def test_import_without_native_stats_keeps_missing_values_absent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = archive(package(root), None, facts(root), root / "build.sqlite")
+            self.assertEqual((result["stats"], result["benchmark"], result["observations"],
+                              result["import_status"], result["missing_stats"]),
+                             ({}, {}, [], "partial", ["spell_dps", "hit_min", "hit_max", "cast_rate", "crit_chance",
+                                                       "crit_multiplier", "max_tangles", "extra_attachments",
+                                                       "cold_penetration"]))
+
+    def test_import_without_manual_input_does_not_create_observation_documents_or_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            database = root / "build.sqlite"
+            archive(directory, None, facts(root), database, native_stats=native(root, directory))
+            with contextlib.closing(sqlite3.connect(database)) as connection:
+                self.assertEqual((connection.execute("SELECT count(*) FROM sources WHERE role='observations'").fetchone()[0],
+                                  connection.execute("SELECT count(*) FROM documents WHERE role='observations'").fetchone()[0],
+                                  connection.execute("SELECT count(*) FROM sources WHERE role LIKE 'evidence:native_stats:%'").fetchone()[0]),
+                                 (0, 0, 2))
+
+    def test_import_coverage_lists_missing_benchmark_fields_without_claiming_manual_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            text = "\n".join(archive(directory, None, facts(root), root / "build.sqlite",
+                                    native_stats=native(root, directory))["coverage"])
+            self.assertEqual(("Missing benchmark fields: average_dps, duration, highest_5s, average_5s" in text,
+                              any(marker in text for marker in ("скриншот", "Скриншот", "Damage (Level", "observations.json"))),
+                             (True, False))
+
+    def test_explicit_manual_input_still_requires_all_required_stats(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = observations(root)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["panel"] = [row for row in data["panel"] if row["key"] != "hit_min"]
+            write(path, data)
+            with self.assertRaisesRegex(ValueError, "Missing stats: hit_min"):
+                archive(directory, path, facts(root), root / "build.sqlite", native_stats=native(root, directory))
+
+    def test_explicit_manual_input_still_requires_the_benchmark_damage_measurement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = observations(root)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["benchmark"]["values"] = [row for row in data["benchmark"]["values"] if row["key"] != "average_dps"]
+            write(path, data)
+            with self.assertRaisesRegex(ValueError, "Missing benchmark: average_dps"):
+                archive(package(root), path, facts(root), root / "build.sqlite")
+
+    def test_import_without_manual_input_still_rejects_native_stats_from_another_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["source"]["sha256"] = "5" * 64
+            write(path, document)
+            with self.assertRaisesRegex(ValueError, "Native stats source sha256"):
+                archive(directory, None, facts(root), root / "build.sqlite", native_stats=path)
+
+    def test_native_bundle_import_does_not_read_an_unselected_observations_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            (directory / "native-stats.json").write_bytes(native(root, directory).read_bytes())
+            (directory / "observations.json").write_text("malformed unselected developer file", encoding="utf-8")
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["nativeStats"] = {"file": "native-stats.json", "status": "decoded", "known": 2, "protocolVerified": False}
+            write(directory / "manifest.json", manifest)
+            self.assertEqual(archive(directory, None, facts(root), root / "build.sqlite")["stats"], {"spell_dps": 43721})
+
+    def test_failed_native_bundle_does_not_claim_nonexistent_developer_values(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["nativeStats"] = {"file": "native-stats.json", "status": "error", "known": 0, "protocolVerified": False}
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, None, facts(root), root / "build.sqlite")
+            text = "\n".join(result["coverage"])
+            self.assertEqual((result["stats"], result["benchmark"], "no manual observations were provided" in text,
+                              "developer input remains in use" in text), ({}, {}, True, False))
+
+    def test_synthetic_import_does_not_claim_that_a_benchmark_was_supplied(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            guide = json.loads((directory / "guide-data.json").read_text(encoding="utf-8"))
+            guide["synthetic"] = True
+            write(directory / "guide-data.json", guide)
+            text = "\n".join(archive(directory, None, facts(root), root / "build.sqlite")["coverage"])
+            self.assertEqual(("Синтетический пример: состав пакета" in text,
+                              "бенчмарк вымышлены" in text), (True, False))
+
+
+class ArchivePanelLogTest(unittest.TestCase):
+    """Corroborate automatic panel evidence using the same package native anchor."""
+
+    def test_native_anchored_log_completes_required_stats_without_manual_observations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            result = archive(directory, None, facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory), panel_log=panel(root, "43721.25"))
+            self.assertEqual((result["stats"], result["benchmark"], result["missing_stats"],
+                              result["native_stats"]["missing_automatic_stats"], result["import_status"],
+                              result["panel_log"]["status"], result["panel_log"]["identity_verified"]),
+                             ({"spell_dps": 43721.25, "hit_min": 731.125, "hit_max": 1117.625,
+                               "cast_rate": 4.8125, "crit_chance": .3175, "crit_multiplier": 2.875,
+                               "max_tangles": 3, "extra_attachments": 2, "cold_penetration": .0925},
+                              {"survival": 8033}, [], [], "partial", "corroborated", False))
+
+    def test_manual_spell_dps_cannot_supply_a_missing_native_anchor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "corroborated native Spell DPS anchor"):
+                archive(package(root), observations(root), facts(root), root / "build.sqlite",
+                        panel_log=panel(root, "31729"))
+
+    def test_native_survival_cannot_supply_a_spell_dps_anchor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = native(root, directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["known"] = data["known"][1:]
+            data["coverage"]["known"] = 1
+            data["coverage"]["missing"] = ["spell_dps"]
+            write(path, data)
+            with self.assertRaisesRegex(ValueError, "corroborated native Spell DPS anchor"):
+                archive(directory, observations(root), facts(root), root / "build.sqlite",
+                        native_stats=path, panel_log=panel(root, "31729"))
+
+    def test_mismatched_log_cannot_leave_an_archive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            with self.assertRaisesRegex(ValueError, "match"):
+                archive(directory, None, facts(root), root / "build.sqlite",
+                        native_stats=native(root, directory), panel_log=panel(root, "43722"))
+            self.assertFalse((root / "build.sqlite").exists())
+
+    def test_ambiguous_log_cannot_choose_a_cohort(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = panel(root, "43721.25")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            cohort = json.loads(json.dumps(data["cohorts"][0]))
+            cohort.update(frame=719, timestamp="2001-02-03T04:05:08.000Z")
+            cohort["attributes"][2].update(values=[4.9375], raw_values=["4.9375"])
+            data["cohorts"].append(cohort)
+            write(path, data)
+            with self.assertRaisesRegex(ValueError, "ambiguous"):
+                archive(directory, None, facts(root), root / "build.sqlite",
+                        native_stats=native(root, directory), panel_log=path)
+
+    def test_log_keeps_evidence_precision_and_original_numeric_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = panel(root, "43721.25")
+            result = archive(directory, None, facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory), panel_log=path)
+            row = next(row for row in result["observations"] if row["key"] == "spell_dps")
+            self.assertEqual((row["evidence"], row["precision"], row["source"]),
+                             (str(path.resolve()), "log full precision; corroborated; identity_verified=false",
+                              {"attr_id": "10103", "index": 1, "raw_value": "43721.25",
+                               "raw_values": ["43721.25"],
+                               "timestamp": "2001-02-03T04:05:07.000Z", "frame": 713,
+                               "line_numbers": [17, 18]}))
+
+    def test_database_keeps_log_document_hash_and_rounded_native_anchor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = panel(root, "43721.25")
+            archive(directory, None, facts(root), root / "build.sqlite",
+                    native_stats=native(root, directory), panel_log=path)
+            with contextlib.closing(sqlite3.connect(root / "build.sqlite")) as connection:
+                documents = {role: json.loads(value) for role, value in connection.execute("SELECT role, json FROM documents")}
+                source = connection.execute("SELECT path, sha256, stored FROM sources WHERE role='panel_log'").fetchone()
+                self.assertEqual((documents["panel_log"], documents["panel_log_selection"]["summary"]["source_sha256"],
+                                  documents["native_stats"]["known"][0]["value"], source),
+                                 (json.loads(path.read_text(encoding="utf-8")), "b" * 64, 43721,
+                                  (str(path.resolve()), hashlib.sha256(path.read_bytes()).hexdigest(), 1)))
+
+    def test_manual_conflicts_remain_explicit_after_log_enrichment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory), panel_log=panel(root, "43721.25"))
+            self.assertTrue(any("Panel log conflict: cast_rate; previous input 4.73; corroborated log 4.8125 used" == item
+                                for item in result["coverage"]))
+
+    def test_log_cannot_remove_strict_manual_benchmark_requirements(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            path = observations(root)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["benchmark"]["values"] = []
+            write(path, data)
+            with self.assertRaisesRegex(ValueError, "benchmark"):
+                archive(directory, path, facts(root), root / "build.sqlite",
+                        native_stats=native(root, directory), panel_log=panel(root, "43721.25"))
+
+
+class ArchiveSkillValuesTest(unittest.TestCase):
+    """Preserve catalog skill parameters without applying them as damage modifiers."""
+
+    def test_missing_export_parameters_remain_unavailable_in_result_and_database(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = archive(package(root), None, facts(root), root / "build.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "build.sqlite")) as connection:
+                document = connection.execute("SELECT json FROM documents WHERE role='skill_values'").fetchone()
+                self.assertEqual(([(row["name"], row["status"], row["values"]) for row in result["skill_values"]],
+                                  json.loads(document[0])),
+                                 ([("Chromatic Shot", "unavailable", {}),
+                                   ("Activation Medium: Tangle", "unavailable", {})], result["skill_values"]))
 
 
 class ArchiveDatabaseTest(unittest.TestCase):

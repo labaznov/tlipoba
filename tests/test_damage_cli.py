@@ -1,7 +1,10 @@
 import contextlib
 import io
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +15,85 @@ from examples.make_fixture import fixture
 
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with an isolated local archive fake."""
+
+    def test_panel_log_allows_conditional_calculation_without_manual_observations(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "panel.log").write_text("71423", encoding="utf-8")
+
+            def source(package, observations, facts, database, *, panel_log):
+                if observations is not None:
+                    raise ValueError("Unexpected manual observations")
+                with contextlib.closing(sqlite3.connect(database)) as connection:
+                    connection.execute("CREATE TABLE fixture (value INTEGER)")
+                return {"name": "Automatic fixture", "synthetic": True, "stats": {
+                    "spell_dps": int(panel_log.read_text(encoding="utf-8")), "hit_min": 913,
+                    "hit_max": 1437, "cast_rate": 4.73, "crit_chance": 0.4137, "crit_multiplier": 2.87,
+                    "max_tangles": 2, "extra_attachments": 1, "cold_penetration": 0.07},
+                    "panel_log": {"format": "synthetic-panel-selection", "status": "corroborated", "known": 9,
+                                  "unknown_attributes": 17, "cohort": {"timestamp": "2001.02.03-04.05.06", "frame": 271},
+                                  "identity_verified": False, "source_sha256": "b" * 64,
+                                  "raw": "PRIVATE-MARKER"}}
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                main(["--package", str(root), "--facts", "fixture.json", "--output", str(root / "result"),
+                      "--panel-log", str(root / "panel.log"), "--basis", "panel", "--active", "2",
+                      "--hits", "3", "--retention", "0.2", "--resistance", "0.23",
+                      "--taken", "0.11", "--uptime", "0.87"], archiver=source)
+            result = json.loads((root / "result" / "calculation.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["status"], result["condition"]["observations_provided"],
+                              result["calculation"]["single_projectile_dps"], result["panel_log"]),
+                             ("conditional", False, 71423, {
+                                 "format": "synthetic-panel-selection", "status": "corroborated", "known": 9,
+                                 "unknown_attributes": 17, "cohort": {"timestamp": "2001.02.03-04.05.06", "frame": 271},
+                                 "identity_verified": False, "source_sha256": "b" * 64}))
+
+    def test_automatic_calculation_reports_missing_stats_before_calculating(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def source(package, observations, facts, database):
+                if observations is not None:
+                    raise ValueError("Developer observations were not requested")
+                with contextlib.closing(sqlite3.connect(database)) as connection:
+                    connection.execute("CREATE TABLE fixture (value INTEGER)")
+                return {"name": "Sparse fixture", "stats": {"spell_dps": 71423}}
+
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                main(["--package", str(root), "--facts", "fixture.json", "--output", str(root / "result"),
+                      "--basis", "panel", "--active", "2", "--hits", "3", "--retention", "0.2",
+                      "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"], archiver=source)
+            self.assertIn("Не хватает автоматически извлечённых показателей", errors.getvalue())
+
+    def test_import_subcommand_routes_without_calculation_arguments(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def source(package, observations, facts, database):
+                if observations is not None:
+                    raise ValueError("Unexpected developer input")
+                with contextlib.closing(sqlite3.connect(database)) as connection:
+                    connection.execute("CREATE TABLE fixture (value INTEGER)")
+                return {"name": "Sparse route fixture", "import_status": "partial", "missing_stats": ["cast_rate"],
+                        "coverage": ["Unknown effect"], "stats": {"spell_dps": 84317}, "benchmark": {}, "inventory": {}}
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                main(["import", "--package", str(root), "--output", str(root / "result")], archiver=source)
+            self.assertEqual(json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+                             ["stats"], {"spell_dps": 84317})
+
+    def test_module_import_command_reads_sys_argv_without_developer_parameters(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            fixture(root / "input")
+            (root / "input" / "observations.json").unlink()
+            result = subprocess.run([
+                sys.executable, "-m", "damage_lab", "import", "--package", str(root / "input"),
+                "--output", str(root / "result"),
+            ], capture_output=True, text=True, encoding="utf-8", timeout=20,
+               cwd=Path(__file__).resolve().parents[1], env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+            self.assertEqual((result.returncode, (root / "result" / "import.json").is_file()), (0, True))
 
     def test_cli_passes_the_automatic_stats_file_to_the_importer(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -7,6 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .archive import REQUIRED_STATS
 from .combat import apply
 from .engine import calculate
 from .report import render
@@ -16,7 +17,7 @@ from .validation import compare
 def parser():
     result = argparse.ArgumentParser(description="Локальная база TLI и условный расчёт DPS")
     result.add_argument("--package", required=True, type=Path, help="Каталог локального экспорта")
-    result.add_argument("--observations", required=True, type=Path, help="JSON наблюдений с доказательствами")
+    result.add_argument("--observations", type=Path, help="Необязательный JSON дополнительных наблюдений с доказательствами")
     result.add_argument("--facts", required=True, type=Path, help="Проверенные правила TLIDB в JSON")
     result.add_argument("--output", required=True, type=Path, help="Новый каталог результата")
     result.add_argument("--basis", required=True, choices=("panel", "hit"), help="Панельный DPS либо некритический hit")
@@ -30,12 +31,17 @@ def parser():
     result.add_argument("--critical-more", type=float, help="Критический more, доля: 26%% = 0.26; для --basis hit")
     result.add_argument("--combat", type=Path, help="JSON исходного и целевого боевого состояния, без повторного учёта панели")
     result.add_argument("--native-stats", type=Path, help="Автоматически извлечённые статы того же source.json; импорт пока частичный")
+    result.add_argument("--panel-log", type=Path, help="Локальный лог панели для сопоставления с native Spell DPS")
     return result
 
 
 def main(argv=None, *, archiver=None):
+    commands = list(sys.argv[1:] if argv is None else argv)
+    if commands and commands[0] == "import":
+        from .importer import main as importing
+        return importing(commands[1:], archiver=archiver)
     interface = parser()
-    arguments = interface.parse_args(argv)
+    arguments = interface.parse_args(commands)
     if arguments.basis == "hit" and (arguments.lucky is None or arguments.critical_more is None):
         interface.error("--basis hit требует --lucky либо --no-lucky и --critical-more")
     if arguments.basis == "panel" and (arguments.lucky is not None or arguments.critical_more is not None):
@@ -43,6 +49,7 @@ def main(argv=None, *, archiver=None):
     condition = {"basis": arguments.basis, "active": arguments.active, "hits": arguments.hits,
                  "retention": arguments.retention, "resistance": arguments.resistance,
                  "taken": arguments.taken, "uptime": arguments.uptime}
+    condition["observations_provided"] = arguments.observations is not None
     if arguments.basis == "hit":
         condition.update(lucky=arguments.lucky, critical_more=arguments.critical_more)
     try:
@@ -57,8 +64,15 @@ def main(argv=None, *, archiver=None):
         with tempfile.TemporaryDirectory(prefix=".damage-lab-", dir=arguments.output.parent) as folder:
             stage = Path(folder)
             inputs = {"native_stats": arguments.native_stats} if arguments.native_stats else {}
+            if arguments.panel_log:
+                inputs["panel_log"] = arguments.panel_log
             record = archiver(arguments.package, arguments.observations, arguments.facts,
                               stage / "database.sqlite", **inputs)
+            if arguments.observations is None:
+                missing = [key for key in REQUIRED_STATS if key not in record["stats"]]
+                if missing:
+                    raise ValueError("Не хватает автоматически извлечённых показателей: " + ", ".join(missing)
+                                     + "; импорт остаётся частичным")
             calculation = calculate(record["stats"], condition)
             if "combat" in condition:
                 calculation = apply(record["stats"], calculation, condition["combat"])
@@ -74,6 +88,9 @@ def main(argv=None, *, archiver=None):
                 result["validation"] = compare(calculation["dps"], result["benchmark"]["average_dps"])
             if "native_stats" in record:
                 result["native_stats"] = record["native_stats"]
+            if "panel_log" in record:
+                from .importer import logsummary
+                result["panel_log"] = logsummary(record["panel_log"])
             (stage / "calculation.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
             (stage / "index.html").write_text(render(record, calculation, condition), encoding="utf-8")

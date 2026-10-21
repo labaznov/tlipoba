@@ -1,6 +1,7 @@
 """Standalone Russian report built only from the public archive contract."""
 
 import json
+from decimal import Decimal, localcontext
 from html import escape
 from urllib.parse import urlsplit
 
@@ -21,8 +22,129 @@ def decimal(value):
     return f"{value:.8g}"
 
 
+def measurement(value, unit):
+    """Format imported numeric evidence without shortening its decimal digits."""
+    quantity = Decimal(str(value))
+    if unit == "fraction":
+        with localcontext() as context:
+            context.prec = max(context.prec, len(quantity.as_tuple().digits) + 2)
+            quantity *= 100
+    display = format(quantity, ",f").replace(",", " ")
+    if unit == "fraction":
+        display = (display.rstrip("0").rstrip(".") if "." in display else display) + "%"
+        unit = "%"
+    return display, unit
+
+
 def items(values):
     return "<ul>" + "".join(f"<li>{text(value)}</li>" for value in values) + "</ul>"
+
+
+def contents(record):
+    return "".join(
+        f"<h3>{label}</h3><div class=inventory>" + "".join(
+            f"<article><h4>{text(entry['name'])}</h4>{items(entry.get('details', []))}</article>"
+            for entry in record.get("inventory", {}).get(key, [])
+        ) + "</div>"
+        for key, label in (("gear", "Снаряжение"), ("skills", "Навыки и поддержки"),
+                           ("talents", "Таланты"), ("memories", "Воспоминания"),
+                           ("slates", "Плиты божественности"), ("traits", "Свойства героя"),
+                           ("systems", "Покрытие систем"))
+    )
+
+
+def logdetails(record):
+    """Display safe cohort provenance without promoting a numeric identity match."""
+    if "panel_log" not in record:
+        return ""
+    data = record["panel_log"]
+    if data["identity_verified"] is not False:
+        raise ValueError("Panel log cannot verify build identity")
+    return ("<section><h2>Лог панели</h2>"
+            f"<p>Формат: {text(data['format'])}; статус: {text(data['status'])}<br>"
+            f"Подтверждённых полей: {text(data['known'])}; неизвестных атрибутов: {text(data['unknown_attributes'])}<br>"
+            f"Состояние: {text(data['cohort']['timestamp'])}; кадр: {text(data['cohort']['frame'])}<br>"
+            f"SHA-256 лога: {text(data['source_sha256'])}<br>identity_verified: false</p>"
+            "<p>Совпадение Spell DPS не подтверждает принадлежность лога персонажу</p></section>")
+
+
+def provenance(row):
+    """Show only mapped attribute coordinates, never raw log sections."""
+    if "source" not in row:
+        return ""
+    data = {key: row["source"][key] for key in (
+        "attr_id", "index", "raw_value", "timestamp", "frame", "line_numbers",
+    )}
+    if "raw_values" in row["source"]:
+        data["raw_values"] = row["source"]["raw_values"]
+    return "<br>" + text(json.dumps(data, ensure_ascii=False))
+
+
+def skilldetails(record):
+    """Keep level-table parameters visible independently of panel aggregates."""
+    if "skill_values" not in record:
+        return ""
+    rows = "".join(
+        f"<tr><td>{text(row['name'])}</td><td>{text(row['level'])}</td><td>{text(row['status'])}</td>"
+        f"<td>{text(json.dumps(row['values'], ensure_ascii=False))}</td></tr>"
+        for row in record["skill_values"]
+    )
+    return ("<section><h2>Параметры навыков по уровню</h2>"
+            "<p>Значения сохранены из таблиц каталога и не применены повторно к агрегатам панели</p>"
+            "<div class=scroll><table><thead><tr><th>Навык</th><th>Уровень</th><th>Статус</th>"
+            f"<th>Значения</th></tr></thead><tbody>{rows}</tbody></table></div></section>")
+
+
+def render_import(record):
+    """Display available imported evidence without computing a combat scenario."""
+    evidence = {row["key"]: row for row in record.get("observations", [])}
+    values = list(record.get("stats", {}).items()) + [
+        (f"benchmark_{key}", value) for key, value in record.get("benchmark", {}).items()
+    ]
+    rows = []
+    for key, value in values:
+        entry = evidence.get(key, {})
+        display, unit = measurement(value, entry.get("unit", "не указана"))
+        rows.append(f"<tr><td>{text(entry.get('label', key))}</td><td>{text(display)}</td>"
+                    f"<td>{text(unit)}</td><td>{text(entry.get('precision', 'не указана'))}</td>"
+                    f"<td>{text(entry.get('evidence', 'не указано'))}{provenance(entry)}</td></tr>")
+    rows = "".join(rows)
+    native = record.get("native_stats", {})
+    origin = "Синтетический пакет: показатели вымышлены" if record.get("synthetic") is True else "Локальный пакет экспорта"
+    coverage = items(record.get("coverage", []))
+    missing = items(record.get("missing_stats", []))
+    return f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{text(record.get('name', 'TLI'))} · Частичный импорт</title>
+<style>
+:root{{color-scheme:dark}}body{{margin:0;background:#0d1422;color:#edf3fa;font:16px/1.55 system-ui,sans-serif}}
+main{{max-width:1100px;margin:auto;padding:32px 22px 64px}}h1{{font-size:clamp(28px,4vw,42px)}}
+section,.notice{{background:#182336;border:1px solid #304158;border-radius:12px;padding:20px;margin:20px 0}}
+.notice{{border-left:4px solid #f2bf6e}}.muted,footer{{color:#a4b4cc}}.scroll{{overflow:auto}}
+table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{text-align:left;padding:10px;border-bottom:1px solid #304158}}
+td,footer{{overflow-wrap:anywhere}}.inventory{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
+article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0 8px}}footer{{font-size:12px}}
+@media(max-width:700px){{.inventory{{grid-template-columns:1fr}}main{{padding:20px 14px}}}}
+</style></head><body><main>
+<p class=muted>Torchlight Infinite · {text(origin)}</p>
+<h1>{text(record.get('name', 'TLI'))}</h1><p>{text(record.get('character', 'Герой не указан'))}</p>
+<div class=notice><b>Частичный импорт</b><br>Боевой DPS пока недоступен: не хватает подтверждённых характеристик или механик
+<p>Состав и доступные показатели перенесены из пакета; неизвестные значения не заменяются нулями
+Панельный Spell DPS — перенесённый показатель, а не вычисленный боевой DPS</p></div>
+<section><h2>Автоматически извлечённые показатели</h2>
+<p>Именованных полей: {text(native.get('known', 0))}; неизвестных stat ID: {text(native.get('unknown_stat_ids', 'не указано'))}
+<br>Универсальная схема протокола не подтверждена</p>
+<div class=scroll><table><thead><tr><th>Показатель</th><th>Значение</th><th>Единица</th><th>Точность</th><th>Происхождение</th></tr></thead>
+<tbody>{rows}</tbody></table></div>{'' if rows else '<p>Подтверждённые показатели пока недоступны</p>'}</section>
+{logdetails(record)}
+{skilldetails(record)}
+<section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
+<p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
+<section><h2>Доступный состав билда</h2>{contents(record)}</section>
+<footer>Время снимка: {text(record.get('capturedAt', 'не указано'))}<br>
+SHA-256 исходного снимка: {text(record.get('source_sha256', 'не указан'))}<br>
+Этот отчёт не содержит исходные native sections и идентификаторы аккаунта</footer>
+</main></body></html>"""
 
 
 def scenarios(record, condition):
@@ -70,26 +192,19 @@ def render(record, calculation, condition):
     observations = "".join(
         f"<tr><td>{text(row.get('label', row['key']))}</td><td>{text(row['value'])} {text(row.get('unit', ''))}</td>"
         f"<td>{text(row.get('precision', 'не указана'))}</td>"
-        f"<td>{text(json.dumps(row.get('evidence', ''), ensure_ascii=False))}</td></tr>"
+        f"<td>{text(json.dumps(row.get('evidence', ''), ensure_ascii=False))}{provenance(row)}</td></tr>"
         for row in record.get("observations", [])
     )
-    inventory = "".join(
-        f"<h3>{label}</h3><div class=inventory>" + "".join(
-            f"<article><h4>{text(entry['name'])}</h4>{items(entry.get('details', []))}</article>"
-            for entry in record.get("inventory", {}).get(key, [])
-        ) + "</div>"
-        for key, label in (("gear", "Снаряжение"), ("skills", "Навыки и поддержки"),
-                           ("talents", "Таланты"), ("memories", "Воспоминания"),
-                           ("slates", "Плиты божественности"), ("traits", "Свойства героя"),
-                           ("systems", "Покрытие систем"))
-    )
+    inventory = contents(record)
     sources = []
     for label, url in record.get("facts", {}).get("sources", {}).items():
         address = urlsplit(url)
         if address.scheme in ("https", "http") and address.netloc:
             sources.append(f'<li><a href="{text(url)}" rel="noreferrer">{text(label)}</a></li>')
-    command = ("python -m damage_lab --package ПАКЕТ --observations ПОКАЗАТЕЛИ.json "
-               "--facts ФАКТЫ.json --output НОВАЯ_ПАПКА "
+    command = "python -m damage_lab --package ПАКЕТ "
+    if condition.get("observations_provided", True):
+        command += "--observations ПОКАЗАТЕЛИ.json "
+    command += ("--facts ФАКТЫ.json --output НОВАЯ_ПАПКА "
                f"--basis {condition['basis']} --active {condition['active']} --hits {condition['hits']} "
                f"--retention {decimal(condition['retention'])} --resistance {decimal(condition['resistance'])} "
                f"--taken {decimal(condition['taken'])} --uptime {decimal(condition['uptime'])}")
@@ -98,6 +213,8 @@ def render(record, calculation, condition):
         command += f" --critical-more {decimal(condition['critical_more'])}"
     if "native_stats" in record:
         command += " --native-stats АВТОМАТИЧЕСКИЕ_СТАТЫ.json"
+    if "panel_log" in record:
+        command += " --panel-log ПАНЕЛЬ_СТАТОВ.json"
     combat = ""
     if "combat" in condition:
         command += " --combat combat.json"
@@ -181,6 +298,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 <section><h2>{heading}</h2><div class=scroll><table><thead><tr><th>Показатель</th><th>Значение</th>
 <th>Точность / округление</th><th>Доказательство</th></tr></thead><tbody>{observations}</tbody></table></div>
 <h3>{benchmarkheading}</h3><table><tbody>{benchmarkrows}</tbody></table></section>
+{logdetails(record)}
 <section><h2>Состав билда</h2>{inventory}</section>
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>

@@ -36,6 +36,8 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Implementation and tests
 
+- Run checks locally on the user's Windows machine; do not configure or trigger GitHub Actions runners or Linux/macOS checks unless the user changes this preference
+- Run `python scripts/test.py` with the configured Python executable for the local test suite; do not install a self-hosted runner service as a substitute
 - Use Python 3.13 or newer and the standard library unless a dependency is justified and authorized
 - Follow TDD for functional changes: first demonstrate the behavior with a failing test, then implement the smallest passing change
 - Run `python -m unittest discover -s tests -v` before reporting a functional change complete
@@ -57,6 +59,8 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 - Keep season, source URL and verification date with facts; preserve conflicting evidence instead of silently choosing it
 - Unknown mappings or mechanics must produce an explicit omission, conditional result or error
 - Never fabricate rolls, identifiers, skill levels, combat rotations, effect uptime or unsupported formula semantics
+- Resolve skill values from the exact level/rank table and verified parameter bindings; rendered descriptions can contain level-one or stale numbers
+- Parse catalog rational cells as numbers without evaluating expressions; preserve unresolved levels and flat progression tails as explicit gaps
 - Do not apply item or support multipliers again when a panel aggregate already includes them
 - Never fit a hidden coefficient to reproduce a benchmark; measurements validate the model
 - Show modifier coverage and a calculation trace; do not claim exact total DPS while material effects remain unsupported

@@ -23,12 +23,35 @@ English: an independent, local Torchlight Infinite build planner, starting with 
 
 Требуется Python 3.13 или новее. Расчётное ядро использует стандартную библиотеку Python; установка сторонних библиотек для запуска тестов не нужна.
 
+Пока проверяем проект только локально на Windows. GitHub Actions отключён; облачные раннеры и их минуты не используются. Локальный запуск:
+
+```powershell
+C:/Python313/python.exe scripts/test.py
+```
+
 Из корня проекта:
 
 ```powershell
 python -m unittest discover -s tests -v
 python -m damage_lab --help
 ```
+
+Импорт сохранённого пакета без скриншотов и файла ручных показателей:
+
+```powershell
+python -m damage_lab import --package "ПАПКА_ЭКСПОРТА" --output local-reports/import
+```
+
+Команда сохраняет доступный состав билда, автоматически извлечённые показатели, их источники и список пробелов в `import.json`, `database.sqlite` и `index.html`. Каталог результата должен быть новым. Если данных для DPS не хватает, импорт показывает это явно и не подставляет вымышленные значения.
+
+Точные значения панели можно автоматически прочитать из обычного журнала, пока игра работает:
+
+```powershell
+python -m damage_lab.panellog "ПУТЬ_К_ЖУРНАЛУ/UE_game.log" local-data/panel-log.json
+python -m damage_lab import --package "ПАПКА_ЭКСПОРТА" --panel-log local-data/panel-log.json --output local-reports/import-with-stats
+```
+
+Сопоставление с серверным Spell DPS проверяет согласованность состояния; личность персонажа этим не подтверждается. При неоднозначности импорт отказывается выбирать запись. [Контракт и ограничения](docs/IMPORT.md) описывают девять поддержанных параметров, точность и источники. Для расчёта `--observations` уже не обязателен, если пакет и журнал содержат все необходимые статы.
 
 Полный пример с вымышленными данными, без игры и аккаунта:
 

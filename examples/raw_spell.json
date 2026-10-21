@@ -1,0 +1,73 @@
+{
+  "format": "tli-raw-cold-spell-v1",
+  "context": {
+    "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "catalog_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "skill_id": "synthetic-spell",
+    "effective_level": 17,
+    "gates": {
+      "version": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:version"
+        ]
+      },
+      "level": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:level"
+        ]
+      },
+      "base": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:base"
+        ]
+      },
+      "conversion": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:conversion"
+        ]
+      }
+    }
+  },
+  "damage": {
+    "base": {
+      "min": 103,
+      "max": 137
+    },
+    "physical": {
+      "min": 7,
+      "max": 11
+    },
+    "cold": {
+      "min": 13,
+      "max": 19
+    },
+    "effectiveness": 1.3,
+    "increased": {
+      "all": 0.2,
+      "physical": 0.3,
+      "cold": 0.4
+    },
+    "more": [],
+    "roll_model": "midpoint"
+  },
+  "critical": {
+    "chance": 0.25,
+    "multiplier": 3,
+    "lucky": false,
+    "more": 0.2
+  },
+  "casting": {
+    "interval": 0.8,
+    "increased": 0.6,
+    "more": [],
+    "frequency": null
+  },
+  "missing": [],
+  "notes": [
+    "All inputs are synthetic scenario assertions"
+  ]
+}

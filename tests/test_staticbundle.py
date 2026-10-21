@@ -55,8 +55,47 @@ def package(directory):
     return package(directory)
 
 
+def critical_bundle(directory):
+    """Bind fictional compiler 0.4.0 critical metadata to exact package source bytes."""
+    from test_staticcombat import critical
+
+    artifact, bundle = fixture(directory)
+    artifact["ledger"] = critical("critical_damage_modifier", "spell")
+    artifact["ledger"]["source"]["sha256"] = bundle["sourceSha256"]
+    artifact["version"] = bundle["version"] = "0.1.1"
+    bundle["compilerVersion"] = "0.4.0"
+    saved(directory, artifact, bundle)
+    return artifact, bundle
+
+
 class StaticBundleTests(unittest.TestCase):
     """Verify saved diagnostic metadata without accepting it as applied damage."""
+
+    def test_new_critical_compiler_bundle_keeps_arithmetic_blocked(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            _, bundle = critical_bundle(directory)
+            self.assertIs(read(directory, bundle, bundle["sourceSha256"])[0]
+                          ["modifiers"][0]["semantics"]["arithmetic_ready"], False)
+
+    def test_manifest_compiler_version_must_equal_the_projected_ledger_version(self):
+        for descriptor, ledger in (("0.3.2", "0.4.0"), ("0.4.0", "0.3.2")):
+            with self.subTest(descriptor=descriptor), tempfile.TemporaryDirectory() as folder:
+                directory = package(Path(folder))
+                artifact, bundle = fixture(directory)
+                bundle["compilerVersion"] = descriptor
+                artifact["ledger"]["version"] = ledger
+                saved(directory, artifact, bundle)
+                with self.assertRaises(ValueError):
+                    read(directory, bundle, bundle["sourceSha256"])
+
+    def test_new_compiler_error_is_a_gap_without_zero_effects(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            artifact, bundle = fixture(directory, error=True)
+            bundle["compilerVersion"] = "0.4.0"
+            saved(directory, artifact, bundle)
+            self.assertEqual(read(directory, bundle, bundle["sourceSha256"])[:2], (None, None))
 
     def test_bundle_preserves_bound_ledger_and_catalog_derivation(self):
         with tempfile.TemporaryDirectory() as folder:

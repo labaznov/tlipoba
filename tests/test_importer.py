@@ -39,6 +39,18 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_keeps_new_critical_inventory_unresolved_and_non_arithmetic(self):
+        from test_staticbundle import critical_bundle, package
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            path = package(root)
+            critical_bundle(path)
+            main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["static_combat"]["modifiers"][0]["semantics"], {
+                "operation": "unresolved", "value_role": "non_additional_percent", "arithmetic_ready": False})
+
     def test_import_json_preserves_static_evidence_and_catalog_provenance(self):
         from test_staticbundle import fixture, package
 

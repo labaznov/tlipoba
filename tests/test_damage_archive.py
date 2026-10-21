@@ -14,6 +14,19 @@ from examples.make_fixture import fixture
 class StaticBundleTests(unittest.TestCase):
     """Retain typed gear evidence without changing already observed character values."""
 
+    def test_new_critical_arithmetic_gate_is_preserved_in_record_and_sqlite(self):
+        from test_staticbundle import critical_bundle
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            critical_bundle(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = json.loads(connection.execute("SELECT json FROM documents WHERE role='static_combat'").fetchone()[0])
+                self.assertEqual([row["modifiers"][0]["semantics"]["arithmetic_ready"]
+                                  for row in (result["static_combat"], stored)], [False, False])
+
     def test_static_gear_bundle_is_imported_without_manual_observations(self):
         from test_staticbundle import fixture
 

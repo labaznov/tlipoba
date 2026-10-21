@@ -120,7 +120,9 @@ def staticdetails(record):
         for path, row in data["catalog"]["documents"].items())
     modifiers = "".join(
         f"<tr><td>{text(row['item'])}<br>{text(row['path'])}</td><td>{text(row['family'])}<br>"
-        f"{text(', '.join(row['targets']))}</td><td>{text(row['owner'])} / {text(row['scope'])}</td>"
+        f"{text(', '.join(row['targets']))}"
+        f"{('<br>' + text(json.dumps(row['semantics'], ensure_ascii=False))) if 'semantics' in row else ''}</td>"
+        f"<td>{text(row['owner'])} / {text(row['scope'])}</td>"
         f"<td>{text(row['unit'])}<br>{text(json.dumps(row['values'], ensure_ascii=False))}</td>"
         f"<td>{text(json.dumps(row['definition'], ensure_ascii=False))}<br>"
         f"pool: {text(json.dumps(row['pool'], ensure_ascii=False))}<br>{text(row['status'])}</td></tr>"
@@ -128,8 +130,10 @@ def staticdetails(record):
     omissions = "".join(f"<tr><td>{text(row['item'])}</td><td>{text(row['path'])}</td>"
                          f"<td>{text(row['reason'])}</td></tr>"
                          for row in data["omitted"] + data["structural_gaps"])
+    pending = sum("semantics" in row for row in data["modifiers"])
     return ("<section><h2>Статические аффиксы вещей</h2>"
             "<p>Частичный реестр каталожных интерпретаций</p><p>Аффиксы не применены к DPS</p>"
+            f"{f'<p>Критических строк без арифметики: {pending}</p>' if pending else ''}"
             f"<p>Формат: {text(data['format'])}; версия: {text(data['version'])}<br>"
             f"Источник: {text(data['source']['section'])}; SHA-256: {text(data['source']['sha256'])}<br>"
             "runtime.verified: false; selection_verified: false; source_patch: unknown; activation: unverified</p>"

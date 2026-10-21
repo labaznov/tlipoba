@@ -45,8 +45,91 @@ def empty(section):
     return data
 
 
+def critical(family, scope):
+    """Return a fictional inventory-only critical row from compiler 0.4.0."""
+    data = document()
+    data["version"] = "0.4.0"
+    row = data["modifiers"][0]
+    row.update(family=family, targets=["critical_rating" if family == "critical_rating_increased" else "critical_damage"],
+               scope=scope, unit="percent", templateSign="+",
+               values=[{"exact": "11.0", "source": "DynArgs[0]", "fraction": "0.11"}],
+               semantics={"operation": "rating_increase" if family == "critical_rating_increased" else "unresolved",
+                          "valueRole": "non_additional_percent", "arithmeticReady": False})
+    return data
+
+
 class StaticCombatTest(unittest.TestCase):
     """Validate inventory evidence without applying it to a character or damage model."""
+
+    def test_critical_inventory_preserves_fixed_non_arithmetic_semantics(self):
+        for family, scope in (("critical_rating_increased", "any"), ("critical_damage_modifier", "any"),
+                              ("critical_damage_modifier", "spell")):
+            result = summary(project(critical(family, scope), "a" * 64))
+            with self.subTest(family=family, scope=scope):
+                self.assertEqual(result["modifiers"][0]["semantics"], {
+                    "operation": "rating_increase" if family == "critical_rating_increased" else "unresolved",
+                    "value_role": "non_additional_percent", "arithmetic_ready": False})
+
+    def test_critical_semantics_cannot_choose_an_operator_or_enable_arithmetic(self):
+        for key, value in (("operation", "relative_increase"), ("valueRole", "additional"),
+                           ("arithmeticReady", True), ("arithmeticReady", 0)):
+            data = critical("critical_damage_modifier", "spell")
+            data["modifiers"][0]["semantics"][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                project(data, "a" * 64)
+
+    def test_critical_inventory_requires_the_exact_positive_template_sign(self):
+        for sign in (None, "-"):
+            data = critical("critical_damage_modifier", "spell")
+            data["modifiers"][0]["templateSign"] = sign
+            with self.subTest(sign=sign), self.assertRaises(ValueError):
+                project(data, "a" * 64)
+            result = project(critical("critical_damage_modifier", "spell"), "a" * 64)
+            result["modifiers"][0]["template_sign"] = sign
+            with self.subTest(canonical=sign), self.assertRaises(ValueError):
+                summary(result)
+
+    def test_new_critical_families_require_the_new_version_and_supported_scope(self):
+        for family, scope, owner, version in (("critical_damage_modifier", "attack", "player", "0.4.0"),
+                                              ("critical_rating_increased", "spell", "player", "0.4.0"),
+                                              ("critical_damage_modifier", "any", "minion", "0.4.0"),
+                                              ("critical_damage_modifier", "spell", "player", "0.3.2")):
+            data = critical(family, scope)
+            data["version"] = version
+            data["modifiers"][0]["owner"] = owner
+            with self.subTest(family=family, scope=scope, owner=owner, version=version), self.assertRaises(ValueError):
+                project(data, "a" * 64)
+
+    def test_critical_semantics_are_required_and_only_attached_to_critical_families(self):
+        for change in ("missing", "noncritical"):
+            data = critical("critical_damage_modifier", "spell")
+            if change == "missing":
+                del data["modifiers"][0]["semantics"]
+            else:
+                data["modifiers"][0].update(family="increased_damage", targets=["damage"])
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                project(data, "a" * 64)
+
+    def test_critical_summary_revalidates_flags_and_drops_unknown_semantic_properties(self):
+        data = critical("critical_damage_modifier", "spell")
+        data["modifiers"][0]["semantics"]["raw"] = "PRIVATE-CRITICAL-MARKER"
+        result = project(data, "a" * 64)
+        self.assertNotIn("PRIVATE-CRITICAL-MARKER", json.dumps(summary(result)))
+        result["modifiers"][0]["semantics"]["arithmetic_ready"] = 0
+        with self.assertRaises(ValueError):
+            summary(result)
+
+    def test_new_version_preserves_ordinary_rows_without_critical_semantics(self):
+        data = document()
+        data["version"] = "0.4.0"
+        self.assertEqual(project(data, "a" * 64)["modifiers"], project(document(), "a" * 64)["modifiers"])
+
+    def test_invalid_family_containers_have_a_controlled_contract_error(self):
+        for family in ({}, [], None):
+            data = document()
+            data["modifiers"][0]["family"] = family
+            with self.subTest(family=family), self.assertRaises(ValueError):
+                project(data, "a" * 64)
 
     def test_source_bound_ledger_preserves_lexical_rolls_and_unverified_flags(self):
         result = project(document(), "a" * 64)

@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-from .staticcombat import project, summary as ledger_summary
+from .staticcombat import VERSIONS as COMPILERS, project, summary as ledger_summary
 
 
 FILE = "static-combat-modifiers.json"
@@ -112,7 +112,7 @@ def read(package, bundle, source, *, max_bytes=64 * 1024 * 1024):
                      *CLAIMS, "sourceSection", "catalogFlags", *COUNTS))
     if (bundle["file"] != FILE or bundle["status"] not in ("diagnostic", "error")
             or bundle["sourceSha256"] != source or bundle["version"] not in VERSIONS
-            or bundle["compilerVersion"] != "0.3.2" or bundle["model"] != "partial"):
+            or bundle["compilerVersion"] not in COMPILERS or bundle["model"] != "partial"):
         raise ValueError("Static combat manifest has an invalid source or diagnostic contract")
     _false(bundle, CLAIMS)
     _hash(bundle["sha256"])
@@ -147,6 +147,8 @@ def read(package, bundle, source, *, max_bytes=64 * 1024 * 1024):
     if document["model"] != "partial":
         raise ValueError("Static combat artifact must remain a partial model")
     ledger = project(document["ledger"], source)
+    if ledger["version"] != bundle["compilerVersion"]:
+        raise ValueError("Static combat ledger version differs from the manifest compiler version")
     provenance = _provenance(document["catalog"], ledger)
     for key, expected in (("catalogDocuments", len(provenance["documents"])),
                           ("compiled", ledger["accounting"]["compiled"]), ("omitted", ledger["accounting"]["omitted"]),

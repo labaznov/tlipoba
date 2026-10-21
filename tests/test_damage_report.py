@@ -14,6 +14,16 @@ def static():
 class StaticReportTests(unittest.TestCase):
     """Expose static inventory evidence without treating it as applied damage."""
 
+    def test_both_reports_keep_critical_operation_unresolved_and_arithmetic_disabled(self):
+        from damage_lab.staticcombat import project
+        from test_staticcombat import critical
+
+        data = project(critical("critical_damage_modifier", "spell"), "a" * 64)
+        self.assertTrue(all(all(value in page for value in (
+            "unresolved", "arithmetic_ready", "false", "Критических строк без арифметики: 1",
+            "Аффиксы не применены к DPS",
+        )) for page in pages({"static_combat": data})))
+
     def test_both_reports_show_partial_static_evidence_and_counts(self):
         self.assertTrue(all(all(value in page for value in (
             "Статические аффиксы вещей", "Наблюдаемых строк: 2", "Типизировано: 1",

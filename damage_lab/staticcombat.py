@@ -5,7 +5,8 @@ from decimal import Context, Decimal, localcontext
 
 
 FORMAT = "tli-static-combat-modifiers-v1"
-VERSION = "0.3.2"
+VERSIONS = ("0.3.2", "0.4.0")
+CRITICAL = {"critical_rating_increased": "rating_increase", "critical_damage_modifier": "unresolved"}
 AFFIXES = ("BaseAttrInfoList", "BAffixInfoList", "PrefixInfoList", "SuffixInfoList", "EnchantAffixList",
            "ChipAffixList", "FixedBaseAffix")
 REASONS = ("item_unresolved", "invalid_record", "no_exact_definition", "ambiguous_exact_definition",
@@ -24,7 +25,9 @@ COMBINATIONS = {
     "flat_attribute": {((attribute,), "any", "player") for attribute in ATTRIBUTES},
     "increased_attribute": {((attribute,), "any", "player") for attribute in ATTRIBUTES},
     "increased_speed": {(("cast_speed",), "any", "player"), (("attack_speed", "cast_speed"), "any", "player"),
-                        (("attack_speed", "cast_speed"), "any", "minion")}}
+                        (("attack_speed", "cast_speed"), "any", "minion")},
+    "critical_rating_increased": {(("critical_rating",), "any", "player")},
+    "critical_damage_modifier": {(("critical_damage",), scope, "player") for scope in ("any", "spell")}}
 
 
 def _name(value):
@@ -137,7 +140,7 @@ def _items(result):
             _enum(identity["kind"], ("base", "legendary"))
 
 
-def _modifier(row, canonical):
+def _modifier(row, canonical, version):
     result = _select(row, ("item", "path", "list", "nativeId", "family", "targets", "scope", "owner",
                            "appliesToPlayerSpell", "unit", "values", "definition", "pool", "templateSign", "status"), canonical)
     result["targets"] = list(_list(result["targets"]))
@@ -145,6 +148,20 @@ def _modifier(row, canonical):
     result["definition"] = _select(result["definition"], ("catalog", "id", "templateSource"), canonical,
                                    ("tier", "tierId", "variant"))
     result["pool"] = _select(result["pool"], ("id", "status", "basis"), canonical)
+    _enum(result["family"], tuple(COMBINATIONS))
+    if result["family"] in CRITICAL:
+        if version != "0.4.0":
+            raise ValueError("Static critical inventory requires compiler version 0.4.0")
+        if result["template_sign"] != "+":
+            raise ValueError("Static critical inventory requires an exact positive template sign")
+        _object(row, ("semantics",))
+        result["semantics"] = _select(row["semantics"], ("operation", "valueRole", "arithmeticReady"), canonical)
+        semantics = result["semantics"]
+        if (semantics["operation"] != CRITICAL[result["family"]] or semantics["value_role"] != "non_additional_percent"
+                or semantics["arithmetic_ready"] is not False):
+            raise ValueError("Static critical inventory cannot choose an operator or enable arithmetic")
+    elif "semantics" in row:
+        raise ValueError("Static critical semantics cannot be attached to another modifier family")
     _vocabulary(result)
     return result
 
@@ -158,7 +175,6 @@ def _native(value, compiled=False):
 
 def _vocabulary(row):
     _native(row["native_id"], True)
-    _enum(row["family"], ("flat_added_damage", "increased_damage", "flat_attribute", "increased_attribute", "increased_speed"))
     _enum(row["scope"], ("any", "spell", "attack", "projectile", "melee", "deterioration"))
     _enum(row["owner"], ("player", "minion"))
     _enum(row["status"], ("compiled_unverified_runtime",))
@@ -167,7 +183,7 @@ def _vocabulary(row):
     targets = row["targets"]
     for value in targets:
         _enum(value, ("physical", "cold", "fire", "lightning", "erosion", "damage", "elemental",
-                      "strength", "dexterity", "intelligence", "attack_speed", "cast_speed"))
+                      "strength", "dexterity", "intelligence", "attack_speed", "cast_speed", "critical_rating", "critical_damage"))
     if not targets or len(set(targets)) != len(targets):
         raise ValueError("Static combat targets must be distinct known names")
     if (tuple(targets), row["scope"], row["owner"]) not in COMBINATIONS[row["family"]]:
@@ -186,7 +202,7 @@ def _vocabulary(row):
             _pattern(value["fraction"], r"-?[0-9]{1,24}(?:\.[0-9]{1,24})?(?:E[+-]?[0-9]{1,2})?")
             with localcontext(Context(prec=32)):
                 if Decimal(value["fraction"]) != Decimal(value["exact"]) / 100:
-                    raise ValueError("Static combat fractions must equal their exact percentage points")
+                    raise ValueError("Static combat fractions must equal their exact percent values divided by 100")
     if row["family"] == "flat_added_damage" and Decimal(row["values"][0]["exact"]) > Decimal(row["values"][1]["exact"]):
         raise ValueError("Static combat flat damage intervals cannot be inverted")
 
@@ -262,7 +278,7 @@ def _project(document, source_sha256, canonical):
                                "structuralGaps", "accounting"), canonical)
     result["source"] = _select(result["source"], ("sha256", "section"), canonical)
     _pattern(source_sha256, "[0-9a-f]{64}")
-    if (result["format"] != FORMAT or result["version"] != VERSION or result["source"]["sha256"] != source_sha256):
+    if (result["format"] != FORMAT or result["version"] not in VERSIONS or result["source"]["sha256"] != source_sha256):
         raise ValueError("Static combat format, version and source hash must match the package contract")
     _enum(result["source"]["section"], ("captured", "absent", "invalid", "empty"))
     catalog = _select(result["catalog"], ("documents", "flags"), canonical)
@@ -280,7 +296,7 @@ def _project(document, source_sha256, canonical):
     for row in result["items"]:
         row["identity"] = _identity(row["identity"], canonical)
     _items(result)
-    result["modifiers"] = [_modifier(row, canonical) for row in _list(result["modifiers"])]
+    result["modifiers"] = [_modifier(row, canonical, result["version"]) for row in _list(result["modifiers"])]
     result["omitted"] = [_select(row, ("item", "path", "list", "nativeId", "reason"), canonical)
                          for row in _list(result["omitted"])]
     result["structural_gaps"] = [_select(row, ("item", "path", "reason"), canonical)

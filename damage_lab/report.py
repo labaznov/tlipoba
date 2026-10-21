@@ -105,6 +105,51 @@ def skilldetails(record):
             f"<th>Значения</th></tr></thead><tbody>{rows}</tbody></table></div></section>")
 
 
+def staticdetails(record):
+    """Show source-bound catalog interpretations separately from applied damage."""
+    if "static_combat" not in record:
+        return ""
+    from .staticcombat import summary
+
+    data = summary(record["static_combat"])
+    if "source_sha256" in record and record["source_sha256"] != data["source"]["sha256"]:
+        raise ValueError("Static combat ledger differs from the report source")
+    counts = data["accounting"]
+    catalogs = "".join(
+        f"<tr><td>{text(path)}</td><td>{text(row['status'])}<br>{text(row['issue'])}</td><td>{text(row['sha256'])}</td></tr>"
+        for path, row in data["catalog"]["documents"].items())
+    modifiers = "".join(
+        f"<tr><td>{text(row['item'])}<br>{text(row['path'])}</td><td>{text(row['family'])}<br>"
+        f"{text(', '.join(row['targets']))}</td><td>{text(row['owner'])} / {text(row['scope'])}</td>"
+        f"<td>{text(row['unit'])}<br>{text(json.dumps(row['values'], ensure_ascii=False))}</td>"
+        f"<td>{text(json.dumps(row['definition'], ensure_ascii=False))}<br>"
+        f"pool: {text(json.dumps(row['pool'], ensure_ascii=False))}<br>{text(row['status'])}</td></tr>"
+        for row in data["modifiers"])
+    omissions = "".join(f"<tr><td>{text(row['item'])}</td><td>{text(row['path'])}</td>"
+                         f"<td>{text(row['reason'])}</td></tr>"
+                         for row in data["omitted"] + data["structural_gaps"])
+    return ("<section><h2>Статические аффиксы вещей</h2>"
+            "<p>Частичный реестр каталожных интерпретаций</p><p>Аффиксы не применены к DPS</p>"
+            f"<p>Формат: {text(data['format'])}; версия: {text(data['version'])}<br>"
+            f"Источник: {text(data['source']['section'])}; SHA-256: {text(data['source']['sha256'])}<br>"
+            "runtime.verified: false; selection_verified: false; source_patch: unknown; activation: unverified</p>"
+            f"<p>Предметов: {text(counts['items'])}; пустых слотов: {text(counts['empty_rows'])}<br>"
+            f"Наблюдаемых строк: {text(counts['observed'])}; Типизировано: {text(counts['compiled'])}; "
+            f"Пропущено: {text(counts['omitted'])}; Структурных пробелов: {text(counts['structural_gaps'])}<br>"
+            f"Область сверки: {text(counts['scope'])}; reconciles: true</p>"
+            "<p>Сверка счётчиков не подтверждает полноту билда, активацию или версию клиента</p>"
+            f"<p>Флаги каталога: {text(', '.join(data['catalog']['flags'])) if data['catalog']['flags'] else 'нет'}</p>"
+            "<details><summary>Входные документы каталога</summary><div class=scroll><table><thead>"
+            "<tr><th>Документ</th><th>Статус</th><th>SHA-256 входа компилятора</th></tr></thead>"
+            f"<tbody>{catalogs}</tbody></table></div></details>"
+            "<details><summary>Типизированные строки</summary><div class=scroll><table><thead>"
+            "<tr><th>Предмет и источник</th><th>Семейство</th><th>Владелец и scope</th>"
+            f"<th>Значения</th><th>Определение и pool</th></tr></thead><tbody>{modifiers}</tbody></table></div></details>"
+            "<details><summary>Пропуски и структурные пробелы</summary><div class=scroll><table><thead>"
+            "<tr><th>Предмет</th><th>Источник</th><th>Причина</th></tr></thead>"
+            f"<tbody>{omissions}</tbody></table></div></details></section>")
+
+
 def resolutiondetails(record):
     """Display a saved-controller claim without promoting identity or freshness."""
     if "build_resolution" not in record:
@@ -307,6 +352,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {rankdetails(record)}
 {importdetails(record)}
 {resolutiondetails(record)}
+{staticdetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -473,6 +519,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {rankdetails(record)}
 {importdetails(record)}
 {resolutiondetails(record)}
+{staticdetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

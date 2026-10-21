@@ -1,6 +1,56 @@
 import unittest
 
-from damage_lab.report import render, render_import, scenarios
+from damage_lab.report import render, render_import, scenarios, staticdetails
+
+
+def static():
+    """Return a source-bound fictional static ledger with one structural gap."""
+    from damage_lab.staticcombat import project
+    from test_staticcombat import document
+
+    return project(document(), "a" * 64)
+
+
+class StaticReportTests(unittest.TestCase):
+    """Expose static inventory evidence without treating it as applied damage."""
+
+    def test_both_reports_show_partial_static_evidence_and_counts(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Статические аффиксы вещей", "Наблюдаемых строк: 2", "Типизировано: 1",
+            "Пропущено: 1", "Структурных пробелов: 1", "known_rows_only",
+            "compiled_unverified_runtime", "Аффиксы не применены к DPS",
+        )) for page in pages({"static_combat": static()})))
+
+    def test_static_report_preserves_values_paths_and_input_catalog_hash(self):
+        self.assertTrue(all(value in staticdetails({"static_combat": static()}) for value in (
+            "11.0", "21.0", "sections.WearItems.data[0]", "b" * 64,
+            "no_exact_definition", "invalid_affix_container", "gear[0]",
+        )))
+
+    def test_static_report_revalidates_verification_flags(self):
+        data = static()
+        data["runtime"]["verified"] = True
+        with self.assertRaises(ValueError):
+            staticdetails({"static_combat": data})
+
+    def test_static_report_rejects_a_ledger_from_a_different_record_source(self):
+        with self.assertRaises(ValueError):
+            staticdetails({"source_sha256": "c" * 64, "static_combat": static()})
+
+    def test_static_report_accepts_the_same_explicit_record_source(self):
+        self.assertIn("Статические аффиксы вещей", staticdetails({
+            "source_sha256": "a" * 64, "static_combat": static(),
+        }))
+
+    def test_static_report_drops_unknown_private_fields_at_every_level(self):
+        data = static()
+        for row in (data, data["runtime"], data["items"][0], data["modifiers"][0],
+                    data["modifiers"][0]["values"][0], data["modifiers"][0]["definition"]):
+            row["private"] = {"nested": "PRIVATE-STATIC-CANARY"}
+        self.assertNotIn("PRIVATE-STATIC-CANARY", staticdetails({"static_combat": data}))
+
+    def test_static_report_without_a_ledger_is_empty(self):
+        self.assertEqual(staticdetails({}), "")
 
 
 def ranks():

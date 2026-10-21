@@ -16,6 +16,19 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_calculation_preserves_unknown_freshness_after_a_saved_code_match(self):
+        from test_damage_archive import facts, observations, package, resolution_bundle
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            resolution_bundle(path)
+            main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
+                  "--output", str(root / "result"), "--basis", "panel", "--active", "2", "--hits", "3",
+                  "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
+            self.assertEqual(json.loads((root / "result" / "calculation.json").read_text(encoding="utf-8"))
+                             ["build_resolution"]["freshness"]["status"], "unknown")
+
     def test_calculation_keeps_the_audit_without_altering_the_damage(self):
         from test_damage_archive import coverage_bundle, facts, observations, package
 

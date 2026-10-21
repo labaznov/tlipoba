@@ -95,6 +95,9 @@ def snapshot(data):
     if "import_coverage" in data:
         from .importcoverage import summary
         result["import_coverage"] = summary(data["import_coverage"])
+    if "build_resolution" in data:
+        from .buildresolution import summary
+        result["build_resolution"] = summary(data["build_resolution"])
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

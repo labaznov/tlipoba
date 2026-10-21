@@ -39,6 +39,32 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_keeps_a_saved_code_match_distinct_from_identity_verification(self):
+        from test_damage_archive import package, resolution_bundle
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            path = package(root)
+            resolution_bundle(path)
+            main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["build_resolution"]["status"],
+                              result["build_resolution"]["identity"]["payload_self_identifies"]),
+                             ("matched_saved_code", False))
+
+    def test_resolution_summary_removes_unknown_nested_properties(self):
+        from damage_lab.buildresolution import project
+        from damage_lab.importer import snapshot
+        from test_buildresolution import document
+
+        data = record()
+        block = project(document(), "a" * 64)
+        for row in (block, block["source"], block["identity"], block["transport"], block["gate"],
+                    block["coverage"]["data_version"], block["coverage"]["affix_versions"], block["freshness"]):
+            row["raw"] = "PRIVATE-RESOLUTION-MARKER"
+        data["build_resolution"] = block
+        self.assertNotIn("PRIVATE-RESOLUTION-MARKER", json.dumps(snapshot(data)["build_resolution"]))
+
     def test_import_preserves_the_automatic_acquisition_audit(self):
         from test_damage_archive import coverage_bundle, package
 

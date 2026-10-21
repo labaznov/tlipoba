@@ -105,6 +105,51 @@ def skilldetails(record):
             f"<th>Значения</th></tr></thead><tbody>{rows}</tbody></table></div></section>")
 
 
+def resolutiondetails(record):
+    """Display a saved-controller claim without promoting identity or freshness."""
+    if "build_resolution" not in record:
+        return ""
+    from .buildresolution import summary
+
+    data = summary(record["build_resolution"])
+    identity = data["identity"]
+    coverage, gate, freshness = (data[name] for name in ("coverage", "gate", "freshness"))
+    sections = "".join(f"<tr><td>{text(name)}</td><td>{text(status)}</td></tr>"
+                       for name, status in coverage["sections"].items())
+    return ("<section><h2>Проверка сохранённого снимка</h2>"
+            f"<p>Формат: {text(data['format'])}; версия: {text(data['version'])}<br>"
+            f"SHA-256 исходного снимка: {text(data['source']['sha256'])}<br>"
+            f"Статус сохранённого снимка: {text(data['status'])}<br>"
+            f"Основание сравнения: {text(identity['basis'])}<br>"
+            f"Сокращённый отпечаток кода: {text(identity['code_fingerprint']) if identity['code_fingerprint'] is not None else 'Не установлен'}<br>"
+            f"expected_code_matched — совпадение с сохранённым полем: {text(json.dumps(identity['expected_code_matched']))}</p>"
+            f"<p>Кандидатная сверка дескриптора — descriptor_match: {text(identity['descriptor_match'])}<br>"
+            f"capture_verified_flag: {text(json.dumps(identity['capture_verified_flag']))}<br>"
+            "Флаг захвата не является уровнем верификации<br>"
+            f"Согласованность автора: {text(identity['author_consistency'])}; "
+            f"согласованность идентификатора игрока: {text(identity['player_id_consistency'])}</p>"
+            "<p>transport.verified: false<br>payload_self_identifies: false<br>freshness.status: unknown</p>"
+            "<p>Сравнение кода не подтверждает идентичность пэйлоада или свежесть</p>"
+            f"<p>Вид источника: {text(data['transport']['kind'])}<br>Статус доступа: {text(gate['status'])}<br>"
+            f"feature_status: {text(gate['feature_status'])}<br>real_feature_status: {text(gate['real_feature_status'])}</p>"
+            f"<p>data_version.first: {text(coverage['data_version']['first']) if coverage['data_version']['first'] is not None else 'Не установлено'}<br>"
+            f"data_version.second: {text(coverage['data_version']['second']) if coverage['data_version']['second'] is not None else 'Не установлено'}<br>"
+            f"Сравнений версий аффиксов: {text(coverage['affix_versions']['checked'])}<br>"
+            f"Расхождений версий: {text(coverage['affix_versions']['mismatched'])}</p>"
+            "<h3>Сохранённые секции</h3><div class=scroll><table><thead><tr><th>Секция</th><th>Статус</th></tr></thead>"
+            f"<tbody>{sections}</tbody></table></div>"
+            f"<p>required_missing: {'нет' if not coverage['required_missing'] else ''}</p>"
+            f"{items(coverage['required_missing']) if coverage['required_missing'] else ''}"
+            f"<p>Время захвата: {text(freshness['captured_at']) if freshness['captured_at'] is not None else 'Не установлено'}<br>"
+            f"captured_at_status: {text(freshness['captured_at_status'])}<br>"
+            f"Структура кода: {text(identity['code_structure']) if identity['code_structure'] is not None else 'Не установлена'}<br>"
+            f"Время UUID кода (кандидат): {text(freshness['code_minted_at']) if freshness['code_minted_at'] is not None else 'Не установлено'}<br>"
+            f"payload_generated_at: не установлено<br>is_old_data: {text(freshness['is_old_data'])}</p>"
+            "<p>Время UUID и версии данных не подтверждают свежесть содержимого</p>"
+            f"<h3>Предупреждения</h3>{items(data['warnings']) if data['warnings'] else '<p>Предупреждений нет</p>'}"
+            f"<h3>Пути источника диагностики</h3>{items(data['source_paths'])}</section>")
+
+
 def importdetails(record):
     """Display observed composition without promoting it to effective mechanics."""
     if "import_coverage" not in record:
@@ -261,6 +306,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {skilldetails(record)}
 {rankdetails(record)}
 {importdetails(record)}
+{resolutiondetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -426,6 +472,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 <section><h2>Состав билда</h2>{inventory}</section>
 {rankdetails(record)}
 {importdetails(record)}
+{resolutiondetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

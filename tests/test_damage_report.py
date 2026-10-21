@@ -51,6 +51,81 @@ def coverage():
     }
 
 
+def resolution():
+    """Return a validated synthetic saved-controller assessment."""
+    from damage_lab.buildresolution import project
+    from test_buildresolution import document
+
+    return project(document(), "a" * 64)
+
+
+class BuildResolutionReportTests(unittest.TestCase):
+    """Saved-code comparisons remain distinct from verified build identity."""
+
+    def test_both_reports_show_the_saved_claim_without_promoting_identity(self):
+        self.assertTrue(all(all(value in result for value in (
+            "Проверка сохранённого снимка", "matched_saved_code", "совпадение с сохранённым полем",
+            "transport.verified: false", "payload_self_identifies: false", "freshness.status: unknown",
+            "Сравнение кода не подтверждает идентичность пэйлоада или свежесть",
+        )) for result in pages({"build_resolution": resolution()})))
+
+    def test_both_reports_show_redacted_source_and_candidate_metadata(self):
+        data = resolution()
+        data["identity"].update(descriptor_match="candidate_match", capture_verified_flag=True)
+        self.assertTrue(all(all(value in result for value in (
+            "tli-build-resolution-v0", "0.1.1", "a" * 64, "sha256:0b73e19a", "saved_controller_code",
+            "descriptor_match: candidate_match", "Кандидатная сверка дескриптора",
+            "capture_verified_flag: true", "Флаг захвата не является уровнем верификации",
+        )) for result in pages({"build_resolution": data})))
+
+    def test_both_reports_show_gate_coverage_paths_and_unestablished_freshness(self):
+        self.assertTrue(all(all(value in result for value in (
+            "Статус доступа: allowed", "feature_status: Feature_CanView", "real_feature_status: Feature_CanView",
+            "data_version.first: 7", "data_version.second: 113", "Сравнений версий аффиксов: 11",
+            "Расхождений версий: 0", "WearItems", "captured", "required_missing: нет",
+            "2026-02-04T07:08:09+03:00", "captured_at_status: valid", "2026-02-03T04:05:06+00:00",
+            "payload_generated_at: не установлено", "is_old_data: not_captured",
+            "buildIdentity.buildCode", "sections.ServerSource.data.**.Version (affix records)",
+        )) for result in pages({"build_resolution": resolution()})))
+
+    def test_reports_reject_transport_identity_or_freshness_proof_claims(self):
+        for section, key, value in (("transport", "verified", True), ("transport", "verified", 0),
+                                    ("identity", "payload_self_identifies", True), ("identity", "payload_self_identifies", 0),
+                                    ("freshness", "status", "fresh")):
+            data = resolution()
+            data[section][key] = value
+            with self.subTest(section=section, key=key), self.assertRaises(ValueError):
+                pages({"build_resolution": data})
+
+    def test_both_reports_ignore_unknown_private_resolution_properties(self):
+        data = resolution()
+        for row in (data, data["source"], data["transport"], data["identity"], data["gate"], data["freshness"],
+                    data["coverage"], data["coverage"]["data_version"], data["coverage"]["affix_versions"], data["coverage"]["sections"]):
+            row["rawAccount"] = {"private": "PRIVATE-RESOLUTION-CANARY"}
+        self.assertTrue(all("PRIVATE-RESOLUTION-CANARY" not in result for result in pages({"build_resolution": data})))
+
+    def test_raw_codes_and_markup_cannot_enter_the_redacted_resolution_fields(self):
+        for section, key, value in (("identity", "code_fingerprint", "AAECAwQFBgcICQoLDA0ODw=="),
+                                    ("source", "sha256", "<script>raw()</script>"),
+                                    ("identity", "basis", "<script>raw()</script>")):
+            data = resolution()
+            data[section][key] = value
+            with self.subTest(section=section, key=key), self.assertRaises(ValueError):
+                pages({"build_resolution": data})
+
+    def test_legacy_reports_without_resolution_remain_optional(self):
+        self.assertTrue(all("Проверка сохранённого снимка" not in result for result in pages({})))
+
+    def test_unbound_claims_remain_visible_with_a_candidate_descriptor(self):
+        data = resolution()
+        data["status"] = "unbound"
+        data["identity"].update(expected_code_matched=None, descriptor_match="candidate_match", capture_verified_flag=True)
+        self.assertTrue(all(all(value in result for value in (
+            "Статус сохранённого снимка: unbound", "совпадение с сохранённым полем: null",
+            "descriptor_match: candidate_match", "freshness.status: unknown",
+        )) for result in pages({"build_resolution": data})))
+
+
 class ImportCoverageReportTests(unittest.TestCase):
     """Show composition evidence separately from unresolved effective mechanics."""
 

@@ -101,6 +101,9 @@ def main(argv=None, *, archiver=None):
             if "import_coverage" in record:
                 from .importcoverage import summary
                 result["import_coverage"] = summary(record["import_coverage"])
+            if "build_resolution" in record:
+                from .buildresolution import summary
+                result["build_resolution"] = summary(record["build_resolution"])
             (stage / "calculation.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
             (stage / "index.html").write_text(render(record, calculation, condition), encoding="utf-8")

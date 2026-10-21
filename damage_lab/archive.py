@@ -118,6 +118,40 @@ def audited(package, bundle, source, guide):
     return project(document, source, bundle["guideSha256"]), (str(path.resolve()), digest, len(raw), 1)
 
 
+def resolved(package, bundle, source):
+    """Read a saved-code assessment without establishing transport or identity."""
+    from .buildresolution import project
+
+    fields = {"file", "status", "sha256", "sourceSha256", "resolutionStatus",
+              "expectedCodeSupplied", "identityVerified", "transportVerified"}
+    if (type(bundle) is not dict or not fields.issubset(bundle)
+            or bundle["file"] != "build-resolution.json" or bundle["status"] not in ("diagnostic", "error")
+            or bundle["sourceSha256"] != source or type(bundle["expectedCodeSupplied"]) is not bool
+            or bundle["identityVerified"] is not False or bundle["transportVerified"] is not False):
+        raise ValueError("Build resolution manifest has an invalid unverified contract")
+    path = package / "build-resolution.json"
+    with path.open("rb") as stream:
+        raw = stream.read(64 * 1024 * 1024 + 1)
+    if len(raw) > 64 * 1024 * 1024:
+        raise ValueError("Build resolution artifact exceeds the supported size")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != bundle["sha256"]:
+        raise ValueError("Build resolution artifact hash differs from its manifest")
+    document = json.loads(raw.decode("utf-8"))
+    if (type(document) is not dict or document.get("format") != "tli-build-resolution-v0"
+            or type(document.get("source")) is not dict or document["source"].get("sha256") != source
+            or document.get("status") != bundle["resolutionStatus"]):
+        raise ValueError("Build resolution artifact differs from its source or manifest status")
+    if bundle["status"] == "error":
+        if document["status"] != "error":
+            raise ValueError("Build resolution error artifact cannot contain assessment claims")
+        return None, (str(path.resolve()), digest, len(raw), 0)
+    result = project(document, source)
+    if not bundle["expectedCodeSupplied"] and result["identity"]["expected_code_matched"] is not None:
+        raise ValueError("Build resolution cannot match an expected code that was not supplied")
+    return result, (str(path.resolve()), digest, len(raw), 1)
+
+
 def lines(text):
     return [line for line in str(text).split("\n") if line]
 
@@ -500,6 +534,17 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Automatic import coverage audit failed; domain acquisition remains unassessed")
     else:
         coverage.append("Automatic import coverage audit is unavailable in this legacy package")
+    resolution = None
+    resolution_origin = None
+    if "buildResolution" in manifest:
+        resolution, resolution_origin = resolved(package, manifest["buildResolution"], hashes["source"][0])
+        if resolution is not None:
+            documents["build_resolution"] = resolution
+            coverage.append("Build resolution describes a saved controller claim; payload identity and freshness remain unverified")
+        else:
+            coverage.append("Saved build resolution assessment failed; code binding remains unassessed")
+    else:
+        coverage.append("Saved build resolution assessment is unavailable in this legacy package")
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
     rows, stats, benchmark, evidence = recorded(observed, partial=observations is None)
     missing = [key for key in REQUIRED_STATS if key not in stats]
@@ -636,6 +681,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["trait_ranks"] = ranks
     if audit is not None:
         result["import_coverage"] = audit
+    if resolution is not None:
+        result["build_resolution"] = resolution
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -653,6 +700,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("trait_ranks", *origin))
     if audit_origin is not None:
         inputs.append(("import_coverage", *audit_origin))
+    if resolution_origin is not None:
+        inputs.append(("build_resolution", *resolution_origin))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

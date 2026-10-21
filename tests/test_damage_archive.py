@@ -11,6 +11,87 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+def resolution_bundle(directory):
+    """Write fictional saved-code evidence without a code or verified identity."""
+    from test_buildresolution import document
+
+    data = document()
+    data["source"]["sha256"] = hashlib.sha256((directory / "source.json").read_bytes()).hexdigest()
+    path = write(directory / "build-resolution.json", data)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["buildResolution"] = {
+        "file": "build-resolution.json", "status": "diagnostic",
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "sourceSha256": data["source"]["sha256"],
+        "resolutionStatus": data["status"], "expectedCodeSupplied": True,
+        "identityVerified": False, "transportVerified": False,
+    }
+    write(directory / "manifest.json", manifest)
+    return path
+
+
+class ResolutionBundleTests(unittest.TestCase):
+    """A saved code match remains a claim with unknown payload freshness."""
+
+    def test_saved_code_assessment_is_imported_with_unknown_freshness(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            resolution_bundle(directory)
+            self.assertEqual(archive(directory, None, facts(root), root / "out.sqlite")
+                             ["build_resolution"]["freshness"]["status"], "unknown")
+
+    def test_assessment_and_artifact_provenance_are_saved_in_sqlite(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            resolution_bundle(directory)
+            archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual((json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='build_resolution'").fetchone()[0])["status"],
+                    connection.execute("SELECT stored FROM sources WHERE role='build_resolution'").fetchone()[0]),
+                                 ("matched_saved_code", 1))
+
+    def test_resolution_manifest_cannot_escape_change_status_or_verify_identity(self):
+        for field, value in (("file", "../build-resolution.json"), ("identityVerified", True),
+                             ("transportVerified", True), ("sourceSha256", "b" * 64),
+                             ("expectedCodeSupplied", 1), ("expectedCodeSupplied", False),
+                             ("resolutionStatus", "unbound")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                directory = package(root)
+                resolution_bundle(directory)
+                manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                manifest["buildResolution"][field] = value
+                write(directory / "manifest.json", manifest)
+                with self.assertRaises(ValueError):
+                    archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_resolution_artifact_requires_the_exact_manifest_hash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = resolution_bundle(directory)
+            path.write_bytes(path.read_bytes() + b" ")
+            with self.assertRaisesRegex(ValueError, "hash"):
+                archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_failed_assessment_does_not_publish_identity_claims(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = resolution_bundle(directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data.update(status="error", error="ValueError")
+            write(path, data)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["buildResolution"].update(status="error", resolutionStatus="error",
+                                               sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertEqual((result["import_status"], "build_resolution" in result), ("partial", False))
+
+
 def coverage_bundle(directory, guide=True):
     """Write a fictional acquisition audit tied to exact package bytes."""
     from test_importcoverage import document

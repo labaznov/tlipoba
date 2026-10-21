@@ -1,0 +1,15 @@
+{
+  "reference": {"damage": [], "cast": [], "taken": []},
+  "target": {"damage": [], "cast": [], "taken": []},
+  "tick_frequency": null,
+  "armor": 19000,
+  "nonphysical": true,
+  "missing": ["Цикл набора Heat и длительность состояний не моделируются"],
+  "notes": ["Синтетический пример состояний, не текущие параметры персонажа"],
+  "carino": {
+    "rank": 3,
+    "eternal": true,
+    "reference": {"heat": 3, "effect": 1},
+    "target": {"heat": 11, "effect": 1.25}
+  }
+}

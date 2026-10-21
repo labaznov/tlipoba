@@ -21,6 +21,60 @@ def context():
 class CombatTests(unittest.TestCase):
     """Explicit scenario factors preserve a neutral anchor."""
 
+    def test_carino_heat_uses_both_the_observed_and_target_state(self):
+        scenario = context()
+        scenario["carino"] = {"rank": 2, "eternal": True,
+                              "reference": {"heat": 7, "effect": 1},
+                              "target": {"heat": 13, "effect": 1.5}}
+        self.assertAlmostEqual(apply({"cast_rate": 8.7}, {
+            "dps": 137, "trace": [], "assumptions": [],
+        }, scenario)["dps"], 175.1685609939245)
+
+    def test_carino_does_not_infer_the_heat_effect(self):
+        scenario = context()
+        scenario["carino"] = {"rank": 2, "eternal": True,
+                              "reference": {"heat": 7}, "target": {"heat": 13, "effect": 1.5}}
+        with self.assertRaisesRegex(ValueError, "Carino reference requires"):
+            apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)
+
+    def test_compiling_carino_does_not_change_the_input_context(self):
+        scenario = context()
+        scenario["carino"] = {"rank": 2, "eternal": True,
+                              "reference": {"heat": 7, "effect": 1},
+                              "target": {"heat": 13, "effect": 1.5}}
+        previous = copy.deepcopy(scenario)
+        apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)
+        self.assertEqual(scenario, previous)
+
+    def test_carino_does_not_claim_verified_tangle_inheritance(self):
+        scenario = context()
+        scenario["carino"] = {"rank": 2, "eternal": False,
+                              "reference": {"heat": 0, "effect": 1},
+                              "target": {"heat": 13, "effect": 1}}
+        self.assertIn("Наследование Heat модификаторов Tangle не подтверждено", apply({"cast_rate": 8.7}, {
+            "dps": 137, "trace": [], "assumptions": [],
+        }, scenario)["combat"]["missing"])
+
+    def test_carino_cannot_duplicate_a_manual_damage_affix(self):
+        scenario = context()
+        scenario["carino"] = {"rank": 2, "eternal": False,
+                              "reference": {"heat": 0, "effect": 1},
+                              "target": {"heat": 7, "effect": 1}}
+        scenario["target"]["damage"] = [{"id": "manual-copy", "affix": "carino-incinerated-glory",
+                                          "value": 0.02, "stacks": 7, "mode": "add"}]
+        with self.assertRaisesRegex(ValueError, "Carino modifiers cannot be supplied manually"):
+            apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)
+
+    def test_carino_cannot_duplicate_a_manual_cast_affix(self):
+        scenario = context()
+        scenario["carino"] = {"rank": 2, "eternal": True,
+                              "reference": {"heat": 7, "effect": 1},
+                              "target": {"heat": 13, "effect": 1}}
+        scenario["reference"]["cast"] = [{"id": "manual-copy", "affix": "carino-eternal-flames",
+                                           "value": 0.004, "stacks": 7, "mode": "add"}]
+        with self.assertRaisesRegex(ValueError, "Carino modifiers cannot be supplied manually"):
+            apply({"cast_rate": 8.7}, {"dps": 137, "trace": [], "assumptions": []}, scenario)
+
     def test_neutral_context_preserves_damage(self):
         self.assertEqual(apply({"cast_rate": 8.7}, {
             "dps": 137, "status": "conditional", "trace": [], "assumptions": [],

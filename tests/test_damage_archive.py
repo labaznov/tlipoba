@@ -11,6 +11,68 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+class StaticBundleTests(unittest.TestCase):
+    """Retain typed gear evidence without changing already observed character values."""
+
+    def test_static_gear_bundle_is_imported_without_manual_observations(self):
+        from test_staticbundle import fixture
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            fixture(directory)
+            self.assertEqual(archive(directory, None, facts(root), root / "out.sqlite")
+                             ["static_combat"]["accounting"]["compiled"], 1)
+
+    def test_sqlite_stores_ledger_catalog_coordinates_and_hashed_artifact_origin(self):
+        from test_staticbundle import fixture
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, bundle = fixture(directory)
+            archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual((json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='static_combat_provenance'").fetchone()[0])
+                    ["documents"][0]["byte_range"], connection.execute(
+                        "SELECT sha256,stored FROM sources WHERE role='static_combat'").fetchone()),
+                                 ([17, 319], (bundle["sha256"], 1)))
+
+    def test_failed_static_bundle_is_a_gap_without_zero_effect_claims(self):
+        from test_staticbundle import fixture
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            fixture(directory, error=True)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(("static_combat" in result, connection.execute(
+                    "SELECT stored FROM sources WHERE role='static_combat'").fetchone()[0],
+                    any("Static gear modifier bundle failed" in value for value in result["coverage"])),
+                                 (False, 0, True))
+
+    def test_legacy_package_keeps_static_modifier_acquisition_unavailable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertTrue(any("Static gear modifiers are unavailable" in value for value in archive(
+                package(root), None, facts(root), root / "out.sqlite")["coverage"]))
+
+    def test_invalid_static_bundle_leaves_no_database(self):
+        from test_staticbundle import fixture, saved
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            artifact, bundle = fixture(directory)
+            artifact["identityVerified"] = True
+            saved(directory, artifact, bundle)
+            with self.assertRaises(ValueError):
+                archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertFalse((root / "out.sqlite").exists())
+
+
 def resolution_bundle(directory):
     """Write fictional saved-code evidence without a code or verified identity."""
     from test_buildresolution import document

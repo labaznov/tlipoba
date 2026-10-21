@@ -39,6 +39,41 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_json_preserves_static_evidence_and_catalog_provenance(self):
+        from test_staticbundle import fixture, package
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            path = package(root)
+            fixture(path)
+            main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["static_combat"]["runtime"]["verified"],
+                              result["static_combat_provenance"]["network_bytes_verified"]), (False, False))
+
+    def test_static_summary_revalidates_record_source_and_drops_unknown_fields(self):
+        from damage_lab.importer import snapshot
+        from damage_lab.staticcombat import project
+        from test_staticcombat import document
+
+        data = record()
+        data["static_combat"] = project(document(), "a" * 64)
+        data["static_combat"]["modifiers"][0]["raw"] = "PRIVATE-STATIC-MARKER"
+        result = snapshot(data)
+        self.assertEqual((result["static_combat"]["accounting"]["compiled"],
+                          "PRIVATE-STATIC-MARKER" in json.dumps(result)), (1, False))
+
+    def test_static_summary_cannot_belong_to_a_different_record_source(self):
+        from damage_lab.importer import snapshot
+        from damage_lab.staticcombat import project
+        from test_staticcombat import document
+
+        data = record()
+        data["static_combat"] = project(document(), "a" * 64)
+        data["source_sha256"] = "e" * 64
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
     def test_import_keeps_a_saved_code_match_distinct_from_identity_verification(self):
         from test_damage_archive import package, resolution_bundle
 

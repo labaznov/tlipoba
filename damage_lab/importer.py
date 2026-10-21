@@ -53,6 +53,24 @@ def ranksummary(data):
     return result
 
 
+def staticsummary(data):
+    """Keep a partial static ledger bound to this record and its declared catalog inputs."""
+    from .staticcombat import summary
+
+    if "static_combat" not in data:
+        if "static_combat_provenance" in data:
+            raise ValueError("Static combat provenance requires its diagnostic ledger")
+        return {}
+    ledger = summary(data["static_combat"])
+    if ledger["source"]["sha256"] != data.get("source_sha256"):
+        raise ValueError("Static combat ledger differs from the record source hash")
+    result = {"static_combat": ledger}
+    if "static_combat_provenance" in data:
+        from .staticbundle import summary
+        result["static_combat_provenance"] = summary(data["static_combat_provenance"], ledger)
+    return result
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -98,6 +116,7 @@ def snapshot(data):
     if "build_resolution" in data:
         from .buildresolution import summary
         result["build_resolution"] = summary(data["build_resolution"])
+    result.update(staticsummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

@@ -545,6 +545,19 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Saved build resolution assessment failed; code binding remains unassessed")
     else:
         coverage.append("Saved build resolution assessment is unavailable in this legacy package")
+    modifiers = None
+    modifier_origin = None
+    if "staticCombat" in manifest:
+        from .staticbundle import read
+        modifiers, provenance, modifier_origin = read(package, manifest["staticCombat"], hashes["source"][0])
+        if modifiers is not None:
+            documents["static_combat"] = modifiers
+            documents["static_combat_provenance"] = provenance
+            coverage.append("Static gear modifiers were imported as partial source-bound evidence; runtime is unverified and effects are not applied to DPS")
+        else:
+            coverage.append("Static gear modifier bundle failed; effect acquisition remains incomplete")
+    else:
+        coverage.append("Static gear modifiers are unavailable in this legacy package")
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
     rows, stats, benchmark, evidence = recorded(observed, partial=observations is None)
     missing = [key for key in REQUIRED_STATS if key not in stats]
@@ -683,6 +696,9 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["import_coverage"] = audit
     if resolution is not None:
         result["build_resolution"] = resolution
+    if modifiers is not None:
+        result["static_combat"] = modifiers
+        result["static_combat_provenance"] = provenance
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -702,6 +718,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("import_coverage", *audit_origin))
     if resolution_origin is not None:
         inputs.append(("build_resolution", *resolution_origin))
+    if modifier_origin is not None:
+        inputs.append(("static_combat", *modifier_origin))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

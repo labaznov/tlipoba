@@ -6,6 +6,43 @@ import unittest
 class FormulasTests(unittest.TestCase):
     """Verify public formula contracts with independent numeric examples."""
 
+    def test_positive_additional_power_cannot_underflow_to_zero(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            additional([{"id": "small", "affix": "sequence", "value": -.9, "stacks": 400, "mode": "multiply"}])
+
+    def test_positive_additional_groups_cannot_underflow_to_zero(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            additional([{"id": str(index), "affix": str(index), "value": -.99999999, "stacks": 1, "mode": "add"}
+                        for index in range(50)])
+
+    def test_positive_additional_stack_products_cannot_underflow_to_zero(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            additional([{"id": str(index), "affix": "sequence", "value": -.9, "stacks": 200, "mode": "multiply"}
+                        for index in range(2)])
+
+    def test_product_preserves_a_representable_subnormal(self):
+        from damage_lab.formulas import product
+
+        self.assertEqual(product([5e-324, 1]), 5e-324)
+
+    def test_product_preserves_an_explicit_zero(self):
+        from damage_lab.formulas import product
+
+        self.assertEqual(product([0, 1e300]), 0)
+
+    def test_product_rejects_invalid_factors_even_after_a_zero(self):
+        from damage_lab.formulas import product
+
+        for value in (True, -1, float("nan"), float("inf"), "one"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                product([0, value])
+
     def test_additional_sums_repeated_affixes_before_multiplying_distinct_affixes(self):
         from damage_lab.formulas import additional
 

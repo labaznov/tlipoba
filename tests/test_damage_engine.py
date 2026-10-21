@@ -6,6 +6,18 @@ from damage_lab.engine import calculate, cold, critical, topology
 class DamageEngineTests(unittest.TestCase):
     """Check damage expectations against independently calculated examples."""
 
+    def test_positive_converted_hit_cannot_underflow_to_zero(self):
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            cold(5e-324, 0, 0, 1, -.5, 0, 0, [])
+
+    def test_positive_added_cold_hit_cannot_underflow_to_zero(self):
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            cold(0, 0, 5e-324, .5, 0, 0, 0, [])
+
+    def test_positive_critical_only_damage_cannot_underflow_to_zero(self):
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            critical(1, 5e-324, lucky=False, more=-.5)
+
     def test_cold_requires_explicit_affix_metadata(self):
         for field in ("affix", "stacks", "mode"):
             with self.subTest(field=field):

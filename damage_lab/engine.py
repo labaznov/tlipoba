@@ -2,7 +2,7 @@
 
 import math
 
-from .formulas import additional
+from .formulas import additional, product
 
 
 def bounded(value, minimum, maximum, name):
@@ -18,7 +18,7 @@ def critical(chance, multiplier, *, lucky, more=0):
     bounded(multiplier, 0, 100, "Critical multiplier")
     bounded(more, -1, 100, "Critical-only more damage")
     probability = 1 - (1 - chance) ** 2 if lucky else chance
-    return (1 - probability) + probability * multiplier * (1 + more)
+    return (1 - probability) + product((probability, multiplier, 1 + more), name="Critical damage")
 
 
 def topology(maximum, extra, active, hits, retention):
@@ -61,9 +61,10 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
         })
     converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])
     native_factor = additional(pools["all"] + pools["cold"])
-    converted = (base + physical * effectiveness) * max(0, 1 + increased + origin + destination)
-    native = flat * effectiveness * max(0, 1 + increased + destination)
-    result = converted * converted_factor + native * native_factor
+    converted = product((base + product((physical, effectiveness), name="Added physical hit"),
+                         max(0, 1 + increased + origin + destination)), name="Converted hit")
+    native = product((flat, effectiveness, max(0, 1 + increased + destination)), name="Native Cold hit")
+    result = product((converted, converted_factor), name="Cold hit") + product((native, native_factor), name="Cold hit")
     if not math.isfinite(result):
         raise ValueError("Cold hit must be finite")
     return result

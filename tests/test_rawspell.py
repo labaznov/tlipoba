@@ -28,8 +28,50 @@ def modifier(identity, affix, value, scope=None):
     return result
 
 
+def subnormal():
+    """Return a complete fictional scenario at the smallest positive float boundary."""
+    document = scenario()
+    document["damage"].update(base={"min": 5e-324, "max": 5e-324}, physical={"min": 0, "max": 0},
+                              cold={"min": 0, "max": 0}, effectiveness=1,
+                              increased={"all": 0, "physical": 0, "cold": 0})
+    document["critical"].update(chance=0, multiplier=1, more=0)
+    document["casting"].update(interval=1, increased=0)
+    return document
+
+
 class RawSpellTests(unittest.TestCase):
     """Check a raw spell expectation without using a character panel."""
+
+    def test_positive_expected_hit_cannot_underflow_to_zero(self):
+        document = subnormal()
+        document["critical"].update(chance=1, multiplier=.5)
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            evaluate(document)
+
+    def test_positive_pre_defence_damage_cannot_underflow_to_zero(self):
+        document = subnormal()
+        document["casting"]["interval"] = 2
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            evaluate(document)
+
+    def test_positive_cast_rate_cannot_underflow_to_zero(self):
+        document = scenario()
+        document["casting"].update(interval=1e6, increased=-.9999999999999999,
+                                   more=[{"id": "tiny", "affix": "slow", "value": -.9, "stacks": 320, "mode": "multiply"}])
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            evaluate(document)
+
+    def test_positive_midpoint_cannot_underflow_to_zero(self):
+        document = subnormal()
+        document["damage"]["base"]["min"] = 0
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            evaluate(document)
+
+    def test_positive_midpoint_spread_cannot_underflow_before_adding_the_minimum(self):
+        document = subnormal()
+        document["damage"]["base"]["max"] = 1e-323
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            evaluate(document)
 
     def test_physical_conversion_and_native_cold_have_separate_increased_scopes(self):
         self.assertAlmostEqual(evaluate(scenario())["noncritical"]["mean"], 283.51)

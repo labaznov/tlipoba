@@ -5,7 +5,7 @@ import math
 import re
 
 from .engine import cold, critical
-from .formulas import additional, tangle_rate
+from .formulas import additional, product, tangle_rate
 
 
 def _object(value, fields, label):
@@ -140,14 +140,14 @@ def evaluate(document):
                              for edge in ("min", "max")}
     minimum = components["converted"]["min"] + components["native"]["min"]
     maximum = components["converted"]["max"] + components["native"]["max"]
-    mean = minimum + (maximum - minimum) / 2
+    mean = minimum + product((maximum - minimum, .5), name="Midpoint spread")
     factor = critical(crit["chance"], crit["multiplier"], lucky=crit["lucky"], more=crit["more"])
-    expected = mean * factor
+    expected = product((mean, factor), name="Expected hit")
     speed = additional(casting["more"])
-    rate = (1 + casting["increased"]) / casting["interval"] * speed
+    rate = product(((1 + casting["increased"]) / casting["interval"], speed), name="Raw cast rate")
     _number(rate, 0, 1e300, "Raw cast rate")
     effective = tangle_rate(rate, casting["frequency"])
-    dps = expected * effective
+    dps = product((expected, effective), name="Pre-defence DPS")
     _number(dps, 0, 1e300, "Pre-defence DPS")
     result.update(noncritical={"min": minimum, "max": maximum, "mean": mean, "components": components},
                   critical_factor=factor, expected_hit=expected,

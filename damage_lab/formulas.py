@@ -20,12 +20,29 @@ def _factor(value):
     return value
 
 
+def product(values, *, name="Product"):
+    """Multiply finite nonnegative factors without silently losing positive values to zero."""
+    result = 1.0
+    for value in values:
+        _finite(value, f"{name} factor")
+        if value < 0:
+            raise ValueError(f"{name} factor cannot be negative")
+        try:
+            current = _finite(result * value, name)
+        except (ValueError, TypeError, OverflowError):
+            raise ValueError(f"{name} must be finite") from None
+        if current == 0 and result > 0 and value > 0:
+            raise ValueError(f"{name} cannot underflow to zero")
+        result = current
+    return result
+
+
 def additional(rows):
     """Pool supplied additional fractions by explicit affix identity."""
     pools = {}
     identities = set()
     modes = {}
-    product = 1.0
+    result = 1.0
     for row in rows:
         if not all(field in row for field in ("id", "affix", "value", "stacks", "mode")):
             raise ValueError("Additional row requires id, affix, value, stacks and mode")
@@ -52,13 +69,17 @@ def additional(rows):
             raise ValueError("Affix stack mode must be consistent")
         modes[row["affix"]] = row["mode"]
         if row["mode"] == "multiply":
+            factor = _factor(1 + row["value"])
             try:
-                product *= _factor(1 + row["value"]) ** row["stacks"]
+                power = factor ** row["stacks"]
             except OverflowError as error:
                 raise ValueError("Additional product must be finite") from error
+            if factor > 0 and power == 0:
+                raise ValueError("Additional power cannot underflow to zero")
+            result = product((result, power), name="Additional product")
         else:
             pools[row["affix"]] = pools.get(row["affix"], 0) + row["value"] * row["stacks"]
-    return _finite(product * math.prod(_factor(1 + value) for value in pools.values()), "Additional product")
+    return product((result, *(_factor(1 + value) for value in pools.values())), name="Additional product")
 
 
 def tangle_rate(rate, frequency=None):

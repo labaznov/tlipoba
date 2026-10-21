@@ -1,0 +1,334 @@
+{
+  "patch": "SS14",
+  "checkedAt": "2026-10-21",
+  "sources": {
+    "chromatic": "https://tlidb.com/en/Chromatic_Shot",
+    "patch": "https://torchlight.xd.com/ss14pn/?lang=en",
+    "math": "https://tlidb.com/en/Character_Build",
+    "crit": "https://tlidb.com/en/Critical_Strike",
+    "lucky": "https://tlidb.com/en/Lucky",
+    "shotgun": "https://tlidb.com/en/Shotgun_Effect",
+    "tangle": "https://tlidb.com/en/Tangle",
+    "dormant": "https://tlidb.com/en/Dormant_Entanglement",
+    "hero": "https://tlidb.com/en/Zealot_of_War",
+    "lightchaser": "https://tlidb.com/en/Chromatic_Shot_Lightchaser_Magnificent",
+    "condensedCold": "https://tlidb.com/en/Chromatic_Shot_Condensed_Cold_Noble"
+  },
+  "chromatic": {
+    "id": 7007,
+    "baseProjectiles": 1,
+    "intrinsicProjectileBonus": 2,
+    "baseCastInterval": 0.65,
+    "publishedCastRate": 1.54,
+    "shotgunCoefficient": 0.8,
+    "shotgunInterpretation": "unverified",
+    "progression": [
+      {
+        "level": 1,
+        "addedEffectiveness": 1.14,
+        "min": 6,
+        "max": 11,
+        "quality": "published"
+      },
+      {
+        "level": 2,
+        "addedEffectiveness": 1.14,
+        "min": 7,
+        "max": 12,
+        "quality": "published"
+      },
+      {
+        "level": 3,
+        "addedEffectiveness": 1.15,
+        "min": 9,
+        "max": 15,
+        "quality": "published"
+      },
+      {
+        "level": 4,
+        "addedEffectiveness": 1.15,
+        "min": 13,
+        "max": 22,
+        "quality": "published"
+      },
+      {
+        "level": 5,
+        "addedEffectiveness": 1.16,
+        "min": 17,
+        "max": 28,
+        "quality": "published"
+      },
+      {
+        "level": 6,
+        "addedEffectiveness": 1.16,
+        "min": 20,
+        "max": 34,
+        "quality": "published"
+      },
+      {
+        "level": 7,
+        "addedEffectiveness": 1.17,
+        "min": 23,
+        "max": 39,
+        "quality": "published"
+      },
+      {
+        "level": 8,
+        "addedEffectiveness": 1.17,
+        "min": 29,
+        "max": 49,
+        "quality": "published"
+      },
+      {
+        "level": 9,
+        "addedEffectiveness": 1.18,
+        "min": 38,
+        "max": 63,
+        "quality": "published"
+      },
+      {
+        "level": 10,
+        "addedEffectiveness": 1.18,
+        "min": 46,
+        "max": 77,
+        "quality": "published"
+      },
+      {
+        "level": 11,
+        "addedEffectiveness": 1.19,
+        "min": 60,
+        "max": 100,
+        "quality": "published"
+      },
+      {
+        "level": 12,
+        "addedEffectiveness": 1.19,
+        "min": 70,
+        "max": 117,
+        "quality": "published"
+      },
+      {
+        "level": 13,
+        "addedEffectiveness": 1.2,
+        "min": 86,
+        "max": 143,
+        "quality": "published"
+      },
+      {
+        "level": 14,
+        "addedEffectiveness": 1.2,
+        "min": 101,
+        "max": 168,
+        "quality": "published"
+      },
+      {
+        "level": 15,
+        "addedEffectiveness": 1.21,
+        "min": 120,
+        "max": 200,
+        "quality": "published"
+      },
+      {
+        "level": 16,
+        "addedEffectiveness": 1.21,
+        "min": 170,
+        "max": 283,
+        "quality": "published"
+      },
+      {
+        "level": 17,
+        "addedEffectiveness": 1.22,
+        "min": 201,
+        "max": 335,
+        "quality": "published"
+      },
+      {
+        "level": 18,
+        "addedEffectiveness": 1.22,
+        "min": 278,
+        "max": 463,
+        "quality": "published"
+      },
+      {
+        "level": 19,
+        "addedEffectiveness": 1.23,
+        "min": 416,
+        "max": 694,
+        "quality": "published"
+      },
+      {
+        "level": 20,
+        "addedEffectiveness": 1.23,
+        "min": 498,
+        "max": 831,
+        "quality": "published"
+      },
+      {
+        "level": 21,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 22,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 23,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 24,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 25,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 26,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 27,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 28,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 29,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 30,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 31,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 32,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 33,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 34,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 35,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 36,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 37,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 38,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 39,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      },
+      {
+        "level": 40,
+        "addedEffectiveness": null,
+        "min": 498,
+        "max": 831,
+        "quality": "unverified_flat_tail"
+      }
+    ],
+    "level20": {
+      "min": 498,
+      "max": 831,
+      "addedEffectiveness": 1.23
+    },
+    "cachedCatalogConflict": {
+      "min": 529,
+      "max": 881,
+      "addedEffectiveness": 1.31,
+      "shotgunCoefficient": 0.7
+    }
+  },
+  "rules": {
+    "defaultCritMultiplier": 1.5,
+    "critCap": 1,
+    "castRateCap": 30,
+    "tangleBaseAttachmentLimit": 1,
+    "tangleBaseMaxQuantity": 2,
+    "tangleDocumentedMaxQuantity": 4,
+    "dormantMorePerInactive": 0.4,
+    "luckyTrials": 2
+  },
+  "limits": [
+    "TLIDB progression 21–40 repeats the level-20 damage and omits added effectiveness; higher-level base damage is not treated as verified.",
+    "The shotgun glossary does not define how coefficient 80% translates to the retained fraction. Retention must be an explicit scenario input.",
+    "The cached Compendium SS14 Chromatic description still contains pre-release values. Current math uses separately verified primary-source facts."
+  ]
+}

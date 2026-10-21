@@ -1,0 +1,13 @@
+[project]
+name = "torchlight-infinite-builder"
+version = "0.1.0"
+description = "Traceable local build calculations for Torchlight Infinite, starting with Carino"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = ["damage_lab", "damage_lab.*"]
+
+[tool.setuptools.package-data]
+damage_lab = ["data/*.json"]

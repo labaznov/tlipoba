@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Private captures and account data
+/captures/
+/exports/
+/private/
+/local-data/
+/.local/
+/damage_lab/data/observations.json
+.env*
+source.json
+
+# Local databases and generated output
+*.sqlite*
+/output/
+/generated/
+/runtime/
+/local-reports/
+/reports/
+
+# Editor and OS state
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -10,6 +10,96 @@ from unittest.mock import patch
 from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
+
+def trait_bundle(directory):
+    """Write synthetic rank evidence bound to this package's source bytes."""
+    from test_traitranks import document
+
+    data = document()
+    data["source"]["sha256"] = hashlib.sha256((directory / "source.json").read_bytes()).hexdigest()
+    path = write(directory / "trait-ranks.json", data)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["traitRanks"] = {
+        "file": "trait-ranks.json", "status": "diagnostic", "rankRuleVerified": False,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "sourceSha256": data["source"]["sha256"], "traits": len(data["traits"]),
+    }
+    write(directory / "manifest.json", manifest)
+    return path
+
+
+class TraitBundleTests(unittest.TestCase):
+    """Preserve automatic rank candidates without promoting a rule to a rank."""
+
+    def test_bundled_candidates_are_imported_automatically_without_manual_values(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            trait_bundle(directory)
+            self.assertEqual([row["rank"] for row in archive(directory, None, facts(root), root / "out.sqlite")
+                              ["trait_ranks"]["traits"]], [None, None])
+
+    def test_candidate_projection_is_stored_in_sqlite(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            trait_bundle(directory)
+            archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='trait_ranks'").fetchone()[0])["rule_status"],
+                                 "rank_rule_unverified")
+
+    def test_rank_bundle_requires_its_exact_artifact_hash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = trait_bundle(directory)
+            path.write_text(path.read_text(encoding="utf-8") + " ", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash"):
+                archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_failed_rank_bundle_preserves_partial_import_without_candidate_claims(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = trait_bundle(directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data.update(status="error", memories=[], traits=[], gaps=["Catalog unavailable"])
+            write(path, data)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["traitRanks"].update(status="error", traits=0, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertEqual((result["import_status"], "trait_ranks" in result), ("partial", False))
+
+    def test_artifact_cannot_replace_its_source_hash_even_with_a_valid_manifest_digest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path = trait_bundle(directory)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["source"]["sha256"] = "b" * 64
+            write(path, data)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["traitRanks"]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            write(directory / "manifest.json", manifest)
+            with self.assertRaisesRegex(ValueError, "source"):
+                archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_rank_manifest_cannot_claim_verified_rules_or_escape_the_package(self):
+        for field, value in (("file", "../trait-ranks.json"), ("rankRuleVerified", True),
+                             ("sourceSha256", "b" * 64), ("traits", True), ("traits", 7)):
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                directory = package(root)
+                trait_bundle(directory)
+                manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                manifest["traitRanks"][field] = value
+                write(directory / "manifest.json", manifest)
+                with self.assertRaises(ValueError):
+                    archive(directory, None, facts(root), root / "out.sqlite")
+
 class UnitTests(unittest.TestCase):
     """Reject incompatible units before calculating with observed values."""
 

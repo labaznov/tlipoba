@@ -3,6 +3,110 @@ import unittest
 from damage_lab.report import render, render_import, scenarios
 
 
+def ranks():
+    """Return fictional unresolved ranks and memory coordinates without user data."""
+    prefix = "sections.HeroCharacter.data.HeroJewels[2]._Raw_Data."
+    return {
+        "format": "tli-trait-rank-candidates-v1", "rule_status": "rank_rule_unverified",
+        "source_sha256": "a" * 64,
+        "traits": [{"trait_id": 9000731, "index": 0, "rank": None, "memory_position": 2,
+                    "status": "rank_rule_unverified", "candidates_agree": False,
+                    "candidates": [{"rule": "client_fixed", "formula": "C", "value": 3,
+                                    "status": "rank_rule_unverified", "inputs": [prefix + "ReminiscenceFixedLevel"]},
+                                   {"rule": "client_plus_enhance", "formula": "C + E", "value": 5,
+                                    "status": "rank_rule_unverified", "inputs": []}]}],
+        "memories": [{"position": 2, "base_id": 9000583,
+                      "fields": {key: {"path": prefix + field, "status": "ok", "value": value}
+                                 for key, field, value in (
+                                     ("client_fixed", "ReminiscenceFixedLevel", 3),
+                                     ("from_enhance", "ReminiscenceFixedLevelFromEnhance", 2),
+                                     ("server_fixed", "ServerPlayerItem.ReminiscenceFixedLevel", 1),
+                                     ("level", "ReminiscenceLevel", 37))},
+                      "fixed_affix_contribution": 2, "fixed_affix_source": prefix + "ServerPlayerItem.BaseAffix",
+                      "consistency": "consistent", "linkage": {"status": "index_match", "slot": 3}}],
+        "memories_without_selected_trait": [], "assumptions": ["Синтетические кандидаты"],
+        "gaps": ["Нет подтверждённого правила ранга"],
+    }
+
+
+def pages(record):
+    """Render both public report entry points with a neutral synthetic calculation."""
+    return [render_import(record), render(record, {"dps": 127319, "trace": [], "assumptions": []}, {
+        "basis": "panel", "active": 2, "hits": 3, "retention": 0.2, "resistance": 0.23,
+        "taken": 0.11, "uptime": 0.87,
+    })]
+
+
+class TraitRankReportTests(unittest.TestCase):
+    """Show candidate ranks as unresolved evidence without applying them to damage."""
+
+    def test_import_report_displays_unverified_candidates_without_selecting_a_rank(self):
+        result = render_import({"trait_ranks": ranks()})
+        self.assertTrue(all(value in result for value in (
+            "Ранги свойств героя", "Правило ранга не подтверждено", "9000731", "Ранг не установлен",
+            "Кандидаты ранга", "client_fixed", "C + E", "<td>3</td>", "<td>5</td>",
+            "HeroJewels[2]", "a" * 64, "Нет подтверждённого правила ранга",
+        )))
+
+    def test_calculation_report_shows_candidates_without_changing_damage(self):
+        calculation = {"dps": 127319, "trace": [], "assumptions": []}
+        result = render({"stats": {}, "trait_ranks": ranks()}, calculation, {
+            "basis": "panel", "active": 2, "hits": 3, "retention": 0.2, "resistance": 0.23,
+            "taken": 0.11, "uptime": 0.87,
+        })
+        self.assertEqual(("Ранги свойств героя" in result, "127 319" in result, calculation),
+                         (True, True, {"dps": 127319, "trace": [], "assumptions": []}))
+
+    def test_report_keeps_memory_field_paths_and_linkage_separate_from_the_rank(self):
+        result = render_import({"trait_ranks": ranks()})
+        self.assertTrue(all(value in result for value in (
+            "Поля воспоминаний", "9000583", "ReminiscenceFixedLevelFromEnhance",
+            "ServerPlayerItem.ReminiscenceFixedLevel", "ReminiscenceLevel", "ServerPlayerItem.BaseAffix",
+            "consistent", "index_match", "Вклад fixed affix", "Ранг не установлен",
+        )))
+
+    def test_report_cannot_promote_a_candidate_to_a_resolved_rank(self):
+        data = ranks()
+        data["traits"][0]["rank"] = 3
+        with self.assertRaisesRegex(ValueError, "unverified ranks unresolved"):
+            render_import({"trait_ranks": data})
+
+    def test_unlinked_base_trait_stays_unknown_without_a_default_rank(self):
+        data = ranks()
+        data["traits"][0].update(trait_id=None, memory_position=None, status="base_trait_slot_unverified",
+                                 candidates=[], candidates_agree=None)
+        data["memories_without_selected_trait"] = [3]
+        result = render_import({"trait_ranks": data})
+        self.assertTrue(all(value in result for value in (
+            "ID не установлен", "Ранг не установлен", "base_trait_slot_unverified", "Не сравнены",
+            "ранг 1 по умолчанию не назначается", "Слоты памяти без выбранного свойства (нумерация с 1): 3",
+        )))
+
+    def test_both_report_types_escape_candidate_markup(self):
+        data = ranks()
+        data["traits"][0]["candidates"][0]["formula"] = "<script>fixture()</script>"
+        self.assertTrue(all("&lt;script&gt;fixture()&lt;/script&gt;" in result
+                            and "<script>fixture()</script>" not in result
+                            for result in pages({"trait_ranks": data})))
+
+    def test_both_report_types_ignore_unknown_private_projection_fields(self):
+        data = ranks()
+        for entry in (data, data["traits"][0], data["traits"][0]["candidates"][0], data["memories"][0],
+                      data["memories"][0]["fields"]["client_fixed"], data["memories"][0]["linkage"]):
+            entry["private"] = "PRIVATE-RANK-CANARY"
+        data["memories"][0]["fields"]["unknown"] = {"value": "PRIVATE-RANK-CANARY"}
+        self.assertTrue(all("PRIVATE-RANK-CANARY" not in result for result in pages({"trait_ranks": data})))
+
+    def test_legacy_records_without_rank_projection_remain_valid(self):
+        self.assertTrue(all("Ранги свойств героя" not in result for result in pages({"stats": {}})))
+
+    def test_report_cannot_claim_that_a_rank_rule_is_verified(self):
+        data = ranks()
+        data["rule_status"] = "verified"
+        with self.assertRaisesRegex(ValueError, "unverified ranks unresolved"):
+            render_import({"trait_ranks": data})
+
+
 class DamageReportTests(unittest.TestCase):
     """Check report evidence and safe rendering without native snapshot leakage."""
 

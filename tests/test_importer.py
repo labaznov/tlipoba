@@ -39,6 +39,32 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_keeps_bundled_candidate_ranks_unresolved(self):
+        from test_damage_archive import package, trait_bundle
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            path = package(root)
+            trait_bundle(path)
+            main(["--package", str(path), "--output", str(root / "result")])
+            self.assertEqual([row["rank"] for row in json.loads(
+                (root / "result" / "import.json").read_text(encoding="utf-8"))["trait_ranks"]["traits"]],
+                             [None, None])
+
+    def test_rank_summary_drops_extra_properties_at_each_depth(self):
+        from damage_lab.importer import snapshot
+        from damage_lab.traitranks import project
+        from test_traitranks import document
+
+        data = record()
+        block = project(document(), "a" * 64)
+        for row in (block, block["traits"][1], block["traits"][1]["candidates"][0],
+                    block["memories"][0], block["memories"][0]["fields"]["client_fixed"],
+                    block["memories"][0]["linkage"]):
+            row["raw"] = "PRIVATE-RANK-MARKER"
+        data["trait_ranks"] = block
+        self.assertNotIn("PRIVATE-RANK-MARKER", json.dumps(snapshot(data)["trait_ranks"]))
+
     def test_import_preserves_available_optional_armor_penetration(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

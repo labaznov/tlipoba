@@ -54,6 +54,36 @@ def fingerprint(path):
     return hashlib.sha256(data).hexdigest(), len(data)
 
 
+def ranked(package, bundle, source):
+    """Read one source-bound diagnostic artifact without selecting a rank rule."""
+    from .traitranks import project
+
+    if (type(bundle) is not dict or bundle.get("file") != "trait-ranks.json"
+            or bundle.get("rankRuleVerified") is not False
+            or bundle.get("status") not in ("diagnostic", "error")
+            or bundle.get("sourceSha256") != source
+            or type(bundle.get("traits")) is not int or bundle["traits"] < 0):
+        raise ValueError("Trait ranks manifest has an invalid diagnostic contract")
+    path = package / "trait-ranks.json"
+    with path.open("rb") as stream:
+        raw = stream.read(64 * 1024 * 1024 + 1)
+    if len(raw) > 64 * 1024 * 1024:
+        raise ValueError("Trait ranks artifact exceeds the supported size")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != bundle.get("sha256"):
+        raise ValueError("Trait ranks artifact hash differs from its manifest")
+    document = json.loads(raw.decode("utf-8"))
+    if (type(document) is not dict or document.get("format") != "tli-trait-rank-candidates-v1"
+            or type(document.get("source")) is not dict or document["source"].get("sha256") != source
+            or type(document.get("traits")) is not list or len(document["traits"]) != bundle["traits"]):
+        raise ValueError("Trait ranks artifact differs from its source or manifest count")
+    if bundle["status"] == "error":
+        if document.get("status") != "error" or document["traits"]:
+            raise ValueError("Trait ranks error artifact cannot contain candidate claims")
+        return None, (str(path.resolve()), digest, len(raw), 0)
+    return project(document, source), (str(path.resolve()), digest, len(raw), 1)
+
+
 def lines(text):
     return [line for line in str(text).split("\n") if line]
 
@@ -414,6 +444,17 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             raw=game_log is not None)
         documents["panel_log_selection"] = panel
         coverage += issues
+    ranks = None
+    origin = None
+    if "traitRanks" in manifest:
+        ranks, origin = ranked(package, manifest["traitRanks"], hashes["source"][0])
+        if ranks is not None:
+            documents["trait_ranks"] = ranks
+            coverage.append("Hero trait rank candidates were imported automatically; no rank rule is verified or selected")
+        else:
+            coverage.append("Hero trait rank bundle failed; automatic rank acquisition remains incomplete")
+    else:
+        coverage.append("Hero trait rank candidates are unavailable in this legacy package")
     synthetic = any(document.get("synthetic") is True for document in (observed, guide, manifest))
     rows, stats, benchmark, evidence = recorded(observed, partial=observations is None)
     missing = [key for key in REQUIRED_STATS if key not in stats]
@@ -546,6 +587,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         }
     if panel is not None:
         result["panel_log"] = panel["summary"]
+    if ranks is not None:
+        result["trait_ranks"] = ranks
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -559,6 +602,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     if game_log is not None:
         source = documents["panel_log"]["source"]
         inputs.append(("game_log", str(Path(game_log).resolve()), source["sha256"], source["bytesRead"], 0))
+    if origin is not None:
+        inputs.append(("trait_ranks", *origin))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

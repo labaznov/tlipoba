@@ -95,6 +95,9 @@ def main(argv=None, *, archiver=None):
             if "panel_log" in record:
                 from .importer import logsummary
                 result["panel_log"] = logsummary(record["panel_log"])
+            if "trait_ranks" in record:
+                from .importer import ranksummary
+                result["trait_ranks"] = ranksummary(record["trait_ranks"])
             (stage / "calculation.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
             (stage / "index.html").write_text(render(record, calculation, condition), encoding="utf-8")

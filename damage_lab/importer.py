@@ -28,6 +28,31 @@ def logsummary(data):
     return result
 
 
+def ranksummary(data):
+    """Keep only diagnostic rank fields, without raw instance identifiers."""
+    def select(row, fields):
+        return {key: copy.deepcopy(row[key]) for key in fields if key in row}
+
+    if data["rule_status"] != "rank_rule_unverified" or any(row["rank"] is not None for row in data["traits"]):
+        raise ValueError("Trait rank candidates cannot select or verify a rank")
+    result = select(data, ("format", "source_sha256", "rule_status", "memories_without_selected_trait",
+                           "gaps", "assumptions"))
+    result["traits"] = []
+    for entry in data["traits"]:
+        row = select(entry, ("trait_id", "index", "rank", "memory_position", "status", "candidates_agree"))
+        row["candidates"] = [select(candidate, ("rule", "formula", "inputs", "value", "status"))
+                             for candidate in entry["candidates"]]
+        result["traits"].append(row)
+    result["memories"] = []
+    for entry in data["memories"]:
+        row = select(entry, ("position", "base_id", "fixed_affix_contribution", "fixed_affix_source", "consistency"))
+        row["fields"] = {key: select(entry["fields"][key], ("path", "status", "value"))
+                         for key in ("client_fixed", "from_enhance", "server_fixed", "level")}
+        row["linkage"] = select(entry["linkage"], ("status", "slot", "server_index", "reason"))
+        result["memories"].append(row)
+    return result
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -65,6 +90,8 @@ def snapshot(data):
         ) if key in data["native_stats"]}
     if "panel_log" in data:
         result["panel_log"] = logsummary(data["panel_log"])
+    if "trait_ranks" in data:
+        result["trait_ranks"] = ranksummary(data["trait_ranks"])
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

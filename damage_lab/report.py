@@ -105,6 +105,58 @@ def skilldetails(record):
             f"<th>Значения</th></tr></thead><tbody>{rows}</tbody></table></div></section>")
 
 
+def rankdetails(record):
+    """Display unresolved trait candidates separately from applied combat parameters."""
+    if "trait_ranks" not in record:
+        return ""
+    data = record["trait_ranks"]
+    if data["rule_status"] != "rank_rule_unverified" or any(row["rank"] is not None for row in data["traits"]):
+        raise ValueError("Trait rank projection must keep unverified ranks unresolved")
+    traits, candidates, memories = [], [], []
+    for row in data["traits"]:
+        traits.append(f"<tr><td>{text(row['trait_id']) if row['trait_id'] is not None else 'ID не установлен'}</td><td>{text(row['index'])}</td>"
+                      f"<td>Ранг не установлен</td><td>{text(row['status'])}</td>"
+                      f"<td>{text(row['memory_position']) if row['memory_position'] is not None else 'Не установлена'}</td>"
+                      f"<td>{'Не сравнены' if row['candidates_agree'] is None else 'Да' if row['candidates_agree'] else 'Нет'}</td></tr>")
+        for candidate in row["candidates"]:
+            candidates.append(f"<tr><td>{text(row['trait_id'])}</td><td>{text(candidate['rule'])}</td>"
+                              f"<td>{text(candidate['formula'])}</td>"
+                              f"<td>{text(candidate['value']) if candidate['value'] is not None else 'Не вычислен'}</td>"
+                              f"<td>{text(candidate['status'])}</td><td>{items(candidate['inputs'])}</td></tr>")
+    for memory in data["memories"]:
+        rows = "".join(
+            f"<tr><td>{text(label)}</td>"
+            f"<td>{text(memory['fields'][key]['value']) if memory['fields'][key]['value'] is not None else 'Не извлечено'}</td>"
+            f"<td>{text(memory['fields'][key]['status'])}</td><td>{text(memory['fields'][key]['path'])}</td></tr>"
+            for key, label in (("client_fixed", "Клиентский fixed"), ("from_enhance", "Прибавка усиления"),
+                               ("server_fixed", "Серверный fixed"), ("level", "Уровень воспоминания"))
+        )
+        linkage = "; ".join(f"{text(key)}: {text(memory['linkage'][key])}"
+                            for key in ("status", "slot", "server_index") if key in memory["linkage"])
+        memories.append(f"<article><h4>Позиция памяти в источнике: {text(memory['position'])}; "
+                        f"base ID: {text(memory['base_id']) if memory['base_id'] is not None else 'Не извлечён'}</h4>"
+                        f"<p>Вклад fixed affix: {text(memory['fixed_affix_contribution']) if memory['fixed_affix_contribution'] is not None else 'Не извлечён'}"
+                        f"<br>Источник: {text(memory['fixed_affix_source'])}<br>Согласованность: {text(memory['consistency'])}"
+                        f"<br>Связь с выбранным свойством: {linkage}</p>"
+                        "<div class=scroll><table><thead><tr><th>Поле</th><th>Значение</th><th>Статус</th><th>Путь источника</th>"
+                        f"</tr></thead><tbody>{rows}</tbody></table></div></article>")
+    unlinked = ("<p>Слоты памяти без выбранного свойства (нумерация с 1): "
+                + ", ".join(text(slot) for slot in data["memories_without_selected_trait"]) + "</p>"
+                if data["memories_without_selected_trait"] else "")
+    return ("<section><h2>Ранги свойств героя</h2>"
+            "<p>Правило ранга не подтверждено; кандидаты не выбираются автоматически и не применяются к DPS</p>"
+            "<p>Неизвестное базовое свойство остаётся без ранга: ранг 1 по умолчанию не назначается<br>"
+            "Совпадение кандидатов не подтверждает правило</p>"
+            f"<p>Формат: {text(data['format'])}; правило: {text(data['rule_status'])}<br>"
+            f"SHA-256 исходного снимка: {text(data['source_sha256'])}</p>"
+            "<div class=scroll><table><thead><tr><th>ID свойства</th><th>Индекс</th><th>Итоговый ранг</th>"
+            f"<th>Статус</th><th>Позиция памяти в источнике</th><th>Кандидаты совпадают</th></tr></thead><tbody>{''.join(traits)}</tbody></table></div>"
+            "<h3>Кандидаты ранга</h3><div class=scroll><table><thead><tr><th>ID свойства</th><th>Правило</th>"
+            f"<th>Формула</th><th>Значение</th><th>Статус</th><th>Источники</th></tr></thead><tbody>{''.join(candidates)}"
+            f"</tbody></table></div><h3>Поля воспоминаний</h3>{''.join(memories)}{unlinked}<h3>Допущения и пробелы</h3>"
+            f"{items(data['assumptions'])}{items(data['gaps'])}</section>")
+
+
 def render_import(record):
     """Display available imported evidence without computing a combat scenario."""
     evidence = {row["key"]: row for row in record.get("observations", [])}
@@ -148,6 +200,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 <tbody>{rows}</tbody></table></div>{'' if rows else '<p>Подтверждённые показатели пока недоступны</p>'}</section>
 {logdetails(record)}
 {skilldetails(record)}
+{rankdetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -311,6 +364,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 <h3>{benchmarkheading}</h3><table><tbody>{benchmarkrows}</tbody></table></section>
 {logdetails(record)}
 <section><h2>Состав билда</h2>{inventory}</section>
+{rankdetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

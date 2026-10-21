@@ -14,6 +14,20 @@ from examples.make_fixture import fixture
 
 
 class DamageCliTests(unittest.TestCase):
+    def test_calculation_preserves_rank_candidates_without_applying_a_rank(self):
+        from test_damage_archive import facts, observations, package, trait_bundle
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            trait_bundle(path)
+            main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
+                  "--output", str(root / "result"), "--basis", "panel", "--active", "2", "--hits", "3",
+                  "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
+            self.assertEqual([row["rank"] for row in json.loads(
+                (root / "result" / "calculation.json").read_text(encoding="utf-8"))["trait_ranks"]["traits"]],
+                             [None, None])
+
     """Check CLI outputs with an isolated local archive fake."""
 
     def test_game_log_allows_conditional_calculation_without_intermediate_json(self):

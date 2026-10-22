@@ -368,6 +368,23 @@ def static():
 class StaticReportTests(unittest.TestCase):
     """Expose static inventory evidence without treating it as applied damage."""
 
+    def test_both_reports_show_own_cast_values_separately_from_specs_and_unresolved_application(self):
+        from damage_lab.staticcombat import project
+        from test_staticcombat import casted
+
+        self.assertTrue(all(all(value in page for value in (
+            "Значения скорости без арифметики", "17.8750", "7.1250", "41.625", "unresolved", "unknown", "false"))
+            for page in pages({"static_combat": project(casted(), "a" * 64)})))
+
+    def test_cast_details_require_the_same_record_source_and_omit_legacy_evidence(self):
+        from damage_lab.report import castdetails
+        from damage_lab.staticcombat import project
+        from test_staticcombat import casted
+
+        self.assertEqual(castdetails({}), "")
+        with self.assertRaises(ValueError):
+            castdetails({"source_sha256": "f" * 64, "static_combat": project(casted(), "a" * 64)})
+
     def test_both_reports_keep_critical_operation_unresolved_and_arithmetic_disabled(self):
         from damage_lab.staticcombat import project
         from test_staticcombat import critical

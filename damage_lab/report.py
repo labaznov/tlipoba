@@ -282,6 +282,38 @@ def profiledetails(record):
             "<details><summary>Каталожные координаты и области SHA профилей</summary>" + exact(catalog) + "</details></section>")
 
 
+def _castrows(data):
+    rows = []
+    for row in data["omitted"]:
+        evidence = row.get("evidence")
+        if evidence is not None:
+            own = "<br>".join(text(value["exact"]) for value in evidence["own_values"])
+            specs = "<br>".join(text(spec["min_exact"] + " … " + spec["max_exact"] + spec["unit"])
+                               for spec in evidence["specs"])
+            rows.append(f"<tr><td>{text(row['item'])}<br>{text(row['path'])}</td>"
+                        f"<td><pre>{text(evidence['template'])}</pre></td><td>{own}</td><td>{specs}</td>"
+                        f"<td>value_role: unresolved<br>activation: unknown<br>arithmetic_ready: false"
+                        f"<details><summary>Происхождение</summary><pre>{text(json.dumps(evidence, ensure_ascii=False))}</pre>"
+                        "</details></td></tr>")
+        elif "evidence_issue" in row:
+            rows.append(f"<tr><td>{text(row['item'])}<br>{text(row['path'])}</td>"
+                        f"<td colspan=4>{text(row['evidence_issue'])}; частичные данные не подставлены</td></tr>")
+    return ("" if not rows else "<h3>Значения скорости без арифметики</h3>"
+            "<p>Собственные значения и диапазоны каталога сохранены отдельно; соответствие эффектам не выбрано. "
+            "Hasten и область применения не подтверждены; строки не добавлены в cast speed или DPS.</p>"
+            "<div class=scroll><table><thead><tr><th>Источник</th><th>Шаблон</th><th>Собственные значения</th>"
+            "<th>Specs каталога</th><th>Применение</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
+
+
+def castdetails(record):
+    """Show revalidated cast evidence bound to the record without applying speed effects."""
+    if "static_combat" not in record:
+        return ""
+    from .importer import staticsummary
+
+    return _castrows(staticsummary(record)["static_combat"])
+
+
 def staticdetails(record):
     """Show source-bound catalog interpretations separately from applied damage."""
     if "static_combat" not in record:
@@ -328,7 +360,7 @@ def staticdetails(record):
             f"<th>Значения</th><th>Определение и pool</th></tr></thead><tbody>{modifiers}</tbody></table></div></details>"
             "<details><summary>Пропуски и структурные пробелы</summary><div class=scroll><table><thead>"
             "<tr><th>Предмет</th><th>Источник</th><th>Причина</th></tr></thead>"
-            f"<tbody>{omissions}</tbody></table></div></details></section>")
+            f"<tbody>{omissions}</tbody></table></div></details>{_castrows(data)}</section>")
 
 
 def resolutiondetails(record):

@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from html.parser import HTMLParser
+from unittest.mock import patch
 
 from damage_lab.buildinputreport import render
 
@@ -13,6 +14,18 @@ def report():
     from test_buildinputs import record
 
     return assemble(record(), skill_alias="gem[1]")
+
+
+def castreport(alias):
+    """Assemble fictional own cast-row evidence through the canonical ledger contract."""
+    from damage_lab.buildinputs import assemble
+    from damage_lab.staticcombat import project
+    from test_buildinputs import record
+    from test_staticcombat import casted
+
+    value = record()
+    value["static_combat"] = project(casted(), "a" * 64)
+    return assemble(value, skill_alias=alias)
 
 
 class Surface(HTMLParser):
@@ -36,6 +49,71 @@ class BuildInputReportTests(unittest.TestCase):
             "Явный выбор камня", "gem[1]", "Каталожные поля на уровне камня", "Кандидаты модификаторов",
             "Наблюдаемая группа", "Пробелы расчёта", "effective level", "неизвестно",
         )))
+
+    def test_full_gear_cast_evidence_is_displayed_separately_from_applied_modifiers(self):
+        page = render(castreport("gem[1]"))
+        self.assertTrue(all(value in page for value in (
+            "Значения скорости без арифметики", "17.8750", "7.1250 … 41.625%", "Собственные значения",
+            "Specs каталога", "+#% Minion Cast Speed", "value_role: unresolved", "activation: unknown",
+            "соответствие эффектам не выбрано", "строки не добавлены в cast speed или DPS",
+        )))
+
+    def test_gear_observations_are_not_filtered_by_an_unobserved_skill_alias(self):
+        value = castreport("gem[999]")
+        page = render(value)
+        self.assertTrue("Значения скорости без арифметики" in page and "17.8750" in page
+                        and value["modifiers"] is None and value["raw_spell"] is None and value["status"] == "blocked")
+
+    def test_legacy_ledgers_and_missing_static_inventory_do_not_create_cast_evidence_sections(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+
+        value = record()
+        value.pop("static_combat")
+        self.assertTrue(all("Значения скорости без арифметики" not in render(candidate)
+                            for candidate in (report(), assemble(value, skill_alias="gem[1]"))))
+
+    def test_cast_renderer_errors_use_the_existing_fixed_report_error_without_private_echo(self):
+        def unavailable(record):
+            raise ValueError("PRIVATE-CAST-INPUT-CANARY")
+
+        with patch("damage_lab.report.castdetails", unavailable), self.assertRaisesRegex(
+                ValueError, "^Build input HTML requires an unchanged assembled report$"):
+            render(castreport("gem[1]"))
+
+    def test_cast_evidence_keeps_the_existing_missing_inputs_and_raw_spell_blocked(self):
+        from damage_lab.buildinputs import assemble
+        from damage_lab.staticcombat import project
+        from test_buildinputs import record
+        from test_staticcombat import casted
+
+        raw = casted()
+        raw["version"] = "0.4.0"
+        del raw["omitted"][0]["evidence"]
+        value = record()
+        value["static_combat"] = project(raw, "a" * 64)
+        before = assemble(value, skill_alias="gem[1]")
+        after = castreport("gem[1]")
+        self.assertEqual((after["gaps"], after["raw_spell"], after["status"], after["arithmetic_ready"]),
+                         (before["gaps"], None, before["status"], False))
+
+    def test_cast_evidence_html_drops_opaque_payloads_and_remains_passive(self):
+        from damage_lab.buildinputs import assemble
+        from damage_lab.staticcombat import project
+        from test_buildinputs import record
+        from test_staticcombat import casted
+
+        raw = casted()
+        raw["omitted"][0]["evidence"]["opaque"] = '<img src=x onerror="PRIVATE-CAST-INPUT-CANARY">'
+        value = record()
+        value["static_combat"] = project(raw, "a" * 64)
+        page = render(assemble(value, skill_alias="gem[1]"))
+        tags = []
+        Surface(tags).feed(page)
+        self.assertTrue("PRIVATE-CAST-INPUT-CANARY" not in page
+                        and not any(tag in {"script", "img", "iframe", "object", "embed", "link", "form", "input"}
+                                    or any(name.startswith("on") or name in {"src", "href", "action"} for name in attributes)
+                                    for tag, attributes in tags))
 
     def test_source_bound_level_candidates_are_displayed_without_deriving_inputs_or_damage(self):
         from damage_lab.buildinputs import assemble

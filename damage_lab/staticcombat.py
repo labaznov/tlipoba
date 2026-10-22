@@ -3,9 +3,11 @@
 import re
 from decimal import Context, Decimal, localcontext
 
+from .fixedimplicit import ENGLISH, MASTER
+
 
 FORMAT = "tli-static-combat-modifiers-v1"
-VERSIONS = ("0.3.2", "0.4.0", "0.4.1")
+VERSIONS = ("0.3.2", "0.4.0", "0.4.1", "0.4.2")
 CRITICAL = {"critical_rating_increased": "rating_increase", "critical_damage_modifier": "unresolved"}
 EVIDENCE_ISSUES = ("evidence_definition_shape", "evidence_spec_invalid", "evidence_value_invalid")
 AFFIXES = ("BaseAttrInfoList", "BAffixInfoList", "PrefixInfoList", "SuffixInfoList", "EnchantAffixList",
@@ -67,12 +69,15 @@ def _count(value):
         raise ValueError("Static combat counts require nonnegative integers")
 
 
-def _catalog(catalog):
+def _catalog(catalog, version):
     for path, row in catalog["documents"].items():
         _pattern(path, r"(?:gear|legendaries)/[A-Za-z0-9_./-]+")
         if len(path) > 256:
             raise ValueError("Static combat logical catalog paths exceed the producer limit")
         _pattern(row["sha256"], "[0-9a-f]{64}")
+        if "role" in row or path.endswith("/i18n/en"):
+            if version != "0.4.2" or path != ENGLISH or row.get("role") != "english":
+                raise ValueError("Static combat English roles require the supported paired wand member and compiler version")
         _enum(row["status"], ("ok", "invalid"))
         if row["status"] == "ok":
             if row["issue"] is not None:
@@ -88,7 +93,8 @@ def _catalog(catalog):
     expected = []
     if any(row["status"] == "invalid" for row in catalog["documents"].values()):
         expected.append("catalog_document_invalid")
-    if len({row["season_id"] for row in catalog["documents"].values() if row["status"] == "ok"}) > 1:
+    if len({row["season_id"] for row in catalog["documents"].values()
+            if row["status"] == "ok" and "role" not in row}) > 1:
         expected.append("catalog_season_mixed")
     if catalog["flags"] != expected:
         raise ValueError("Static combat catalog flags must agree with its documents")
@@ -128,7 +134,8 @@ def _items(result):
             _pattern(identity["tlidb_id"], r"[1-9][0-9]{0,19}")
             path = identity["catalog"]
             if (type(path) is not str or path not in result["catalog"]["documents"]
-                    or result["catalog"]["documents"][path]["status"] != "ok"):
+                    or result["catalog"]["documents"][path]["status"] != "ok"
+                    or "role" in result["catalog"]["documents"][path]):
                 raise ValueError("Static combat exact item identity requires a valid supplied catalog")
             prefix = "gear/" if identity["kind"] == "base" else "legendaries/"
             if not path.startswith(prefix):
@@ -146,12 +153,13 @@ def _modifier(row, canonical, version):
                            "appliesToPlayerSpell", "unit", "values", "definition", "pool", "templateSign", "status"), canonical)
     result["targets"] = list(_list(result["targets"]))
     result["values"] = [_select(value, ("exact", "source"), canonical, ("fraction",)) for value in _list(result["values"])]
-    result["definition"] = _select(result["definition"], ("catalog", "id", "templateSource"), canonical,
-                                   ("tier", "tierId", "variant"))
+    fixed = "fixed_implicit" if canonical else "fixedImplicit"
+    result["definition"] = _select(result["definition"], ("catalog", "id"), canonical,
+                                   ("templateSource", "tier", "tierId", "variant", "implicit"))
     result["pool"] = _select(result["pool"], ("id", "status", "basis"), canonical)
     _enum(result["family"], tuple(COMBINATIONS))
     if result["family"] in CRITICAL:
-        if version not in ("0.4.0", "0.4.1"):
+        if version not in ("0.4.0", "0.4.1", "0.4.2"):
             raise ValueError("Static critical inventory requires a supported critical compiler version")
         if result["template_sign"] != "+":
             raise ValueError("Static critical inventory requires an exact positive template sign")
@@ -163,6 +171,12 @@ def _modifier(row, canonical, version):
             raise ValueError("Static critical inventory cannot choose an operator or enable arithmetic")
     elif "semantics" in row:
         raise ValueError("Static critical semantics cannot be attached to another modifier family")
+    if fixed in row:
+        if version != "0.4.2":
+            raise ValueError("Static fixed implicit proofs require compiler version 0.4.2")
+        from .fixedimplicit import project, summary
+
+        result["fixed_implicit"] = summary(row[fixed]) if canonical else project(row[fixed])
     _vocabulary(result)
     return result
 
@@ -213,6 +227,11 @@ def _definition(row, identity):
     _pattern(definition["id"], IDENTIFIER)
     if definition["catalog"] != identity["catalog"]:
         raise ValueError("Static combat modifier definitions must use their source item's catalog")
+    if "fixed_implicit" in row:
+        if (set(definition) != {"catalog", "id", "implicit"} or definition["implicit"] is not True
+                or pool != {"id": None, "status": "unresolved", "basis": "fixed_implicit_identity_unresolved"}):
+            raise ValueError("Static fixed implicit definitions require an implicit identity and an unresolved pool")
+        return
     if identity["kind"] == "base":
         if set(definition) != {"catalog", "id", "tier", "tier_id", "template_source"}:
             raise ValueError("Static combat base definitions require their exact tier metadata")
@@ -239,10 +258,12 @@ def _definition(row, identity):
 
 def _omission(row, canonical, version):
     result = _select(row, ("item", "path", "list", "nativeId", "reason"), canonical)
+    if ("fixed_implicit" if canonical else "fixedImplicit") in row:
+        raise ValueError("Static fixed implicit proofs cannot be attached to omitted rows")
     issue = "evidence_issue" if canonical else "evidenceIssue"
     if "evidence" in row or issue in row:
-        if version != "0.4.1":
-            raise ValueError("Static cast evidence requires compiler version 0.4.1")
+        if version not in ("0.4.1", "0.4.2"):
+            raise ValueError("Static cast evidence requires a supported cast compiler version")
         if "evidence" in row and issue in row:
             raise ValueError("Static cast evidence cannot also contain an evidence issue")
     if "evidence" in row:
@@ -253,6 +274,26 @@ def _omission(row, canonical, version):
         _enum(row[issue], EVIDENCE_ISSUES)
         result["evidence_issue"] = row[issue]
     return result
+
+
+def _fixed(row, item, catalog):
+    identity, proof = item["identity"], row["fixed_implicit"]
+    if (row["native_id"] != 520020 or row["list"] != "FixedBaseAffix" or len(row["path"]) > 256
+            or (row["family"], row["targets"], row["scope"], row["owner"], row["unit"], row["template_sign"])
+            != ("increased_damage", ["damage"], "spell", "player", "percent", "+")
+            or identity["kind"] != "base" or identity["catalog"] != MASTER
+            or row["definition"]["id"] != identity["definition"]):
+        raise ValueError("Static fixed implicit proofs require the exact wand spell-damage row and item")
+    if (proof["master"]["catalog"] != identity["catalog"]
+            or proof["master"]["item_guid"] != identity["definition"]
+            or proof["master"]["tlidb_id"] != identity["tlidb_id"]
+            or proof["own_value"] != {"exact": row["values"][0]["exact"], "source": row["values"][0]["source"]}):
+        raise ValueError("Static fixed implicit proof identities and own values must agree with their source row")
+    for entry in (proof["master"], proof["english"]):
+        document = catalog["documents"].get(entry["catalog"])
+        if (document is None or document["status"] != "ok" or document["sha256"] != entry["sha256"]
+                or (entry["catalog"] == ENGLISH and document.get("role") != "english")):
+            raise ValueError("Static fixed implicit proofs require their valid catalog member hashes")
 
 
 def _rows(result):
@@ -280,6 +321,8 @@ def _rows(result):
                     if item["identity"]["status"] != "exact":
                         raise ValueError("Static combat compiled modifiers require an exact item identity")
                     _definition(row, item["identity"])
+                    if "fixed_implicit" in row:
+                        _fixed(row, item, result["catalog"])
                 else:
                     _native(row["native_id"])
                     _enum(row["reason"], REASONS)
@@ -317,9 +360,9 @@ def _project(document, source_sha256, canonical):
     catalog = _select(result["catalog"], ("documents", "flags"), canonical)
     _object(catalog["documents"], ())
     result["catalog"] = {
-        "documents": {path: _select(row, ("sha256", "status", "issue", "seasonId", "schemaVersion"), canonical)
+        "documents": {path: _select(row, ("sha256", "status", "issue", "seasonId", "schemaVersion"), canonical, ("role",))
                       for path, row in catalog["documents"].items()}, "flags": list(_list(catalog["flags"]))}
-    _catalog(result["catalog"])
+    _catalog(result["catalog"], result["version"])
     result["runtime"] = _select(result["runtime"], ("verified", "selectionVerified", "sourcePatch", "activation"), canonical)
     runtime = result["runtime"]
     if (runtime["verified"] is not False or runtime["selection_verified"] is not False

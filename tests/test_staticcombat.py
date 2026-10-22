@@ -68,8 +68,200 @@ def casted():
     return data
 
 
+def fixed():
+    """Bind a fictional wand implicit to its two declared catalog members without choosing a pool."""
+    from test_fixedimplicit import document as proof
+
+    data = document()
+    data["version"] = "0.4.2"
+    data["items"][0]["identity"].update(definition="synthetic-wand", tlidbId="9137")
+    data["catalog"]["documents"]["gear/one_handed/wand/i18n/en"] = {
+        "sha256": "c" * 64, "status": "ok", "issue": None, "seasonId": None, "schemaVersion": None, "role": "english"}
+    data["modifiers"][0].update(
+        path="sections.WearItems.data[0].sourceData.AffixList.FixedBaseAffix[0]", list="FixedBaseAffix", nativeId=520020,
+        family="increased_damage", targets=["damage"], scope="spell", owner="player", appliesToPlayerSpell=True,
+        unit="percent", values=[{"exact": "37.12500", "fraction": "0.3712500", "source": "DynArgs[0]"}],
+        definition={"catalog": "gear/one_handed/wand/master", "id": "synthetic-wand", "implicit": True},
+        pool={"id": None, "status": "unresolved", "basis": "fixed_implicit_identity_unresolved"},
+        templateSign="+", fixedImplicit=proof())
+    return data
+
+
 class StaticCombatTest(unittest.TestCase):
     """Validate inventory evidence without applying it to a character or damage model."""
+
+    def test_a_fixed_wand_implicit_retains_its_exact_proof_and_unresolved_pool(self):
+        result = summary(project(fixed(), "a" * 64))
+        self.assertEqual((result["modifiers"][0]["fixed_implicit"]["own_value"], result["modifiers"][0]["pool"],
+                          result["catalog"]["flags"]),
+                         ({"exact": "37.12500", "source": "DynArgs[0]"},
+                          {"id": None, "status": "unresolved", "basis": "fixed_implicit_identity_unresolved"}, []))
+
+    def test_the_new_version_preserves_all_legacy_ordinary_critical_and_cast_payloads(self):
+        for data in (document(), critical("critical_damage_modifier", "spell"), casted()):
+            with self.subTest(version=data["version"]):
+                expected = summary(project(data, "a" * 64))
+                data["version"] = "0.4.2"
+                expected["version"] = "0.4.2"
+                self.assertEqual(summary(project(data, "a" * 64)), expected)
+
+    def test_fixed_proofs_cannot_be_attached_to_legacy_compiler_versions(self):
+        for version in ("0.3.2", "0.4.0", "0.4.1"):
+            with self.subTest(version=version):
+                data = fixed()
+                del data["catalog"]["documents"]["gear/one_handed/wand/i18n/en"]
+                data["version"] = version
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_canonical_fixed_proofs_cannot_be_promoted_to_legacy_versions(self):
+        for version in ("0.3.2", "0.4.0", "0.4.1"):
+            with self.subTest(version=version):
+                data = project(fixed(), "a" * 64)
+                del data["catalog"]["documents"]["gear/one_handed/wand/i18n/en"]
+                data["version"] = version
+                with self.assertRaises(ValueError):
+                    summary(data)
+
+    def test_fixed_proofs_require_the_registered_native_id_family_scope_and_owner(self):
+        for field, invalid in (("nativeId", 520021), ("nativeId", True), ("family", "increased_attribute"),
+                               ("targets", ["cold"]), ("scope", "any"), ("owner", "minion"),
+                               ("appliesToPlayerSpell", 1), ("templateSign", "-")):
+            with self.subTest(field=field):
+                data = fixed()
+                data["modifiers"][0][field] = invalid
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_a_fixed_proof_cannot_move_to_another_affix_list(self):
+        data = fixed()
+        data["modifiers"][0].update(list="PrefixInfoList", path="sections.WearItems.data[0].sourceData.AffixList.PrefixInfoList[0]")
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_implicit_definitions_cannot_claim_tiers_templates_or_a_resolved_pool(self):
+        for block, field, invalid in (("definition", "implicit", 1), ("definition", "implicit", False),
+                                      ("definition", "tier", "1"), ("definition", "templateSource", "descriptionTemplate"),
+                                      ("definition", "variant", "normal"), ("pool", "id", "synthetic-wand"),
+                                      ("pool", "status", "exact"), ("pool", "basis", "gear_entry")):
+            with self.subTest(block=block, field=field):
+                data = fixed()
+                data["modifiers"][0][block][field] = invalid
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_an_implicit_definition_without_its_fixed_proof_is_not_a_tier_definition(self):
+        data = fixed()
+        del data["modifiers"][0]["fixedImplicit"]
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_a_self_consistent_proof_still_requires_its_exact_parent_item(self):
+        for field, invalid in (("definition", "other-wand"), ("tlidbId", "9138")):
+            with self.subTest(field=field):
+                data = fixed()
+                data["items"][0]["identity"][field] = invalid
+                if field == "definition":
+                    data["modifiers"][0]["definition"]["id"] = invalid
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_declared_member_hashes_bind_the_proof_to_both_catalog_documents(self):
+        for block in ("master", "english"):
+            with self.subTest(block=block):
+                data = fixed()
+                data["modifiers"][0]["fixedImplicit"][block]["sha256"] = "d" * 64
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_the_own_lexeme_must_equal_the_source_row_even_when_its_number_is_equal(self):
+        data = fixed()
+        data["modifiers"][0]["fixedImplicit"]["ownValue"]["exact"] = "37.125"
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_fixed_fraction_validation_rejects_rounding_and_ignores_the_callers_context(self):
+        data = fixed()
+        with localcontext() as context:
+            context.prec = 1
+            context.Emax = 0
+            for signal in context.traps:
+                context.traps[signal] = True
+            result = summary(project(data, "a" * 64))
+        self.assertEqual(result["modifiers"][0]["values"][0]["fraction"], "0.3712500")
+
+    def test_a_rounded_fraction_cannot_replace_the_exact_fixed_percent(self):
+        data = fixed()
+        data["modifiers"][0]["values"][0]["fraction"] = "0.4"
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_the_supported_english_role_is_not_a_master_or_a_season_source(self):
+        data = fixed()
+        data["catalog"]["documents"]["gear/one_handed/wand/i18n/en"]["seasonId"] = "SS13"
+        result = summary(project(data, "a" * 64))
+        self.assertEqual((result["catalog"]["flags"], result["catalog"]["documents"]["gear/one_handed/wand/i18n/en"]["role"]),
+                         ([], "english"))
+
+    def test_english_members_cannot_identify_source_items(self):
+        data = fixed()
+        data["items"][0]["identity"]["catalog"] = "gear/one_handed/wand/i18n/en"
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_english_role_requires_the_exact_path_and_new_compiler(self):
+        for change in ("version", "path", "role", "master", "missing"):
+            with self.subTest(change=change):
+                data = fixed()
+                documents = data["catalog"]["documents"]
+                if change == "version":
+                    data["version"] = "0.4.1"
+                elif change == "path":
+                    documents["gear/one_handed/staff/i18n/en"] = documents.pop("gear/one_handed/wand/i18n/en")
+                elif change == "master":
+                    documents["gear/one_handed/wand/master"]["role"] = "english"
+                elif change == "missing":
+                    del documents["gear/one_handed/wand/i18n/en"]["role"]
+                else:
+                    documents["gear/one_handed/wand/i18n/en"]["role"] = True
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_missing_or_invalid_english_documents_cannot_support_fixed_proofs(self):
+        for missing in (True, False):
+            with self.subTest(missing=missing):
+                data = fixed()
+                if missing:
+                    del data["catalog"]["documents"]["gear/one_handed/wand/i18n/en"]
+                else:
+                    data["catalog"]["documents"]["gear/one_handed/wand/i18n/en"].update(status="invalid", issue="identity_leaf")
+                    data["catalog"]["flags"] = ["catalog_document_invalid"]
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_a_fixed_proof_cannot_be_hidden_on_an_omitted_row(self):
+        data = fixed()
+        data["omitted"][0]["fixedImplicit"] = data["modifiers"][0].pop("fixedImplicit")
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_summary_rechecks_parent_identity_hash_and_row_value_bindings(self):
+        for block, field, invalid in (("master", "tlidb_id", "9138"), ("master", "sha256", "e" * 64),
+                                      ("english", "sha256", "e" * 64), ("own_value", "exact", "37.125")):
+            with self.subTest(block=block, field=field):
+                data = project(fixed(), "a" * 64)
+                data["modifiers"][0]["fixed_implicit"][block][field] = invalid
+                with self.assertRaises(ValueError):
+                    summary(data)
+
+    def test_fixed_proof_properties_are_projected_detached_and_private_extras_are_dropped(self):
+        data = fixed()
+        original = copy.deepcopy(data)
+        data["modifiers"][0]["fixedImplicit"]["english"]["opaque"] = "PRIVATE-FIXED-CANARY"
+        result = summary(project(data, "a" * 64))
+        result["modifiers"][0]["fixed_implicit"]["own_value"]["exact"] = "changed"
+        self.assertEqual((original["modifiers"][0]["fixedImplicit"]["ownValue"]["exact"], "PRIVATE-FIXED-CANARY" in json.dumps(result)),
+                         ("37.12500", False))
 
     def test_cast_evidence_version_keeps_ordinary_and_critical_rows_unchanged(self):
         for data in (document(), critical("critical_damage_modifier", "spell")):

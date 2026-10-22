@@ -109,6 +109,18 @@ def profilesummary(data):
     return {"installed_skill_profiles": profiles}
 
 
+def memorysummary(data):
+    """Keep memory definitions bound to this record without assigning combat roles."""
+    if "memory_definitions" not in data:
+        return {}
+    from .memorybundle import summary
+
+    bundle = summary(data["memory_definitions"])
+    if bundle["ledger"]["source"]["sha256"] != data.get("source_sha256"):
+        raise ValueError("Memory definitions differ from the record source hash")
+    return {"memory_definitions": bundle}
+
+
 def levelsummary(data):
     """Keep diagnostic level candidates bound to the record and its observed installation."""
     if "installed_level_candidates" not in data:
@@ -171,6 +183,7 @@ def snapshot(data):
     result.update(supportsummary(data))
     result.update(profilesummary(data))
     result.update(levelsummary(data))
+    result.update(memorysummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

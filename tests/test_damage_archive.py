@@ -12,6 +12,72 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+def attachedmemories(directory, *, error=False):
+    """Attach synthetic memory definitions or a source-bound acquisition error."""
+    from test_memorybundle import diagnostic, failure
+
+    artifact, descriptor, _ = (failure if error else diagnostic)(directory)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["memoryDefinitionLedger"] = descriptor
+    write(directory / "manifest.json", manifest)
+    return artifact, descriptor
+
+
+class MemoryDefinitionArchiveTests(unittest.TestCase):
+    """Archive memory definitions and artifact hashes before reporting diagnostic facts."""
+
+    def test_memory_definitions_are_preserved_in_json_sqlite_and_hashed_origin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attachedmemories(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='memory_definitions'").fetchone()[0])
+                self.assertEqual((stored, connection.execute(
+                    "SELECT sha256,stored FROM sources WHERE role='memory_definitions'").fetchone()),
+                                 (result["memory_definitions"], (descriptor["sha256"], 1)))
+
+    def test_memory_producer_errors_keep_a_hashed_gap_without_an_empty_ledger(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attachedmemories(directory, error=True)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(("memory_definitions" in result, connection.execute(
+                    "SELECT sha256,stored FROM sources WHERE role='memory_definitions'").fetchone()),
+                                 (False, (descriptor["sha256"], 0)))
+
+    def test_legacy_memory_packages_keep_the_acquisition_gap_explicit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            result = archive(package(root), None, facts(root), root / "out.sqlite")
+            self.assertTrue("memory_definitions" not in result and any(
+                "Memory definitions are unavailable" in row for row in result["coverage"]))
+
+    def test_changed_memory_artifacts_are_refused_before_database_creation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attachedmemories(directory)
+            with (directory / "memory-definition-ledger.json").open("ab") as stream:
+                stream.write(b" ")
+            with self.assertRaises(ValueError):
+                archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertFalse((root / "out.sqlite").exists())
+
+    def test_memory_candidates_leave_existing_stats_and_benchmarks_unchanged(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            before = archive(directory, observations(root), facts(root), root / "before.sqlite")
+            attachedmemories(directory)
+            after = archive(directory, observations(root), facts(root), root / "after.sqlite")
+            self.assertEqual((after["stats"], after["benchmark"]), (before["stats"], before["benchmark"]))
+
+
 def attachedlevels(directory, *, error=False):
     """Attach fictional level candidates for every exactly observed installed skill."""
     from damage_lab.installedskills import project

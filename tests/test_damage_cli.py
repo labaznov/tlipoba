@@ -16,6 +16,24 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_memory_definitions_reach_calculation_json_without_reapplying_damage(self):
+        from test_damage_archive import attachedmemories, facts, observations, package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            results = []
+            for name in ("before", "with-memories"):
+                if name == "with-memories":
+                    attachedmemories(path)
+                main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
+                      "--output", str(root / name), "--basis", "panel", "--active", "2", "--hits", "3",
+                      "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
+                results.append(json.loads((root / name / "calculation.json").read_text(encoding="utf-8")))
+            self.assertEqual((results[1]["calculation"], results[1]["memory_definitions"]["ledger"]["arithmetic_ready"],
+                              results[1]["memory_definitions"]["ledger"]["accounting"]["candidates"]),
+                             (results[0]["calculation"], False, 1))
+
     def test_level_candidates_are_preserved_without_changing_the_conditional_damage(self):
         from test_damage_archive import attachedlevels, facts, observations, package
 

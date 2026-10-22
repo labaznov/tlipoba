@@ -35,6 +35,95 @@ def profileevidence():
     return {"source_sha256": "a" * 64, "installed_skill_profiles": project(records(), installation(), catalog())}
 
 
+def ordinaryevidence():
+    """Return a fictional ordinary support candidate at its observed gem level."""
+    from damage_lab.installedprofiles import project
+    from test_installedprofiles import ordinary
+
+    return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*ordinary())}
+
+
+class OrdinarySupportReportTests(unittest.TestCase):
+    """Show separate critical-hit candidates without applying them to damage."""
+
+    def test_both_reports_show_exact_support_values_with_their_unknown_runtime_context(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Обычные поддержки: кандидаты по таблице", "9.25%", "gem[1]", "7420", "critical_hit_additional_damage",
+            "Кандидат относится к критическому попаданию", "Эффекты не применены к DPS", "value7",
+            "effective_level", "additional_group_identity", "eligibility", "unknown", "unverified",
+        )) for page in pages(ordinaryevidence())))
+
+    def test_legacy_profiles_do_not_invent_ordinary_support_candidates(self):
+        data = ordinaryevidence()
+        data["installed_skill_profiles"]["version"] = "0.1.0"
+        for member in data["installed_skill_profiles"]["members"]:
+            member.pop("ordinary_support")
+        self.assertTrue(all("Обычные поддержки: кандидаты по таблице" not in page for page in pages(data)))
+
+    def test_an_unresolved_ordinary_family_does_not_get_a_critical_hit_caption(self):
+        from damage_lab.installedprofiles import project
+        from test_installedprofiles import ordinary
+
+        records, observed, catalog = ordinary()
+        records["7421"] = records.pop("7420")
+        records["7421"]["tlidbId"] = 7421
+        observed["groups"][0]["members"][0]["skill_id"] = 7421
+        data = {"source_sha256": "a" * 64, "installed_skill_profiles": project(records, observed, catalog)}
+        self.assertTrue(all("unsupported_catalog_id" in page
+                            and "Кандидат относится к критическому попаданию" not in page for page in pages(data)))
+
+    def test_ordinary_details_reject_source_drift_before_display(self):
+        from damage_lab.report import ordinarydetails
+
+        data = ordinaryevidence()
+        data["source_sha256"] = "b" * 64
+        with self.assertRaises(ValueError):
+            ordinarydetails(data)
+
+    def test_ordinary_rendering_leaves_the_existing_damage_scenario_unchanged(self):
+        data = ordinaryevidence()
+        original = copy.deepcopy(data)
+        marker = "<h2>Математика сценария</h2>"
+        self.assertEqual((data, pages(data)[1].split(marker)[1].split("</section>")[0]),
+                         (original, pages({})[1].split(marker)[1].split("</section>")[0]))
+
+
+class MemoryDefinitionReportTests(unittest.TestCase):
+    """Expose memory provenance and unknown arithmetic without changing damage."""
+
+    def test_both_reports_separate_own_values_from_catalog_tiers_and_unknown_line_roles(self):
+        from test_importer import memoried
+
+        self.assertTrue(all(all(value in page for value in (
+            "Память героя: определения без арифметики", "7.312500", "-0.375", "19.125000001", "own_values",
+            "catalog_tier", "line_roles", "rank_scaling", "runtime_pool_identity", "unresolved", "unknown",
+            "network_bytes_verified", "current_patch_verified", "Эффекты памяти не применены к DPS",
+        )) for page in pages(memoried())))
+
+    def test_memory_report_source_drift_is_refused(self):
+        from damage_lab.report import memorydetails
+        from test_importer import memoried
+
+        value = memoried()
+        value["source_sha256"] = "f" * 64
+        with self.assertRaises(ValueError):
+            memorydetails(value)
+
+    def test_missing_memory_documents_do_not_create_an_empty_report_section(self):
+        self.assertTrue(all("Память героя: определения без арифметики" not in page for page in pages({})))
+
+    def test_known_memory_template_text_is_escaped_and_opaque_data_is_dropped(self):
+        from test_importer import memoried
+
+        value = memoried()
+        row = value["memory_definitions"]["ledger"]["candidates"][0]
+        row["template"]["text"] = "<script>synthetic()</script>"
+        row["opaque"] = "PRIVATE-MEMORY-HTML-CANARY"
+        self.assertTrue(all("&lt;script&gt;synthetic()&lt;/script&gt;" in page
+                            and "<script>" not in page and "PRIVATE-MEMORY-HTML-CANARY" not in page
+                            for page in pages(value)))
+
+
 class LevelReportTests(unittest.TestCase):
     """Both report entry points preserve diagnostic levels without changing damage."""
 

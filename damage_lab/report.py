@@ -219,6 +219,64 @@ def leveldetails(record):
     return "" if not projected else section(projected["installed_level_candidates"], record["installed_skills"])
 
 
+def _ordinaryrows(data):
+    rows = []
+    critical = False
+    for member in data["members"] or []:
+        effect = member.get("ordinary_support")
+        if effect is None:
+            continue
+        candidate = effect["candidate"]
+        critical |= candidate is not None
+        value = "неизвестно" if candidate is None else candidate["value"]["cell"]["text"] + "%"
+        rows.append("<details><summary>" + text(member["alias"]) + ": " + text(value) + "</summary>"
+                    + "<div class=scroll><pre>" + text(json.dumps({
+                        "catalog_id": member["skill_id"], "gem_level": member["gem_level"],
+                        "group": member["group"], "path": member["path"], "effect": effect,
+                    }, ensure_ascii=False, indent=2)) + "</pre></div></details>")
+    if not rows:
+        return ""
+    return ("<section><h2>Обычные поддержки: кандидаты по таблице</h2>"
+            + ("<p>Кандидат относится к критическому попаданию поддержанного навыка</p>" if critical else "")
+            + "<p>"
+            "Эффективный уровень, активация и принадлежность к additional pool неизвестны<br>"
+            "Эффекты не применены к DPS</p>" + "".join(rows) + "</section>")
+
+
+def memorydetails(record):
+    """Show validated memory definitions without inferring modifier operators or activation."""
+    from .importer import memorysummary
+
+    projected = memorysummary(record)
+    if not projected:
+        return ""
+    bundle = projected["memory_definitions"]
+    ledger = bundle["ledger"]
+    counts = ledger["accounting"]
+    rows = []
+    for name in ("jewels", "rows", "candidates", "omitted", "structural_gaps"):
+        value = "неизвестно" if counts[name] is None else str(counts[name])
+        rows.append(text(name) + ": " + text(value))
+    return ("<section><h2>Память героя: определения без арифметики</h2>"
+            "<p>Собственные значения и catalog tier сохранены отдельно<br>"
+            "Операторы, роли строк, масштабирование ранга, активация и runtime pool неизвестны<br>"
+            "Эффекты памяти не применены к DPS</p>"
+            + "<p>Статус домена: " + text(ledger["domain"]["status"]) + "<br>" + "; ".join(rows) + "</p>"
+            + "<p>SHA-256 источника: " + text(ledger["source"]["sha256"]) + "<br>"
+            "Происхождение каталога объявлено локальным producer; cache bytes здесь повторно не читаются</p>"
+            "<details><summary>Определения, собственные значения, пропуски и происхождение</summary>"
+            "<div class=scroll><pre>" + text(json.dumps(bundle, ensure_ascii=False, indent=2))
+            + "</pre></div></details></section>")
+
+
+def ordinarydetails(record):
+    """Show source-bound ordinary support observations for any selected gem."""
+    from .importer import profilesummary
+
+    projected = profilesummary(record)
+    return "" if not projected else _ordinaryrows(projected["installed_skill_profiles"])
+
+
 def profiledetails(record):
     """Show validated catalog lookups at observed gem levels without promoting effective damage."""
     from .importer import profilesummary
@@ -279,7 +337,8 @@ def profiledetails(record):
             f"<p>Документов каталога профилей: {len(catalog['documents'])}; строк каталога: {catalog['records']}; "
             f"сохранённых записей: {catalog['skills']}; невалидных: {catalog['invalid_records']}; "
             f"удержанных строк: {catalog['withheld_records']}</p>"
-            "<details><summary>Каталожные координаты и области SHA профилей</summary>" + exact(catalog) + "</details></section>")
+            "<details><summary>Каталожные координаты и области SHA профилей</summary>" + exact(catalog) + "</details></section>"
+            + _ordinaryrows(data))
 
 
 def _castrows(data):
@@ -570,6 +629,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {supportdetails(record)}
 {profiledetails(record)}
 {leveldetails(record)}
+{memorydetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -741,6 +801,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {supportdetails(record)}
 {profiledetails(record)}
 {leveldetails(record)}
+{memorydetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

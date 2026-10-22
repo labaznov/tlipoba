@@ -78,6 +78,68 @@ def leveled():
     return data
 
 
+def memoried():
+    """Keep synthetic memory definitions and declared catalog slices source-bound."""
+    from damage_lab.memorybundle import read
+    from test_memorybundle import diagnostic
+
+    with tempfile.TemporaryDirectory() as folder:
+        directory = Path(folder)
+        _, descriptor, source = diagnostic(directory)
+        bundle, _ = read(directory, descriptor, source)
+    return {**record(), "source_sha256": source, "memory_definitions": bundle}
+
+
+class MemoryDefinitionImporterTests(unittest.TestCase):
+    """Keep imported memory facts separate from character arithmetic."""
+
+    def test_memory_definitions_survive_the_snapshot_without_changing_stats(self):
+        from damage_lab.importer import snapshot
+
+        data = memoried()
+        result = snapshot(data)
+        self.assertEqual((result["memory_definitions"], result["stats"], result["benchmark"]),
+                         (data["memory_definitions"], {"spell_dps": 84317}, {"survival": 9217}))
+
+    def test_memory_summary_distinguishes_absence_from_a_null_document(self):
+        from damage_lab.importer import memorysummary
+
+        self.assertEqual(memorysummary(record()), {})
+        with self.assertRaises(ValueError):
+            memorysummary({**record(), "memory_definitions": None})
+
+    def test_memory_summary_requires_the_same_record_source(self):
+        from damage_lab.importer import memorysummary
+
+        data = memoried()
+        data["source_sha256"] = "b" * 64
+        with self.assertRaises(ValueError):
+            memorysummary(data)
+
+    def test_memory_summary_drops_unknown_fields_and_detaches_nested_values(self):
+        from damage_lab.importer import memorysummary
+
+        data = memoried()
+        data["memory_definitions"]["ledger"]["candidates"][0]["opaque"] = "PRIVATE-MEMORY-CANARY"
+        result = memorysummary(data)
+        result["memory_definitions"]["ledger"]["candidates"][0]["own_values"].clear()
+        self.assertEqual(("PRIVATE-MEMORY-CANARY" in json.dumps(result),
+                          len(data["memory_definitions"]["ledger"]["candidates"][0]["own_values"])), (False, 1))
+
+    def test_automatic_import_keeps_memory_definitions_without_manual_values(self):
+        from test_damage_archive import attachedmemories, package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            directory = package(root)
+            attachedmemories(directory)
+            status = main(["--package", str(directory), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, result["memory_definitions"]["ledger"]["accounting"]["candidates"],
+                              result["memory_definitions"]["ledger"]["arithmetic_ready"], result["import_status"]),
+                             (0, 1, False, "partial"))
+
+
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 

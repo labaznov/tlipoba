@@ -39,6 +39,60 @@ class Surface(HTMLParser):
         self.tags.append((tag, dict(attrs)))
 
 
+class OrdinarySupportInputReportTests(unittest.TestCase):
+    """Retain ordinary support candidates independently of the selected gem."""
+
+    def test_an_unobserved_selection_still_shows_source_bound_ordinary_candidates(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_damage_report import ordinaryevidence
+
+        data = record()
+        data.update(ordinaryevidence())
+        page = render(assemble(data, skill_alias="gem[999]"))
+        self.assertTrue(all(value in page for value in (
+            "Обычные поддержки: кандидаты по таблице", "9.25%", "critical_hit_additional_damage", "value7",
+            "Эффекты не применены к DPS", "Контекст rawspell не создан",
+        )))
+
+    def test_ordinary_fragment_errors_keep_the_fixed_report_error(self):
+        def unavailable(record):
+            raise ValueError("PRIVATE-ORDINARY-INPUT-CANARY")
+
+        with patch("damage_lab.report.ordinarydetails", unavailable), self.assertRaisesRegex(
+                ValueError, "^Build input HTML requires an unchanged assembled report$"):
+            render(report())
+
+
+class MemoryDefinitionInputReportTests(unittest.TestCase):
+    """Expose every imported memory row independently of selected skill availability."""
+
+    def test_an_unobserved_selection_keeps_memory_definitions_and_the_blocked_model(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_importer import memoried
+
+        value = record()
+        memory = memoried()
+        value.update(source_sha256=memory["source_sha256"], memory_definitions=memory["memory_definitions"])
+        for name in ("installed_skills", "installed_skill_profiles", "installed_support_effects", "static_combat"):
+            value.pop(name, None)
+        value.pop("installed_support_catalog", None)
+        page = render(assemble(value, skill_alias="gem[999]"))
+        self.assertTrue(all(fragment in page for fragment in (
+            "Память героя: определения без арифметики", "7.312500", "Эффекты памяти не применены к DPS",
+            "Контекст rawspell не создан",
+        )))
+
+    def test_memory_fragment_errors_keep_the_fixed_report_error(self):
+        def unavailable(record):
+            raise ValueError("PRIVATE-MEMORY-INPUT-CANARY")
+
+        with patch("damage_lab.report.memorydetails", unavailable), self.assertRaisesRegex(
+                ValueError, "^Build input HTML requires an unchanged assembled report$"):
+            render(report())
+
+
 class BuildInputReportTests(unittest.TestCase):
     """Show automatic candidate inputs without resolving unknown effects or computing damage."""
 

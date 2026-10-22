@@ -595,6 +595,18 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Installed support effect acquisition failed; missing effects are not empty or zero effects")
     else:
         coverage.append("Installed support effect candidates are unavailable in this legacy package")
+    memory = None
+    memory_origin = None
+    if "memoryDefinitionLedger" in manifest:
+        from .memorybundle import read
+        memory, memory_origin = read(package, manifest["memoryDefinitionLedger"], hashes["source"][0])
+        if memory is not None:
+            documents["memory_definitions"] = memory
+            coverage.append("Memory definitions were imported automatically; line roles rank scaling activation and arithmetic remain unknown")
+        else:
+            coverage.append("Memory definition acquisition failed; missing definitions are not empty or zero effects")
+    else:
+        coverage.append("Memory definitions are unavailable in this legacy package")
     modifiers = None
     modifier_origin = None
     if "staticCombat" in manifest:
@@ -758,6 +770,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     if support is not None:
         result["installed_support_effects"] = support
         result["installed_support_catalog"] = catalog
+    if memory is not None:
+        result["memory_definitions"] = memory
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -787,6 +801,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("installed_level_candidates", *level_origin))
     if support_origin is not None:
         inputs.append(("installed_support_effects", *support_origin))
+    if memory_origin is not None:
+        inputs.append(("memory_definitions", *memory_origin))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

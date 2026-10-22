@@ -68,19 +68,19 @@ def attached(directory, *, error=False):
     return artifact, descriptor
 
 
-def focus(directory):
-    """Attach a fictional Focus buff with exact saved catalog and installation bytes."""
-    from test_installedprofiles import icefocus
+def attachedprofile(directory, factory):
+    """Attach one fictional first-gem profile to saved catalog and installation bytes."""
     from test_skillbundle import attached as skills, saved
 
+    records, observed, metadata = factory(raw_catalog=True)
+    first = observed["groups"][0]["members"][0]
     raw, skill = skills(directory)
-    raw["groups"][0]["members"][0].update(skillId=8318, gemLevel=17)
+    raw["groups"][0]["members"][0].update(skillId=first["skill_id"], gemLevel=first["gem_level"])
     saved(directory, raw, skill)
     artifact, descriptor, source, _ = diagnostic(directory)
-    records, observed, metadata = icefocus(raw_catalog=True)
     observed["source"]["sha256"] = source
     artifact.update(records=json.loads(json.dumps(records, default=float)), catalog=metadata,
-                    requestedIds=[8318, 90029, 90041, 90053])
+                    requestedIds=[first["skill_id"], 90029, 90041, 90053])
     descriptor["catalogDocuments"] = len(metadata["documents"])
     persisted(directory, artifact, descriptor)
     path = directory / "manifest.json"
@@ -90,8 +90,35 @@ def focus(directory):
     return descriptor, source, observed
 
 
+def focus(directory):
+    """Attach a fictional Focus buff with exact saved catalog and installation bytes."""
+    from test_installedprofiles import icefocus
+
+    return attachedprofile(directory, icefocus)
+
+
+def buff(directory):
+    """Attach a fictional buff-effect support without any activation witness."""
+    from test_installedprofiles import focused
+
+    return attachedprofile(directory, focused)
+
+
 class SkillCatalogBundleTests(unittest.TestCase):
     """Bind saved installed-skill catalog evidence without filling missing effective levels."""
+
+    def test_focus_support_retains_its_exact_fraction_and_separate_resource_literal_after_byte_loading(self):
+        from test_damage_archive import package
+
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            descriptor, source, observed = buff(directory)
+            result, _ = read(directory, descriptor, source, observed)
+            value = result["members"][0]["ordinary_support"]
+            self.assertEqual((value["candidate"]["value"]["fraction"], value["candidate"]["scope"],
+                              value["candidate"]["unmodelled_effects"], value["arithmetic_ready"]),
+                             ({"numerator": -137, "denominator": 1100}, "focus",
+                              ["sealed_mana_compensation_literal_minus18_percent"], False))
 
     def test_passive_decimal_and_rational_cells_reach_the_source_bound_profile_without_rounding(self):
         from test_damage_archive import package

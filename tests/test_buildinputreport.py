@@ -42,6 +42,21 @@ class Surface(HTMLParser):
 class OrdinarySupportInputReportTests(unittest.TestCase):
     """Retain ordinary support candidates independently of the selected gem."""
 
+    def test_focus_support_effect_is_visible_without_an_active_skill_or_damage_scenario(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_damage_report import focusevidence
+
+        data = record()
+        data.update(focusevidence())
+        value = assemble(data, skill_alias="gem[999]")
+        page = render(value)
+        self.assertTrue(all(fragment in page for fragment in (
+            "-137/11%", "Кандидат меняет эффект buff поддержанного Focus-навыка",
+            "Запускаемый урон Focus не рассчитан", "Sealed Mana Compensation не рассчитана",
+            "Эффекты не применены к DPS",
+        )) and value["raw_spell"] is None and value["status"] == "blocked")
+
     def test_projectile_evidence_reaches_inputs_html_without_filling_damage_or_topology(self):
         from damage_lab.buildinputs import assemble
         from test_buildinputs import record

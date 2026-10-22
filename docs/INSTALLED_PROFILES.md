@@ -58,6 +58,12 @@ quantity. Leaf `ordinary_support` проверяется
 Каталожный loader разбирает decimal через Decimal, сохраняя прежний запрет
 непредставимого float overflow/underflow; Decimal не выходит в canonical JSON.
 
+Leaf 0.1.2 также распознаёт `8608` как отдельный `buff_effect` поддержанного
+Focus-навыка. Внешняя версия профилей остаётся 0.1.2; прежние leaf payload
+7401/7420 сохраняются. Scalar не является прямым damage multiplier, а literal
+компенсации маны остаётся неприменённым. Группа установки и tags не доказывают
+работу поддержки или силу buff у персонажа.
+
 Формат 0.1.2 добавляет nullable `passive_effect` в каждую строку. Для
 профилированной категории Passive вызывается [`passiveeffects`](PASSIVE_EFFECTS.md)
 с точным ID и наблюдаемым уровнем; summary повторно связывает ID/GUID/category

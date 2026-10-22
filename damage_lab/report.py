@@ -232,6 +232,9 @@ def _ordinaryrows(data):
         if candidate is not None and candidate["kind"] == "additional_damage":
             role = ("<p>Количество снарядов: " + text(candidate["projectile_quantity"]["text"])
                     + " (catalog literal)<br>Попадания не рассчитаны</p>")
+        if candidate is not None and candidate["kind"] == "buff_effect":
+            role = ("<p>Кандидат меняет эффект buff поддержанного Focus-навыка<br>"
+                    "Запускаемый урон Focus не рассчитан<br>Sealed Mana Compensation не рассчитана</p>")
         rows.append("<details><summary>" + text(member["alias"]) + ": " + text(value) + "</summary>"
                     + role + "<div class=scroll><pre>" + text(json.dumps({
                         "catalog_id": member["skill_id"], "gem_level": member["gem_level"],

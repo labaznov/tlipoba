@@ -58,6 +58,18 @@ def projectile():
     return {"7401": {**projectiles(), "catalogPath": "skill/Support", "tags": ["Support"]}}, observed, metadata
 
 
+def focused(*, raw_catalog=False):
+    """Observe a fictional Focus support without linking or enabling its buff."""
+    _, observed, metadata = ordinary(raw_catalog=raw_catalog)
+    observed["groups"][0]["members"][0].update(skill_id=8608, gem_level=17)
+    template = "Supports Focus Skills.\n#% buff effect for the supported skill\n-18% Sealed Mana Compensation for the supported skill"
+    record = {"tlidbId": 8608, "id": "synthetic-focus-support", "category": "Support", "catalogPath": "skill/Support",
+              "tags": ["Support"], "descriptionBindings": {"template": "templateDescription", "level": 3, "bindings": ["value9"]},
+              "levelProgression": [{"level": 3, "value9": Decimal("17.625")}, {"level": 17, "value9": "-137/11"}],
+              "english": {"templateDescription": template, "description": template.replace("#", "17.625")}}
+    return {"8608": record}, observed, metadata
+
+
 def passive(*, raw_catalog=False):
     """Keep an unsupported fictional passive distinct from an empty or enabled effect."""
     _, observed, metadata = ordinary(raw_catalog=True)
@@ -84,6 +96,14 @@ def icefocus(*, raw_catalog=False):
 
 class InstalledProfileTests(unittest.TestCase):
     """Keep catalog lookups at observed gem levels separate from effective skill values."""
+
+    def test_focus_support_buff_effect_keeps_its_exact_lookup_and_unverified_application(self):
+        from damage_lab.installedprofiles import summary
+
+        value = summary(project(*focused()))["members"][0]["ordinary_support"]
+        self.assertEqual((value["version"], value["candidate"]["kind"], value["candidate"]["target"],
+                          value["candidate"]["value"]["fraction"], value["effective_level"], value["activation"]),
+                         ("0.1.2", "buff_effect", "supported_skill_buff", {"numerator": -137, "denominator": 1100}, None, "unknown"))
 
     def test_the_focus_buff_keeps_its_own_declared_scalar_and_unverified_state(self):
         from damage_lab.installedprofiles import summary

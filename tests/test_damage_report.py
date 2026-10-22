@@ -59,6 +59,26 @@ def passiveevidence():
     return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*icefocus())}
 
 
+def focusevidence():
+    """Return a fictional buff-effect support independent of Focus skill damage."""
+    from damage_lab.installedprofiles import project
+    from test_installedprofiles import focused
+
+    return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*focused())}
+
+
+class FocusSupportReportTests(unittest.TestCase):
+    """Keep Focus buff effect separate from direct damage and sealed-resource arithmetic."""
+
+    def test_both_reports_show_buff_effect_and_the_unmodelled_resource_literal(self):
+        self.assertTrue(all(all(fragment in page for fragment in (
+            "-137/11%", "buff_effect", "supported_skill_buff", "scope", "focus",
+            "Кандидат меняет эффект buff поддержанного Focus-навыка",
+            "Запускаемый урон Focus не рассчитан", "Sealed Mana Compensation не рассчитана",
+            "Эффекты не применены к DPS",
+        )) for page in pages(focusevidence())))
+
+
 class PassiveEffectReportTests(unittest.TestCase):
     """Display Focus facts without activating a buff or adding separate skill damage."""
 

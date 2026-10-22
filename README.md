@@ -142,6 +142,10 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 неизвестными; ледяные шипы и ресурс Focus ещё не рассчитаны. Кандидат не применяется
 повторно к панели или исходному DPS.
 
+Его [поддержка Focus 8608](docs/ORDINARY_SUPPORT.md) импортируется отдельно как
+точный кандидат изменения buff effect. Компенсация маны, активация поддержки и
+правила применения не вычисляются из одного присутствия в группе.
+
 [Разбор эффектов специальных поддержек](docs/SUPPORT_EFFECTS.md) проверяет полный native ID, собственный tier и точный roll, сохраняя литералы каталога отдельно. Новый пакет с `manifest.installedSupportEffects` автоматически переносит эти кандидаты в SQLite, JSON и оба HTML через [проверку байтов и каталожных координат](docs/SUPPORT_BUNDLE.md). Активация, effective level и grouping остаются неизвестными; кандидаты не масштабируют DPS.
 
 [Кандидаты прибавок к уровням навыков](docs/LEVEL_BUNDLE.md) из `manifest.installedLevelCandidates` проходят проверку байтов, source hash, установленного состава и declared catalog provenance. SQLite, JSON и три HTML отчёта сохраняют собственные роллы, литералы, вычисленные привязки, пробелы рангов и неоднозначные установки. Кандидаты не складываются; effective level и полный DPS остаются неизвестными.

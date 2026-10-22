@@ -20,6 +20,12 @@ level, активация, принадлежность к pool и hit topology 
 кандидаты видны в отчётах и не применяются к DPS. См.
 [ORDINARY_SUPPORT.md](ORDINARY_SUPPORT.md).
 
+Leaf 0.1.2 добавляет поддержку Focus 8608 как точный `buff_effect` на
+наблюдаемом уровне. Отдельный literal компенсации маны сохранён без расчёта.
+Значение видно в JSON/SQLite/трёх HTML, но не перемножается с Ice Focus:
+co-membership не доказывает активацию или правила применения к buff. Прежние
+payload 7401/7420 и общий DPS остаются неизменными.
+
 Профили 0.1.2 также сохраняют точный scalar Cold Damage buff Precise: Ice Focus
 8318, проверяя полный девятистрочный reference render с парным Min/Max token.
 Кандидаты Passive видны в JSON, SQLite и трёх HTML без ручного ввода характеристик.

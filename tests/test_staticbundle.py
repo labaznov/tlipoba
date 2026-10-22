@@ -81,8 +81,82 @@ def cast_bundle(directory):
     return artifact, bundle
 
 
+def fixed_bundle(directory):
+    """Bind one fictional fixed implicit to its master and English catalog declarations."""
+    from test_staticcombat import fixed
+
+    artifact, bundle = fixture(directory)
+    artifact["ledger"] = fixed()
+    artifact["ledger"]["source"]["sha256"] = bundle["sourceSha256"]
+    artifact["version"] = bundle["version"] = "0.1.2"
+    bundle["compilerVersion"] = "0.4.2"
+    path = "gear/one_handed/wand/i18n/en"
+    artifact["catalog"]["documents"].append({"logicalPath": path, "address": "/data/SS14/" + path + ".json",
+        "member": path, "cacheFile": "fedcba0987654321.json", "cacheFileSha256": "d" * 64,
+        "byteRange": [31, 477], "memberSha256": "c" * 64, "encoding": "utf-8"})
+    bundle["catalogDocuments"] = 2
+    saved(directory, artifact, bundle)
+    return artifact, bundle
+
+
 class StaticBundleTests(unittest.TestCase):
     """Verify saved diagnostic metadata without accepting it as applied damage."""
+
+    def test_fixed_implicit_retains_exact_native_text_and_both_declared_catalog_members(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            _, bundle = fixed_bundle(directory)
+            ledger, provenance, origin = read(directory, bundle, bundle["sourceSha256"])
+            value = ledger["modifiers"][0]["fixed_implicit"]
+            self.assertEqual((value["own_value"]["exact"], value["arithmetic_ready"], len(provenance["documents"]),
+                              summary(provenance, ledger), origin[-1]), ("37.12500", False, 2, provenance, 1))
+
+    def test_fixed_implicit_english_provenance_cannot_drift_from_the_compiler_member(self):
+        for field, invalid in (("memberSha256", "e" * 64), ("logicalPath", "gear/one_handed/staff/i18n/en"),
+                               ("member", "gear/one_handed/staff/i18n/en"), ("byteRange", [True, 477])):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as folder:
+                directory = package(Path(folder))
+                artifact, bundle = fixed_bundle(directory)
+                artifact["catalog"]["documents"][1][field] = invalid
+                saved(directory, artifact, bundle)
+                with self.assertRaises(ValueError):
+                    read(directory, bundle, bundle["sourceSha256"])
+
+    def test_english_only_catalog_cannot_replace_the_required_master_acquisition(self):
+        from test_staticcombat import empty
+
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            artifact, bundle = fixed_bundle(directory)
+            english = artifact["ledger"]["catalog"]["documents"]["gear/one_handed/wand/i18n/en"]
+            artifact["ledger"] = empty("empty")
+            artifact["ledger"].update(version="0.4.2", catalog={"documents": {"gear/one_handed/wand/i18n/en": english}, "flags": []})
+            artifact["ledger"]["source"]["sha256"] = bundle["sourceSha256"]
+            artifact["catalog"]["documents"] = artifact["catalog"]["documents"][1:]
+            bundle.update(sourceSection="empty", catalogDocuments=1, compiled=0, omitted=0, structuralGaps=0)
+            saved(directory, artifact, bundle)
+            with self.assertRaisesRegex(ValueError, "master"):
+                read(directory, bundle, bundle["sourceSha256"])
+
+    def test_fixed_implicit_bundle_errors_remain_hashed_gaps_without_ledger_claims(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            artifact, bundle = fixture(directory, error=True)
+            artifact["version"] = bundle["version"] = "0.1.2"
+            bundle["compilerVersion"] = "0.4.2"
+            saved(directory, artifact, bundle)
+            self.assertEqual(read(directory, bundle, bundle["sourceSha256"])[:2], (None, None))
+
+    def test_fixed_implicit_bundle_and_compiler_versions_cannot_be_mixed_with_legacy_contracts(self):
+        for artifact_version, compiler in (("0.1.1", "0.4.2"), ("0.1.0", "0.4.2"), ("0.1.2", "0.4.1")):
+            with self.subTest(bundle=artifact_version, compiler=compiler), tempfile.TemporaryDirectory() as folder:
+                directory = package(Path(folder))
+                artifact, bundle = fixture(directory, error=True)
+                artifact["version"] = bundle["version"] = artifact_version
+                bundle["compilerVersion"] = compiler
+                saved(directory, artifact, bundle)
+                with self.assertRaises(ValueError):
+                    read(directory, bundle, bundle["sourceSha256"])
 
     def test_hashed_cast_evidence_retains_own_roll_and_declared_catalog_without_arithmetic(self):
         with tempfile.TemporaryDirectory() as folder:

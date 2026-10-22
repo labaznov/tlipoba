@@ -67,6 +67,25 @@ def focusevidence():
     return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*focused())}
 
 
+def implicitevidence():
+    """Keep a fictional wand implicit bound to its own master and English evidence."""
+    from damage_lab.staticcombat import project
+    from test_staticcombat import fixed
+
+    return {"source_sha256": "a" * 64, "static_combat": project(fixed(), "a" * 64)}
+
+
+class FixedImplicitReportTests(unittest.TestCase):
+    """Display fixed implicit proof without making the partial inventory an applied damage pool."""
+
+    def test_both_reports_show_the_native_value_and_declared_master_english_proof(self):
+        self.assertTrue(all(all(fragment in page for fragment in (
+            "Фиксированный implicit: сверка master/English", "37.12500", "fixed_base_implicit",
+            "gear/one_handed/wand/i18n/en", "own_value_equals_min_equals_max_equals_raw_text_number",
+            "Аффиксы не применены к DPS",
+        )) for page in pages(implicitevidence())))
+
+
 class FocusSupportReportTests(unittest.TestCase):
     """Keep Focus buff effect separate from direct damage and sealed-resource arithmetic."""
 

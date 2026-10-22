@@ -50,7 +50,7 @@ def _rows(title, rows):
     values = []
     for row in rows:
         details = {key: row[key] for key in ("item", "path", "definition", "pool", "status", "semantics",
-                                            "type", "damage_scope", "attribute") if key in row}
+                                            "type", "damage_scope", "attribute", "fixed_implicit") if key in row}
         values.append((text(row["family"]), text(row["owner"]), text(row["scope"]), items(row["targets"]),
                        text(row["unit"]), _exact(row["values"]), _known(row.get("reason")),
                        "<details><summary>Источник и pool</summary>" + _exact(details) + "</details>"))

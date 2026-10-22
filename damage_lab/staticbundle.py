@@ -9,7 +9,7 @@ from .staticcombat import VERSIONS as COMPILERS, project, summary as ledger_summ
 
 
 FILE = "static-combat-modifiers.json"
-VERSIONS = ("0.1.0", "0.1.1")
+VERSIONS = ("0.1.0", "0.1.1", "0.1.2")
 COUNTS = ("catalogDocuments", "compiled", "omitted", "structuralGaps")
 CLAIMS = ("runtimeVerified", "importComplete", "identityVerified")
 FIELDS = ("logicalPath", "address", "cacheFile", "cacheFileSha256", "member", "byteRange", "memberSha256", "encoding")
@@ -57,7 +57,10 @@ def _provenance(data, ledger, *, canonical=False):
         _fields(row, names.values())
         entry = {_name(field): row[name] for field, name in names.items()}
         path = entry["logical_path"]
-        _pattern(path, r"(?:gear|legendaries)/[a-z0-9_-]{1,64}(?:/[a-z0-9_-]{1,64}){0,4}/master")
+        english = (path == "gear/one_handed/wand/i18n/en" and ledger["version"] == "0.4.2"
+                   and ledger["catalog"]["documents"].get(path, {}).get("role") == "english")
+        if not english:
+            _pattern(path, r"(?:gear|legendaries)/[a-z0-9_-]{1,64}(?:/[a-z0-9_-]{1,64}){0,4}/master")
         if path in paths or path not in ledger["catalog"]["documents"]:
             raise ValueError("Static combat catalog members must uniquely match compiler inputs")
         paths.add(path)
@@ -82,6 +85,8 @@ def _provenance(data, ledger, *, canonical=False):
         result.append(entry)
     if paths != set(ledger["catalog"]["documents"]):
         raise ValueError("Static combat catalog provenance must cover every compiler input")
+    if not any(path.endswith("/master") for path in paths):
+        raise ValueError("Static combat catalog requires a master document alongside English evidence")
     return {"derivation": "cache_member_exact_slice", "network_bytes_verified": False, "documents": result}
 
 
@@ -114,6 +119,8 @@ def read(package, bundle, source, *, max_bytes=64 * 1024 * 1024):
             or bundle["sourceSha256"] != source or bundle["version"] not in VERSIONS
             or bundle["compilerVersion"] not in COMPILERS or bundle["model"] != "partial"):
         raise ValueError("Static combat manifest has an invalid source or diagnostic contract")
+    if (bundle["version"] == "0.1.2") != (bundle["compilerVersion"] == "0.4.2"):
+        raise ValueError("Static combat fixed implicit bundles require their matching compiler version")
     _false(bundle, CLAIMS)
     _hash(bundle["sha256"])
     path = Path(package) / FILE

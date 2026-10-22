@@ -17,7 +17,10 @@
 render проверен, buff отделён от self-skill literal и Glacial Spike. Интеграция
 JSON/SQLite/HTML сохраняет прежний расчёт; активация и effective level остаются
 неизвестными. Поддержка Focus 8608 также сохраняется как отдельный `buff_effect`
-без автоматического применения к Passive scalar. Следующий разрешённый offline
-шаг — расширить компилятор точных fixed implicit Spell Damage с проверкой
-собственных master/English bytes. Свежий полный импорт и числовой DPS Carino
-пока не подтверждены.
+без автоматического применения к Passive scalar. Fixed implicit Spell Damage
+жезлов также импортируется с точным master/English proof и неизвестным pool;
+две строки добавлены в частичный increased inventory. Offline re-bundle копии
+сохранённого пакета проверяет consumer, сохраняя прежний условный DPS.
+Следующая работа — установить normalization/rank контракт талантов, не умножая
+их значения на очки по предположению. Свежий полный импорт и числовой DPS
+Carino пока не подтверждены.

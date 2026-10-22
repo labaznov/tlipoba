@@ -28,6 +28,15 @@ def percent(exact, fraction):
 class LedgerInputsTests(unittest.TestCase):
     """Keep candidate rolls separate from effective character arithmetic."""
 
+    def test_fixed_implicit_enters_spell_increased_inventory_with_proof_and_an_unresolved_pool(self):
+        from test_staticcombat import fixed
+
+        result = inputs(project(fixed(), "a" * 64), skill_tags=["spell"])
+        row = result["increased"][0]
+        self.assertEqual((row["values"][0]["exact"], row["values"][0]["fraction"], row["damage_scope"],
+                          row["fixed_implicit"]["own_value"]["exact"], row["pool"]["status"], result["arithmetic_ready"]),
+                         ("37.12500", "0.3712500", "spell", "37.12500", "unresolved", False))
+
     def test_spell_added_damage_retains_lexical_values_and_source_coordinates(self):
         result = inputs(project(document(), "a" * 64), skill_tags=["spell", "projectile"])
         self.assertEqual((result["format"], result["added"][0]["type"], result["added"][0]["values"]), (

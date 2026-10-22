@@ -16,6 +16,27 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_fixed_implicit_proof_survives_calculation_json_and_sqlite_without_reapplying_damage(self):
+        from test_damage_archive import facts, observations, package
+        from test_staticbundle import fixed_bundle
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            results = []
+            for name in ("before", "with-implicit"):
+                if name == "with-implicit":
+                    fixed_bundle(path)
+                main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
+                      "--output", str(root / name), "--basis", "panel", "--active", "2", "--hits", "3",
+                      "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
+                results.append(json.loads((root / name / "calculation.json").read_text(encoding="utf-8")))
+            ledger = results[1]["static_combat"]
+            with contextlib.closing(sqlite3.connect(root / "with-implicit/database.sqlite")) as connection:
+                stored = json.loads(connection.execute("SELECT json FROM documents WHERE role='static_combat'").fetchone()[0])
+            self.assertEqual((results[1]["calculation"], stored, ledger["modifiers"][0]["fixed_implicit"]["arithmetic_ready"]),
+                             (results[0]["calculation"], ledger, False))
+
     def test_passive_candidates_survive_json_and_sqlite_without_reapplying_their_damage(self):
         from test_damage_archive import facts, observations, package
         from test_skillcatalogbundle import focus

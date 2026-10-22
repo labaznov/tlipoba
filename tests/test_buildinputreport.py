@@ -92,6 +92,24 @@ class OrdinarySupportInputReportTests(unittest.TestCase):
             render(report())
 
 
+class FixedImplicitInputReportTests(unittest.TestCase):
+    """Keep fixed implicit provenance visible in the automatic spell input report."""
+
+    def test_spell_inputs_show_the_fixed_proof_without_filling_a_complete_damage_group(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_damage_report import implicitevidence
+
+        data = record()
+        data.update(implicitevidence())
+        value = assemble(data, skill_alias="gem[1]")
+        page = render(value)
+        self.assertTrue(all(fragment in page for fragment in (
+            "fixed_implicit", "fixed_base_implicit", "37.12500", "gear/one_handed/wand/i18n/en",
+            "own_value_equals_min_equals_max_equals_raw_text_number", "Строки не суммированы",
+        )) and value["raw_spell"]["damage"] is None and value["raw_result"]["pre_defence_dps"] is None)
+
+
 class PassiveEffectInputReportTests(unittest.TestCase):
     """Preserve passive candidates even when the requested active skill is unavailable."""
 

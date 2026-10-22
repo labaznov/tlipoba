@@ -410,6 +410,13 @@ def castdetails(record):
     return _castrows(staticsummary(record)["static_combat"])
 
 
+def _implicitdetails(row):
+    if "fixed_implicit" not in row:
+        return ""
+    return ("<details><summary>Фиксированный implicit: сверка master/English</summary><pre>"
+            + text(json.dumps(row["fixed_implicit"], ensure_ascii=False, indent=2)) + "</pre></details>")
+
+
 def staticdetails(record):
     """Show source-bound catalog interpretations separately from applied damage."""
     if "static_combat" not in record:
@@ -430,7 +437,7 @@ def staticdetails(record):
         f"<td>{text(row['owner'])} / {text(row['scope'])}</td>"
         f"<td>{text(row['unit'])}<br>{text(json.dumps(row['values'], ensure_ascii=False))}</td>"
         f"<td>{text(json.dumps(row['definition'], ensure_ascii=False))}<br>"
-        f"pool: {text(json.dumps(row['pool'], ensure_ascii=False))}<br>{text(row['status'])}</td></tr>"
+        f"pool: {text(json.dumps(row['pool'], ensure_ascii=False))}<br>{text(row['status'])}{_implicitdetails(row)}</td></tr>"
         for row in data["modifiers"])
     omissions = "".join(f"<tr><td>{text(row['item'])}</td><td>{text(row['path'])}</td>"
                          f"<td>{text(row['reason'])}</td></tr>"

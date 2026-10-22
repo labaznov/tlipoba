@@ -146,6 +146,12 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 точный кандидат изменения buff effect. Компенсация маны, активация поддержки и
 правила применения не вычисляются из одного присутствия в группе.
 
+[Статический импорт предметов](docs/STATIC_COMBAT.md) принимает compiler 0.4.2
+и bundle 0.1.2 с фиксированным Spell Damage implicit жезла. Native roll сверяется
+с собственными master/English определениями и фиксированными границами; proof
+виден в JSON, SQLite и HTML. Строки попадают в частичный increased inventory,
+сохраняя неизвестный pool и runtime; к DPS они автоматически не добавляются.
+
 [Разбор эффектов специальных поддержек](docs/SUPPORT_EFFECTS.md) проверяет полный native ID, собственный tier и точный roll, сохраняя литералы каталога отдельно. Новый пакет с `manifest.installedSupportEffects` автоматически переносит эти кандидаты в SQLite, JSON и оба HTML через [проверку байтов и каталожных координат](docs/SUPPORT_BUNDLE.md). Активация, effective level и grouping остаются неизвестными; кандидаты не масштабируют DPS.
 
 [Кандидаты прибавок к уровням навыков](docs/LEVEL_BUNDLE.md) из `manifest.installedLevelCandidates` проходят проверку байтов, source hash, установленного состава и declared catalog provenance. SQLite, JSON и три HTML отчёта сохраняют собственные роллы, литералы, вычисленные привязки, пробелы рангов и неоднозначные установки. Кандидаты не складываются; effective level и полный DPS остаются неизвестными.

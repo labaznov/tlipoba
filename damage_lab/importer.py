@@ -71,6 +71,18 @@ def staticsummary(data):
     return result
 
 
+def installedsummary(data):
+    """Keep observed installation bound to the same record source."""
+    if "installed_skills" not in data:
+        return {}
+    from .installedskills import summary
+
+    installation = summary(data["installed_skills"])
+    if installation["source"]["sha256"] != data.get("source_sha256"):
+        raise ValueError("Installed skills inventory differs from the record source hash")
+    return {"installed_skills": installation}
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -117,6 +129,7 @@ def snapshot(data):
         from .buildresolution import summary
         result["build_resolution"] = summary(data["build_resolution"])
     result.update(staticsummary(data))
+    result.update(installedsummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

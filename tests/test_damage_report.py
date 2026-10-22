@@ -3,6 +3,49 @@ import unittest
 from damage_lab.report import render, render_import, scenarios, staticdetails
 
 
+def installation():
+    from damage_lab.installedskills import project
+    from test_installedskills import document
+
+    return project(document(), "a" * 64)
+
+
+class InstalledReportTests(unittest.TestCase):
+    """Show observed installation separately from activation and effective levels."""
+
+    def test_both_reports_show_installation_without_claiming_active_supports(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Установленные навыки и связи", "Установленных связей: 2", "Активация неизвестна",
+            "Эффективные уровни неизвестны", "Установленные связи не применены к DPS",
+            "90029", "sections.SkillLayout.data[0][2]",
+        )) for page in pages({"installed_skills": installation()})))
+
+    def test_installation_report_revalidates_flags_and_record_source(self):
+        from damage_lab.report import installeddetails
+
+        for change in ("runtime", "source"):
+            data = installation()
+            record = {"installed_skills": data, "source_sha256": "a" * 64}
+            if change == "runtime":
+                data["runtime"]["verified"] = True
+            else:
+                record["source_sha256"] = "b" * 64
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                installeddetails(record)
+
+    def test_installation_report_drops_unknown_private_fields(self):
+        from damage_lab.report import installeddetails
+
+        data = installation()
+        data["groups"][0]["members"][0]["raw"] = "<script>PRIVATE-INSTALLATION-CANARY</script>"
+        self.assertNotIn("PRIVATE-INSTALLATION-CANARY", installeddetails({"installed_skills": data}))
+
+    def test_no_installation_report_is_invented_for_an_absent_artifact(self):
+        from damage_lab.report import installeddetails
+
+        self.assertEqual(installeddetails({}), "")
+
+
 def static():
     """Return a source-bound fictional static ledger with one structural gap."""
     from damage_lab.staticcombat import project

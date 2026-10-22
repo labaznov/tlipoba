@@ -105,6 +105,42 @@ def skilldetails(record):
             f"<th>Значения</th></tr></thead><tbody>{rows}</tbody></table></div></section>")
 
 
+def installeddetails(record):
+    """Display observed co-membership without claiming enabled supports or effective levels."""
+    if "installed_skills" not in record:
+        return ""
+    from .installedskills import summary
+
+    data = summary(record["installed_skills"])
+    if "source_sha256" in record and record["source_sha256"] != data["source"]["sha256"]:
+        raise ValueError("Installed skills report differs from the record source hash")
+    rows = []
+    for group in data["groups"]:
+        for member in group["members"]:
+            level = "неизвестно" if member["gem_level"] is None else member["gem_level"]
+            identity = "неизвестно" if member["skill_id"] is None else member["skill_id"]
+            rows.append(f"<tr><td>{text(group['alias'])}</td><td>{text(member['alias'])}</td>"
+                        f"<td>{text(identity)}</td><td>{text(level)}</td><td>{text(member['membership'])}</td>"
+                        f"<td>{text(member['path'])}</td></tr>")
+    links = "".join(f"<tr><td>{text(row['group'])}</td><td>{text(row['primary'])}</td>"
+                    f"<td>{text(row['secondary'])}</td><td>{text(row['basis'])}</td></tr>"
+                    for row in data["relationships"])
+    count = len(data["relationships"]) if data["domains"]["client"]["status"] == "captured" else "неизвестно"
+    return ("<section><h2>Установленные навыки и связи</h2>"
+            f"<p>Установленных связей: {text(count)}<br>Активация неизвестна<br>Эффективные уровни неизвестны</p>"
+            "<p>Размещение в одной группе не подтверждает роль поддержки, выбранный навык панели или действие эффекта"
+            "<br>Уровень камня — наблюдение установки<br>Установленные связи не применены к DPS</p>"
+            "<div class=scroll><table><thead><tr><th>Группа</th><th>Камень</th><th>ID навыка</th>"
+            "<th>Уровень камня</th><th>Сопоставление</th><th>Источник</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></div>"
+            "<h3>Совместное размещение</h3><div class=scroll><table><thead><tr><th>Группа</th>"
+            "<th>Камень в слоте 1</th><th>Другой камень</th><th>Основание</th></tr></thead>"
+            f"<tbody>{links}</tbody></table></div><details><summary>Полнота и наблюдения источника</summary>"
+            f"<pre>{text(json.dumps({'domains': data['domains'], 'issues': data['issues'],
+                                   'unmatched_server_slots': data['unmatched_server_slots']}, ensure_ascii=False, indent=2))}</pre>"
+            f"</details><p>SHA-256 исходного снимка: {text(data['source']['sha256'])}</p></section>")
+
+
 def staticdetails(record):
     """Show source-bound catalog interpretations separately from applied damage."""
     if "static_combat" not in record:
@@ -357,6 +393,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {importdetails(record)}
 {resolutiondetails(record)}
 {staticdetails(record)}
+{installeddetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -524,6 +561,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {importdetails(record)}
 {resolutiondetails(record)}
 {staticdetails(record)}
+{installeddetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

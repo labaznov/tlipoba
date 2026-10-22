@@ -545,6 +545,18 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Saved build resolution assessment failed; code binding remains unassessed")
     else:
         coverage.append("Saved build resolution assessment is unavailable in this legacy package")
+    installation = None
+    attachment = None
+    if "installedSkills" in manifest:
+        from .skillbundle import read
+        installation, attachment = read(package, manifest["installedSkills"], hashes["source"][0])
+        if installation is not None:
+            documents["installed_skills"] = installation
+            coverage.append("Installed skill membership was imported automatically; activation and effective levels remain unknown")
+        else:
+            coverage.append("Installed skill inventory failed; support acquisition remains incomplete")
+    else:
+        coverage.append("Installed skill inventory is unavailable in this legacy package")
     modifiers = None
     modifier_origin = None
     if "staticCombat" in manifest:
@@ -699,6 +711,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     if modifiers is not None:
         result["static_combat"] = modifiers
         result["static_combat_provenance"] = provenance
+    if installation is not None:
+        result["installed_skills"] = installation
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -720,6 +734,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("build_resolution", *resolution_origin))
     if modifier_origin is not None:
         inputs.append(("static_combat", *modifier_origin))
+    if attachment is not None:
+        inputs.append(("installed_skills", *attachment))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

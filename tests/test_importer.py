@@ -39,6 +39,32 @@ def archive(package, observations, facts, database, **inputs):
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
 
+    def test_import_json_keeps_installation_and_unknown_activation_without_manual_stats(self):
+        from test_damage_archive import package
+        from test_skillbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            attached(path)
+            main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["installed_skills"]["runtime"]["activation"],
+                              result["installed_skills"]["relationships"][0]["effective_level"]), ("unknown", None))
+
+    def test_installation_summary_revalidates_record_source_and_strips_unknown_fields(self):
+        from damage_lab.importer import snapshot
+        from damage_lab.installedskills import project
+        from test_installedskills import document
+
+        data = record()
+        data["installed_skills"] = project(document(), "a" * 64)
+        data["installed_skills"]["groups"][0]["members"][0]["raw"] = "PRIVATE-INSTALLATION-MARKER"
+        self.assertNotIn("PRIVATE-INSTALLATION-MARKER", json.dumps(snapshot(data)))
+        data["source_sha256"] = "b" * 64
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
     def test_import_keeps_new_critical_inventory_unresolved_and_non_arithmetic(self):
         from test_staticbundle import critical_bundle, package
 

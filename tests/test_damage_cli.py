@@ -26,6 +26,7 @@ class DamageCliTests(unittest.TestCase):
 
     def test_static_gear_ledger_is_preserved_without_reapplying_its_damage(self):
         from test_damage_archive import facts, observations, package
+        from test_skillbundle import attached
         from test_staticbundle import critical_bundle
 
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
@@ -35,14 +36,16 @@ class DamageCliTests(unittest.TestCase):
             for name in ("before", "with-ledger"):
                 if name == "with-ledger":
                     critical_bundle(path)
+                    attached(path)
                 main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
                       "--output", str(root / name), "--basis", "panel", "--active", "2", "--hits", "3",
                       "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
                 results.append(json.loads((root / name / "calculation.json").read_text(encoding="utf-8")))
             self.assertEqual((results[1]["calculation"], results[1]["static_combat"]["runtime"]["verified"],
                               results[1]["static_combat_provenance"]["documents"][0]["byte_range"],
-                              results[1]["static_combat"]["modifiers"][0]["semantics"]["arithmetic_ready"]),
-                             (results[0]["calculation"], False, [17, 319], False))
+                              results[1]["static_combat"]["modifiers"][0]["semantics"]["arithmetic_ready"],
+                              results[1]["installed_skills"]["runtime"]["activation"]),
+                             (results[0]["calculation"], False, [17, 319], False, "unknown"))
 
     def test_calculation_preserves_unknown_freshness_after_a_saved_code_match(self):
         from test_damage_archive import facts, observations, package, resolution_bundle

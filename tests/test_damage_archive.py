@@ -11,6 +11,57 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+class InstalledBundleTests(unittest.TestCase):
+    """Archive observed skill membership without inferring active effects."""
+
+    def test_installation_is_preserved_in_record_sqlite_and_artifact_origin(self):
+        from test_skillbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attached(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='installed_skills'").fetchone()[0])
+                self.assertEqual((stored, connection.execute(
+                    "SELECT sha256,stored FROM sources WHERE role='installed_skills'").fetchone()),
+                                 (result["installed_skills"], (descriptor["sha256"], 1)))
+
+    def test_producer_error_remains_an_acquisition_gap_without_an_empty_inventory(self):
+        from test_skillbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attached(directory, failure=True)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(("installed_skills" in result, connection.execute(
+                    "SELECT stored FROM sources WHERE role='installed_skills'").fetchone()[0],
+                    any("Installed skill inventory failed" in row for row in result["coverage"])), (False, 0, True))
+
+    def test_legacy_package_discloses_unavailable_installation_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertTrue(any("Installed skill inventory is unavailable" in row for row in archive(
+                package(root), None, facts(root), root / "out.sqlite")["coverage"]))
+
+    def test_invalid_installed_bundle_does_not_create_a_database(self):
+        from test_skillbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attached(directory)
+            with (directory / "installed-skills.json").open("ab") as handle:
+                handle.write(b" ")
+            with self.assertRaises(ValueError):
+                archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertFalse((root / "out.sqlite").exists())
+
+
 class StaticBundleTests(unittest.TestCase):
     """Retain typed gear evidence without changing already observed character values."""
 

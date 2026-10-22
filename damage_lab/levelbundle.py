@@ -17,7 +17,7 @@ MAX_BYTES = 64 * 1024 * 1024
 FLAGS = "arithmeticReady runtimeVerified identityVerified importComplete".split()
 COUNTS = "catalogDocuments auxiliaryFiles requested targets candidates gaps ambiguousTargets".split()
 ERRORS = set("""source_missing source_unreadable source_too_large source_not_json source_duplicate_key
-source_nonfinite_number source_parse_limit source_shape inventory_failed catalog_location_invalid
+source_nonfinite_number source_parse_limit source_shape inventory_failed catalog_location_invalid catalog_bytes_unavailable
 catalog_mapping_missing catalog_mapping_invalid catalog_mapping_conflict catalog_limit cache_token_invalid
 cache_file_missing cache_unreadable cache_not_object cache_not_json cache_duplicate_member cache_member_missing
 cache_duplicate_key cache_nonfinite_number cache_parse_limit aux_missing aux_unreadable aux_too_large aux_not_json

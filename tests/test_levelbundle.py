@@ -92,6 +92,13 @@ class LevelBundleTests(unittest.TestCase):
             result, origin = read(directory, descriptor, source, None)
             self.assertEqual((result, origin[-1]), (None, 0))
 
+    def test_an_exporter_without_catalog_bytes_retains_a_hashed_acquisition_gap(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            _, descriptor, source = failure(directory, "catalog_bytes_unavailable")
+            result, origin = read(directory, descriptor, source, None)
+            self.assertEqual((result, origin[1], origin[-1]), (None, descriptor["sha256"], 0))
+
     def test_diagnostic_evidence_preserves_candidates_and_unknown_effective_level(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)

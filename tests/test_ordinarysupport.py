@@ -28,6 +28,207 @@ def projectiles():
         "english": {"templateDescription": template, "description": template.replace("#", "-12.125")}}
 
 
+def focus():
+    """Bind a fictional Focus buff scalar without applying its separate compensation literal."""
+    template = ("Supports Focus Skills.\n#% buff effect for the supported skill\n"
+                "-18% Sealed Mana Compensation for the supported skill")
+    return {"tlidbId": 8608, "id": "synthetic-focus-buff-support", "category": "Support",
+        "descriptionBindings": {"template": "templateDescription", "level": 3, "bindings": ["value9"]},
+        "levelProgression": [{"level": 3, "value9": Decimal("-9.625")}, {"level": 17, "value9": "-131/7"}],
+        "english": {"templateDescription": template, "description": template.replace("#", "-9.625")}}
+
+
+class FocusSupportTests(unittest.TestCase):
+    """Keep Focus buff-effect candidates distinct from damage, triggered hits and sealed mana."""
+
+    def test_the_exact_declared_scalar_binds_only_the_supported_focus_buff(self):
+        result = effect(focus(), catalog_id=8608, level=17)
+        self.assertEqual((result["version"], result["candidate"]),
+            ("0.1.2", {
+                "kind": "buff_effect", "origin": "catalog_level_table", "owner": "supported_skill",
+                "target": "supported_skill_buff", "scope": "focus", "unit": "percent",
+                "unmodelled_effects": ["sealed_mana_compensation_literal_minus18_percent"],
+                "value": {"cell": {"text": "-131/7", "kind": "rational"},
+                          "percent": {"numerator": -131, "denominator": 7},
+                          "fraction": {"numerator": -131, "denominator": 700}},
+                "binding": {"template": focus()["english"]["templateDescription"], "template_field": "templateDescription",
+                            "line": 1, "token_index": 0, "field": "value9", "reference_level": 3,
+                            "reference_cell": {"text": "-9.625", "kind": "decimal"},
+                            "reference_description": focus()["english"]["description"],
+                            "status": "whole_reference_render_consistent"}}))
+
+    def test_the_declared_field_is_used_without_guessing_value1(self):
+        data = focus()
+        for row in data["levelProgression"]:
+            row["value1"] = 673
+        self.assertEqual(effect(data, catalog_id=8608, level=17)["candidate"]["binding"]["field"], "value9")
+
+    def test_only_one_ascii_declared_binding_with_a_strict_integer_reference_is_allowed(self):
+        for field, invalid, reason in (("bindings", ["value9", "value1"], "binding_arity_unresolved"),
+                                       ("bindings", ["value９"], "binding_field_unresolved"),
+                                       ("bindings", [9], "binding_field_unresolved"),
+                                       ("level", True, "binding_level_invalid"),
+                                       ("level", 3.0, "binding_level_invalid")):
+            with self.subTest(field=field, invalid=invalid):
+                data = focus()
+                data["descriptionBindings"][field] = invalid
+                self.assertEqual(effect(data, catalog_id=8608, level=17)["reason"], reason)
+
+    def test_every_line_and_the_compensation_literal_are_part_of_the_exact_binding(self):
+        for field, before, after, reason in (
+                ("templateDescription", "Focus", "Projectile", "template_unbound"),
+                ("templateDescription", "buff effect", "additional damage", "template_unbound"),
+                ("templateDescription", "-18%", "-17%", "template_unbound"),
+                ("templateDescription", "\n", "\r\n", "template_unbound"),
+                ("description", "-18%", "-17%", "reference_render_unresolved"),
+                ("description", "-9.625", "9.625", "reference_render_unresolved")):
+            with self.subTest(field=field, after=after):
+                data = focus()
+                data["english"][field] = data["english"][field].replace(before, after)
+                self.assertEqual(effect(data, catalog_id=8608, level=17)["reason"], reason)
+
+    def test_observed_reference_and_table_levels_stay_inside_the_forty_row_domain(self):
+        for change, reason in (("observed", "observed_level_invalid"), ("reference", "binding_level_invalid"),
+                               ("row", "level_table_invalid"), ("length", "level_table_invalid")):
+            with self.subTest(change=change):
+                data = focus()
+                level = 41 if change == "observed" else 17
+                if change == "reference":
+                    data["descriptionBindings"]["level"] = 41
+                elif change == "row":
+                    data["levelProgression"][0]["level"] = 41
+                elif change == "length":
+                    data["levelProgression"] = [{"level": 1, "value9": 13} for _ in range(41)]
+                self.assertEqual(effect(data, catalog_id=8608, level=level)["reason"], reason)
+
+    def test_no_missing_or_duplicate_reference_or_observed_row_is_selected_by_fallback(self):
+        for position, prefix in ((0, "reference"), (1, "observed")):
+            for duplicate in (False, True):
+                with self.subTest(position=position, duplicate=duplicate):
+                    data = focus()
+                    if duplicate:
+                        data["levelProgression"].append(copy.deepcopy(data["levelProgression"][position]))
+                    else:
+                        data["levelProgression"].pop(position)
+                    self.assertEqual(effect(data, catalog_id=8608, level=17)["reason"],
+                                     prefix + ("_level_ambiguous" if duplicate else "_level_missing"))
+
+    def test_a_float_cell_cannot_claim_the_exact_catalog_value(self):
+        for position, prefix in ((0, "reference"), (1, "observed")):
+            with self.subTest(position=position):
+                data = focus()
+                data["levelProgression"][position]["value9"] = -19.375
+                self.assertEqual(effect(data, catalog_id=8608, level=17)["reason"], prefix + "_cell_requires_exact_number")
+
+    def test_invalid_scalars_are_neither_coerced_nor_evaluated(self):
+        for invalid in (True, None, [], {}, "+7", "-٣", "1/0", "1+2", " 9 ", "1e3", "-" + "1" * 13,
+                        "0.1234567890", Decimal("1E-999999")):
+            with self.subTest(invalid=invalid):
+                data = focus()
+                data["levelProgression"][1]["value9"] = invalid
+                self.assertEqual(effect(data, catalog_id=8608, level=17)["reason"], "observed_cell_invalid")
+
+    def test_exact_decimal_boundaries_survive_summary_under_a_hostile_caller_context(self):
+        data = focus()
+        data["levelProgression"][1]["value9"] = Decimal("-123456789012.123456789")
+        with localcontext() as context:
+            context.prec = 1
+            for signal in context.traps:
+                context.traps[signal] = True
+            result = effect(data, catalog_id=8608, level=17)
+            projected = summary(result)
+        self.assertEqual(projected, result)
+
+    def test_a_supported_boundary_level_with_an_explicit_zero_is_not_a_missing_value(self):
+        data = focus()
+        data["levelProgression"][1].update(level=40, value9=0)
+        result = effect(data, catalog_id=8608, level=40)
+        self.assertEqual((summary(result)["lookup"]["level"], result["candidate"]["value"]["fraction"]),
+                         (40, {"numerator": 0, "denominator": 1}))
+
+    def test_a_repeating_reference_cannot_be_rounded_to_match_english(self):
+        data = focus()
+        data["levelProgression"][0]["value9"] = "-1/3"
+        data["english"]["description"] = data["english"]["description"].replace("-9.625", "-0.333")
+        self.assertEqual(effect(data, catalog_id=8608, level=17)["reason"], "reference_render_unresolved")
+
+    def test_a_same_level_canonical_reference_cannot_disagree_with_the_observed_cell(self):
+        data = effect(focus(), catalog_id=8608, level=3)
+        data["candidate"]["value"]["cell"]["text"] = "-10"
+        with self.assertRaisesRegex(ValueError, "^Ordinary support contains an invalid catalog candidate contract$"):
+            summary(data)
+
+    def test_focus_candidates_cannot_be_promoted_into_old_leaf_versions(self):
+        for version in ("0.1.0", "0.1.1"):
+            with self.subTest(version=version):
+                data = effect(focus(), catalog_id=8608, level=17)
+                data["version"] = version
+                with self.assertRaises(ValueError):
+                    summary(data)
+
+    def test_an_unresolved_focus_result_roundtrips_without_becoming_a_candidate(self):
+        data = focus()
+        data["levelProgression"] = []
+        result = effect(data, catalog_id=8608, level=17)
+        self.assertEqual((summary(result), result["reason"], result["candidate"]), (result, "reference_level_missing", None))
+
+    def test_legacy_unsupported_focus_envelopes_remain_unresolved(self):
+        data = effect(record(), catalog_id=8009, level=17)
+        data["identity"]["catalog_id"] = 8608
+        self.assertEqual((summary(data), data["version"], data["candidate"]), (data, "0.1.1", None))
+
+    def test_other_families_and_unsupported_ids_keep_their_existing_version(self):
+        self.assertEqual([effect(data, catalog_id=catalog, level=17)["version"]
+                          for data, catalog in ((record(), 7420), (projectiles(), 7401), (record(), 8009))],
+                         ["0.1.1", "0.1.1", "0.1.1"])
+
+    def test_no_eligibility_activation_or_damage_readiness_is_inferred(self):
+        result = effect(focus(), catalog_id=8608, level=17)
+        self.assertEqual((result["effective_level"], result["activation"], result["eligibility"],
+                          result["additional_group_identity"], result["patch"], result["arithmetic_ready"],
+                          result["runtime_verified"], result["identity_verified"], result["import_complete"]),
+                         (None, "unknown", "unverified", "unresolved", "unknown", False, False, False, False))
+
+    def test_canonical_semantics_literals_coordinates_and_ratios_cannot_be_forged(self):
+        for path, invalid in ((("candidate", "kind"), "additional_damage"),
+                               (("candidate", "target"), "supported_skill_critical_hit"),
+                               (("candidate", "scope"), "triggered_hit"),
+                               (("candidate", "unmodelled_effects"), []),
+                               (("candidate", "unmodelled_effects"), "sealed_mana_compensation_literal_minus18_percent"),
+                               (("candidate", "binding", "line"), True),
+                               (("candidate", "binding", "token_index"), 0.0),
+                               (("candidate", "value", "fraction", "numerator"), -19),
+                               (("activation",), "active"), (("arithmetic_ready",), 0)):
+            with self.subTest(path=path):
+                data = effect(focus(), catalog_id=8608, level=17)
+                node = data
+                for field in path[:-1]:
+                    node = node[field]
+                node[path[-1]] = invalid
+                with self.assertRaisesRegex(ValueError, "^Ordinary support contains an invalid catalog candidate contract$"):
+                    summary(data)
+
+    def test_public_identity_and_support_category_cannot_be_replaced_by_a_name(self):
+        for field, invalid in (("tlidbId", "8608"), ("tlidbId", 7420), ("category", "Passive"),
+                               ("id", "invalid guid"), ("catalogPath", "skill/Passive")):
+            with self.subTest(field=field):
+                data = focus()
+                data[field] = invalid
+                data["english"]["name"] = "Focused effect"
+                self.assertIsNone(effect(data, catalog_id=8608, level=17)["candidate"])
+
+    def test_privately_supplied_fields_are_dropped_and_both_results_are_detached(self):
+        data = focus()
+        data["native"] = {"account": "PRIVATE-FOCUS-CANARY"}
+        original = copy.deepcopy(data)
+        result = effect(data, catalog_id=8608, level=17)
+        result["candidate"]["opaque"] = "PRIVATE-FOCUS-CANARY"
+        projected = summary(result)
+        projected["candidate"]["unmodelled_effects"].append("changed")
+        self.assertEqual((data, result["candidate"]["unmodelled_effects"], "PRIVATE-FOCUS-CANARY" in json.dumps(projected)),
+                         (original, ["sealed_mana_compensation_literal_minus18_percent"], False))
+
+
 class ProjectileSupportTests(unittest.TestCase):
     """Keep observed projectile support scalars distinct from hit topology and count totals."""
 

@@ -7,11 +7,13 @@ import re
 
 
 FORMAT = "tli-ordinary-support-effect-v1"
-VERSION = "0.1.1"
-VERSIONS = ("0.1.0", VERSION)
+VERSION = "0.1.2"
+VERSIONS = ("0.1.0", "0.1.1", VERSION)
 TEMPLATE = "Supports skills that hit enemies.\n+#% additional damage for the supported skill when it lands a Critical Strike"
 PROJECTILE = ("Supports Projectile Skills.\nProjectile Quantity of the supported skill\n+2\n"
               "#% additional damage for the supported skill")
+FOCUS = ("Supports Focus Skills.\n#% buff effect for the supported skill\n"
+         "-18% Sealed Mana Compensation for the supported skill")
 ERROR = "Ordinary support contains an invalid catalog candidate contract"
 REASONS = ("unsupported_catalog_id", "catalog_identity_unbound", "category_unbound", "description_binding_unavailable",
            "template_unbound", "binding_arity_unresolved", "binding_field_unresolved", "binding_level_invalid",
@@ -112,7 +114,7 @@ def _decimal(value):
 
 def _envelope(catalog_id, level, record):
     exact = type(record.get("tlidbId")) is int and record["tlidbId"] == catalog_id
-    return {"format": FORMAT, "version": VERSION, "status": "unresolved", "reason": None, "gaps": [],
+    return {"format": FORMAT, "version": VERSION if catalog_id == 8608 else "0.1.1", "status": "unresolved", "reason": None, "gaps": [],
             "identity": {"catalog_id": catalog_id,
                          "guid": record.get("id") if exact and _pattern(record.get("id"), r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}") else None,
                          "category": "Support" if exact and record.get("category") == "Support" else None},
@@ -129,10 +131,10 @@ def effect(record, *, catalog_id, level):
     _require(type(record) is dict and _integer(catalog_id, 10 ** 20 - 1) and _integer(level, 1000))
     _preflight(record)
     result = _envelope(catalog_id, level, record)
-    if catalog_id not in (7401, 7420):
+    if catalog_id not in (7401, 7420, 8608):
         return _gap(result, "unsupported_catalog_id")
-    maximum = 40 if catalog_id == 7401 else 1000
-    template = PROJECTILE if catalog_id == 7401 else TEMPLATE
+    maximum = 1000 if catalog_id == 7420 else 40
+    template = PROJECTILE if catalog_id == 7401 else FOCUS if catalog_id == 8608 else TEMPLATE
     if level > maximum:
         return _gap(result, "observed_level_invalid")
     if result["identity"]["guid"] is None or record.get("catalogPath", "skill/Support") != "skill/Support":
@@ -166,7 +168,7 @@ def effect(record, *, catalog_id, level):
         raw = matches[0].get(field)
         if type(raw) is float:
             return _gap(result, name + "_cell_requires_exact_number")
-        cells[name] = _cell(raw, signed=catalog_id == 7401)
+        cells[name] = _cell(raw, signed=catalog_id in (7401, 8608))
         if cells[name] is None:
             return _gap(result, name + "_cell_invalid")
     reference_text = _decimal(Fraction(cells["reference"]["text"]))
@@ -174,9 +176,9 @@ def effect(record, *, catalog_id, level):
         return _gap(result, "reference_render_unresolved")
     percent = Fraction(cells["observed"]["text"])
     result.update(status="candidate", candidate={
-        "kind": "additional_damage" if catalog_id == 7401 else "critical_hit_additional_damage",
+        "kind": "additional_damage" if catalog_id == 7401 else "buff_effect" if catalog_id == 8608 else "critical_hit_additional_damage",
         "origin": "catalog_level_table", "owner": "supported_skill",
-        "target": "supported_skill" if catalog_id == 7401 else "supported_skill_critical_hit", "unit": "percent",
+        "target": "supported_skill" if catalog_id == 7401 else "supported_skill_buff" if catalog_id == 8608 else "supported_skill_critical_hit", "unit": "percent",
         "value": {"cell": cells["observed"], "percent": _ratio(percent), "fraction": _ratio(percent / 100)},
         "binding": {"template": template, "template_field": "templateDescription", "line": 3 if catalog_id == 7401 else 1, "token_index": 0,
                     "field": field, "reference_level": reference, "reference_cell": cells["reference"],
@@ -185,6 +187,8 @@ def effect(record, *, catalog_id, level):
         result["candidate"].update(scope="projectile", projectile_quantity={
             "origin": "catalog_literal", "lines": [1, 2], "text": "+2", "value": 2,
             "bound": False, "hit_semantics": "unknown"})
+    elif catalog_id == 8608:
+        result["candidate"].update(scope="focus", unmodelled_effects=["sealed_mana_compensation_literal_minus18_percent"])
     return result
 
 
@@ -207,15 +211,21 @@ def summary(canonical):
                  and result["reason"] in REASONS and type(result["gaps"]) is list and result["gaps"] == [result["reason"]])
         result["gaps"] = list(result["gaps"])
         return result
-    _require(result["version"] == VERSION or identity["catalog_id"] == 7420)
+    _require(identity["catalog_id"] == 7420
+             or identity["catalog_id"] == 7401 and result["version"] in ("0.1.1", VERSION)
+             or identity["catalog_id"] == 8608 and result["version"] == VERSION)
     candidate = _select(result["candidate"], "kind origin owner target unit value binding"
-                        + (" scope projectile_quantity" if identity["catalog_id"] == 7401 else ""))
+                        + (" scope projectile_quantity" if identity["catalog_id"] == 7401 else " scope unmodelled_effects" if identity["catalog_id"] == 8608 else ""))
     if identity["catalog_id"] == 7401:
         quantity = _select(candidate["projectile_quantity"], "origin lines text value bound hit_semantics")
         _require(type(quantity["value"]) is int and type(quantity["lines"]) is list
                  and all(type(line) is int for line in quantity["lines"]) and quantity["bound"] is False)
         quantity["lines"] = list(quantity["lines"])
         candidate["projectile_quantity"] = quantity
+    elif identity["catalog_id"] == 8608:
+        _require(type(candidate["unmodelled_effects"]) is list
+                 and all(type(item) is str for item in candidate["unmodelled_effects"]))
+        candidate["unmodelled_effects"] = list(candidate["unmodelled_effects"])
     value = _select(candidate["value"], "cell percent fraction")
     value["cell"] = _select(value["cell"], "text kind")
     for key in ("percent", "fraction"):

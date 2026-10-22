@@ -1,8 +1,8 @@
 # Обычная поддержка: точный scalar-кандидат
 
 `damage_lab.ordinarysupport.effect(record, *, catalog_id, level)` — чистый
-адаптер двух проверенных семей обычной поддержки, public catalog IDs `7420`
-и `7401`.
+адаптер трёх проверенных семей обычной поддержки, public catalog IDs `7420`,
+`7401` и `8608`.
 Он не читает файлы и не применяет урон. `summary(canonical)` повторно
 проверяет безопасный proof-блок, удаляет неизвестные поля и возвращает
 отделённую структуру.
@@ -39,7 +39,7 @@ Supports skills that hit enemies.
 
 Целая часть ограничена 12 цифрами, дробная — 9. Рациональная строка допускает
 до 12 цифр в числителе и положительном знаменателе. Нет выражений, экспонент
-в строках, пробелов и bool-coercion. Знак минус допускается только для `7401`.
+в строках, пробелов и bool-coercion. Знак минус допускается для `7401` и `8608`.
 Для `Decimal` проверяются
 конечность, не более 21 цифры и exponent от −9 до 11 до форматирования; затем
 действует та же plain-number грамматика. Десятичный контекст вызывающего кода
@@ -53,9 +53,12 @@ Supports skills that hit enemies.
 
 ## Выход и границы доказательства
 
-Формат — `tli-ordinary-support-effect-v1`, версия `0.1.1`. Legacy `0.1.0`
-повторно проверяется без изменения версии; новый projectile-кандидат нельзя
-передать под старой версией. Envelope содержит
+Формат — `tli-ordinary-support-effect-v1`. Новый `8608` получает версию `0.1.2`;
+результаты `7401`, `7420` и остальных unsupported IDs сохраняют прежнюю `0.1.1`
+без изменения payload. Legacy `0.1.0` и `0.1.1` повторно проверяются без изменения
+версии. Projectile-кандидат нельзя передать под `0.1.0`, а Focus-кандидат — под
+`0.1.0` или `0.1.1`. Legacy unresolved envelope `8608` остаётся unresolved.
+Envelope содержит
 `status`, `reason`, `gaps`, `identity`, `lookup` и nullable `candidate`.
 При отсутствии доказательства `status=unresolved`, `candidate=null`, а `reason`
 совпадает с единственным фиксированным кодом в `gaps`. Структурно неверный
@@ -100,6 +103,40 @@ reference cell и полный reference-description. Отрицательные
 снарядов или попаданий. Не вычисляются shotgun, hit topology или урон цели.
 Числовые координаты и literal values нельзя подменять float или bool.
 
+## Focus: эффект поддержанного баффа
+
+Для `8608` целый template строго равен:
+
+```text
+Supports Focus Skills.
+#% buff effect for the supported skill
+-18% Sealed Mana Compensation for the supported skill
+```
+
+Уровни observed/reference и все строки таблицы ограничены `1..40`, размер
+таблицы — 40 строками. Единственный `#` второй строки связывается с одним
+объявленным `value[0-9]{1,2}`; field не угадывается по имени поддержки или по
+`value1`. Проверяются уникальные reference/observed rows и полный точный
+reference-description, включая последнюю строку с literal `-18%`. Допустимы
+signed scalar и точная рациональная дробь; repeating reference не округляется
+для совпадения с description. При одном reference/observed level клетки
+canonical proof должны совпадать.
+
+Кандидат имеет `kind=buff_effect`, `origin=catalog_level_table`,
+`owner=supported_skill`, `target=supported_skill_buff`, `scope=focus`,
+`unit=percent`. В `value` сохраняются точная parsed cell и отношения
+percent/fraction. Binding имеет `line=1`, `token_index=0`, объявленное поле,
+reference cell/level и полный template/description. Фиксированный список
+`unmodelled_effects=[sealed_mana_compensation_literal_minus18_percent]`
+отделяет компенсацию маны: literal проверяется как часть текста и не применяется.
+
+Это кандидат изменения эффекта поддержанного Focus-баффа, не damage multiplier
+и не урон triggered hit Focus. Он не умножается на Passive `8318`, не изменяет
+Glacial Spike, sealed mana или pools. Eligibility, активация, effective level
+и принадлежность к группе дополнительных эффектов остаются неизвестными.
+`summary` восстанавливает и проверяет весь proof, включая роль, literal marker,
+ratio и версионный барьер; unknown extras не копируются.
+
 `lookup.meaning=observed_gem_level_not_effective`. Во всех состояниях
 `effective_level=null`, `activation=unknown`, `eligibility=unverified`,
 `additional_group_identity=unresolved`, `patch=unknown`, а четыре флага
@@ -116,7 +153,7 @@ alias, группу, путь и наблюдаемый уровень с уст
 
 Защитные границы pure-входа: не более 20 000 посещённых узлов, глубина 32,
 4096 элементов контейнера, 4096 символов строки, до 1000 строк progression и
-уровни `1..1000` для `7420`; `7401` имеет более узкий предел 40.
+уровни `1..1000` для `7420`; `7401` и `8608` имеют более узкий предел 40.
 Повторные ссылки на один контейнер отклоняются.
 Исходные integer nodes ограничены 20 цифрами; canonical derived ratios
 допускают 21 цифру, чтобы сохранить всю разрешённую клетку с 12 целыми и

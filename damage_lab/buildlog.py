@@ -26,7 +26,7 @@ class BuildLogError(ValueError):
         self.code, self.line = code, line
 
 
-def _lines(handle, size, digest, limit, chunk):
+def lines(handle, size, digest, limit, chunk):
     """Yield bounded prefixes while hashing every byte of the initial file extent."""
     remaining, number, length, prefix, last = size, 0, 0, bytearray(), None
     while remaining:
@@ -113,7 +113,7 @@ def snapshot(path: Path, *, max_source_bytes=LIMITS['max_source_bytes'],
             if size > max_source_bytes:
                 raise BuildLogError('source_limit', 0)
             source.update(snapshotBytes=size, bytesRead=size)
-            for number, data, length, raw, complete in _lines(handle, size, digest, max_line_bytes, chunk_bytes):
+            for number, data, length, raw, complete in lines(handle, size, digest, max_line_bytes, chunk_bytes):
                 source['lines'] = number
                 if number > max_lines:
                     raise BuildLogError('line_limit', number)

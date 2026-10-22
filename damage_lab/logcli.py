@@ -1,6 +1,7 @@
 """Save separate character-state projections from an ordinary local game log."""
 
 import argparse
+import hashlib
 import html
 import json
 import sys
@@ -26,12 +27,17 @@ def render(data):
         'summary{cursor:pointer}section{border-top:1px solid #475569;margin-top:2rem}code{overflow-wrap:anywhere}</style>',
         '<h1>Состав из напечатанных таблиц журнала</h1>',
         '<p>События не объединены. Идентичность персонажа, код билда, свежесть и действие эффектов не подтверждены.</p>',
-        '<p>Complete означает полноту напечатанного поддерева, а не полный импорт персонажа. DPS не рассчитывается.</p>',
+        '<p>Complete домена означает полноту напечатанного поддерева, а не полный импорт персонажа. DPS не рассчитывается.</p>',
         f'<p>SHA256 снимка: <code>{_text(data["source"]["sha256"])}</code></p>',
         f'<p>Прочитано байт: {_text(data["source"]["bytes_read"])}; таблиц: {_text(data["acquisition"]["parsed_events"])}; ',
         f'отклонено таблиц: {_text(data["acquisition"]["rejected_events"])}</p>']
     for gap in data["gaps"]:
         parts.append(f'<p>{_text(gap)}</p>')
+    if "context" in data:
+        parts.extend(['<p>Complete контекста означает сохранение запрошенных окон строк, включая отклонённые деревья; это не полнота разбора или импорта.</p>',
+                      f'<p>Контекст сохранён локально: {_text(data["context"]["status"])}; '
+                      f'строк: {_text(data["context"]["retained_lines"])}; '
+                      f'пропусков: {_text(data["context"]["omitted_lines"] + data["context"]["unretained_lines"])}</p>'])
     for event in data["events"]:
         context = event["event"]
         parts.extend([f'<section><h2>Событие {_text(context["index"])}</h2>',
@@ -52,6 +58,7 @@ def parser():
     interface.add_argument("--game-log", required=True, type=Path, help="Обычный локальный UE_game.log")
     interface.add_argument("--output", required=True, type=Path, help="Новый каталог результата")
     interface.add_argument("--event", type=int, help="Необязательный индекс одного подходящего события; по умолчанию все отдельно")
+    interface.add_argument("--context", action="store_true", help="Сохранить ограниченный приватный контекст всех напечатанных событий")
     return interface
 
 
@@ -88,6 +95,16 @@ def main(argv=None, *, reader=None, builder=None):
             "events": events,
             "gaps": (["В снимке нет таблиц поддерживаемой структуры; отсутствие билда этим не установлено"]
                      if not candidates else [])}
+        packet = None
+        if arguments.context:
+            from .logcontext import collect, serialize
+            context = collect(arguments.game_log, snapshot)
+            packet = serialize(context)
+            data["context"] = {"file": "log-context.json", "sha256": hashlib.sha256(packet).hexdigest(),
+                               "bytes": len(packet), "status": context["status"],
+                               "events": len(context["events"]), "omitted_events": context["omitted_events"],
+                               "retained_lines": len(context["lines"]), "omitted_lines": context["omitted_lines"],
+                               "unretained_lines": context["unretained_lines"]}
         raw = json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
         page = render(data)
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
@@ -95,6 +112,8 @@ def main(argv=None, *, reader=None, builder=None):
             stage = Path(directory)
             (stage / "log-import.json").write_text(raw, encoding="utf-8")
             (stage / "index.html").write_text(page, encoding="utf-8")
+            if packet is not None:
+                (stage / "log-context.json").write_bytes(packet)
             if arguments.output.exists():
                 raise FileExistsError("Output already exists")
             stage.rename(arguments.output)

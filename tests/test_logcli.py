@@ -131,3 +131,40 @@ class LogCliTests(unittest.TestCase):
                             reader=broken, builder=Builder)
             self.assertEqual((code, "PRIVATE-INPUT-MARKER" in output.getvalue(), (Path(folder) / "result").exists()),
                              (1, False, False))
+
+    def test_context_flag_saves_a_hash_bound_packet_without_rendering_neighbours(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source = root / "input.log"
+            source.write_bytes(b"PRIVATE-NEIGHBOUR\n[2001.02.03-04.05.06:007][ 19]TLNetGame: Display: [Game]\n+n [17]\n")
+            code = main(["--game-log", str(source), "--context", "--output", str(root / "result")])
+            packet = (root / "result/log-context.json").read_bytes()
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            self.assertEqual((code, data["context"]["sha256"], data["context"]["bytes"],
+                              "PRIVATE-NEIGHBOUR" in packet.decode(), "PRIVATE-NEIGHBOUR" in json.dumps(data),
+                              "PRIVATE-NEIGHBOUR" in page), (0, hashlib.sha256(packet).hexdigest(), len(packet), True, False, False))
+
+    def test_context_source_change_cannot_publish_a_partial_result(self):
+        from damage_lab.buildlog import snapshot as capture
+
+        def changing(path):
+            document = capture(path)
+            path.write_bytes(path.read_bytes().replace(b"17", b"29"))
+            return document
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
+            root = Path(folder)
+            source = root / "input.log"
+            source.write_bytes(b"[2001.02.03-04.05.06:007][ 19]TLNetGame: Display: [Game]\n+n [17]\n")
+            code = main(["--game-log", str(source), "--context", "--output", str(root / "result")], reader=changing)
+            self.assertEqual((code, sorted(path.name for path in root.iterdir())), (1, ["input.log"]))
+
+    def test_context_complete_describes_saved_windows_even_for_rejected_trees(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source = root / "input.log"
+            source.write_bytes(b"[2001.02.03-04.05.06:007][ 19]TLNetGame: Display: [Game]\nnot a tree\n")
+            main(["--game-log", str(source), "--context", "--output", str(root / "result")])
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            self.assertIn("Complete контекста означает сохранение запрошенных окон строк", page)

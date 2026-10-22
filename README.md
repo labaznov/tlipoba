@@ -134,6 +134,8 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 
 [Сравнение полных боевых замен](docs/COMBAT_UPGRADES.md) пересчитывает каждый rawcombat-сценарий при одной цели и uptime и ранжирует известный положительный прирост по явной цене. Неизвестные эффекты блокируют дельту и рейтинг; автоматического подбора вещей или рыночных цен здесь пока нет.
 
+Команда `python -m damage_lab combat-upgrades --scenario examples/combat_upgrades.json --output local-reports/combat-upgrades-example` сохраняет JSON и самостоятельный HTML этого вымышленного сравнения. Пробелы видны в отчёте; существующие результаты сохраняются.
+
 [Частичный источник из журнала](docs/research/passive-log-import.md) содержит состав некоторых систем, но обрезает таблицы навыков и не печатает таланты или native stats. Он исследуется как дополнительный пассивный адаптер; полного импорта из него пока нет.
 
 ## Развитие

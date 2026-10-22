@@ -16,6 +16,18 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_combat_upgrade_command_publishes_complete_comparison_without_panel_parameters(self):
+        from test_combatupgrades import scenario
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source = root / "scenario.json"
+            source.write_text(json.dumps(scenario()), encoding="utf-8")
+            code = main(["combat-upgrades", "--scenario", str(source), "--output", str(root / "result")])
+            report = json.loads((root / "result/comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((code, report["ranking"], round(report["baseline"]["dps"], 2),
+                              (root / "result/index.html").is_file()), (0, ["hit", "topology"], 291.06, True))
+
     def test_log_import_command_needs_no_package_or_combat_parameters(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)

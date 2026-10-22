@@ -48,6 +48,9 @@ def main(argv=None, *, archiver=None):
     if commands and commands[0] == "upgrades":
         from .upgradecli import main as upgrading
         return upgrading(commands[1:])
+    if commands and commands[0] == "combat-upgrades":
+        from .combatupgradecli import main as upgrading
+        return upgrading(commands[1:])
     interface = parser()
     arguments = interface.parse_args(commands)
     if arguments.basis == "hit" and (arguments.lucky is None or arguments.critical_more is None):

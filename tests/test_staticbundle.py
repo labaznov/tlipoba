@@ -68,8 +68,30 @@ def critical_bundle(directory):
     return artifact, bundle
 
 
+def cast_bundle(directory):
+    """Bind fictional omitted cast evidence to exact package bytes and its own catalog."""
+    from test_staticcombat import casted
+
+    artifact, bundle = fixture(directory)
+    artifact["ledger"] = casted()
+    artifact["ledger"]["source"]["sha256"] = bundle["sourceSha256"]
+    artifact["version"] = bundle["version"] = "0.1.1"
+    bundle["compilerVersion"] = "0.4.1"
+    saved(directory, artifact, bundle)
+    return artifact, bundle
+
+
 class StaticBundleTests(unittest.TestCase):
     """Verify saved diagnostic metadata without accepting it as applied damage."""
+
+    def test_hashed_cast_evidence_retains_own_roll_and_declared_catalog_without_arithmetic(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            _, descriptor = cast_bundle(directory)
+            ledger, provenance, origin = read(directory, descriptor, descriptor["sourceSha256"])
+            self.assertEqual((ledger["omitted"][0]["evidence"]["own_values"][0]["exact"],
+                              ledger["omitted"][0]["evidence"]["arithmetic_ready"], origin[-1],
+                              summary(provenance, ledger) == provenance), ("17.8750", False, 1, True))
 
     def test_new_critical_compiler_bundle_keeps_arithmetic_blocked(self):
         with tempfile.TemporaryDirectory() as folder:

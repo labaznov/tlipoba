@@ -58,8 +58,78 @@ def critical(family, scope):
     return data
 
 
+def casted():
+    """Retain a fictional omitted cast row without typing it as an applied modifier."""
+    from test_castevidence import document as evidence
+
+    data = document()
+    data["version"] = "0.4.1"
+    data["omitted"][0].update(reason="unsupported_family", evidence=evidence())
+    return data
+
+
 class StaticCombatTest(unittest.TestCase):
     """Validate inventory evidence without applying it to a character or damage model."""
+
+    def test_cast_evidence_version_keeps_ordinary_and_critical_rows_unchanged(self):
+        for data in (document(), critical("critical_damage_modifier", "spell")):
+            expected = project(data, "a" * 64)["modifiers"]
+            data["version"] = "0.4.1"
+            with self.subTest(family=data["modifiers"][0]["family"]):
+                self.assertEqual(summary(project(data, "a" * 64))["modifiers"], expected)
+
+    def test_omitted_cast_evidence_keeps_one_own_roll_without_becoming_a_modifier(self):
+        result = summary(project(casted(), "a" * 64))
+        self.assertEqual((result["omitted"][0]["evidence"]["own_values"][0]["exact"],
+                          result["omitted"][0]["evidence"]["arithmetic_ready"],
+                          result["modifiers"], result["accounting"]),
+                         ("17.8750", False, project(document(), "a" * 64)["modifiers"],
+                          project(document(), "a" * 64)["accounting"]))
+
+    def test_cast_evidence_requires_its_reviewed_version_and_own_omitted_item_binding(self):
+        for field, value in (("version", "0.4.0"), ("version", "0.3.2"), ("nativeId", None),
+                             ("nativeId", -31), ("nativeId", True), ("reason", "no_exact_definition"),
+                             ("catalog", "gear/one_handed/staff/master"), ("evidence", None)):
+            data = casted()
+            row = data["omitted"][0]
+            if field == "version":
+                data[field] = value
+            elif field == "catalog":
+                row["evidence"]["definition"][field] = value
+            else:
+                row[field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                project(data, "a" * 64)
+
+    def test_cast_evidence_summary_rejects_forged_activation_and_detaches_exact_values(self):
+        data = summary(project(casted(), "a" * 64))
+        copy = summary(data)
+        copy["omitted"][0]["evidence"]["activation"] = "enabled"
+        with self.assertRaises(ValueError):
+            summary(copy)
+        copy["omitted"][0]["evidence"]["own_values"][0]["exact"] = "9"
+        self.assertEqual(data["omitted"][0]["evidence"]["own_values"][0]["exact"], "17.8750")
+
+    def test_a_cast_evidence_issue_preserves_the_original_omission_without_partial_evidence(self):
+        data = casted()
+        del data["omitted"][0]["evidence"]
+        data["omitted"][0]["evidenceIssue"] = "evidence_value_invalid"
+        result = summary(project(data, "a" * 64))
+        self.assertEqual((result["omitted"][0]["evidence_issue"], result["omitted"][0]["reason"],
+                          "evidence" in result["omitted"][0], result["accounting"]),
+                         ("evidence_value_invalid", "unsupported_family", False, project(document(), "a" * 64)["accounting"]))
+
+    def test_cast_evidence_issues_cannot_be_unknown_combined_or_attached_to_legacy_versions(self):
+        for version, issue, evidence in (("0.4.0", "evidence_value_invalid", False),
+                                          ("0.4.1", "private-issue", False), ("0.4.1", None, False),
+                                          ("0.4.1", "evidence_spec_invalid", True)):
+            data = casted()
+            data["version"] = version
+            data["omitted"][0]["evidenceIssue"] = issue
+            if not evidence:
+                del data["omitted"][0]["evidence"]
+            with self.subTest(version=version, issue=issue, evidence=evidence), self.assertRaises(ValueError):
+                project(data, "a" * 64)
 
     def test_critical_inventory_preserves_fixed_non_arithmetic_semantics(self):
         for family, scope in (("critical_rating_increased", "any"), ("critical_damage_modifier", "any"),

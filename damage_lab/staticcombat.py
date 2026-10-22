@@ -5,8 +5,9 @@ from decimal import Context, Decimal, localcontext
 
 
 FORMAT = "tli-static-combat-modifiers-v1"
-VERSIONS = ("0.3.2", "0.4.0")
+VERSIONS = ("0.3.2", "0.4.0", "0.4.1")
 CRITICAL = {"critical_rating_increased": "rating_increase", "critical_damage_modifier": "unresolved"}
+EVIDENCE_ISSUES = ("evidence_definition_shape", "evidence_spec_invalid", "evidence_value_invalid")
 AFFIXES = ("BaseAttrInfoList", "BAffixInfoList", "PrefixInfoList", "SuffixInfoList", "EnchantAffixList",
            "ChipAffixList", "FixedBaseAffix")
 REASONS = ("item_unresolved", "invalid_record", "no_exact_definition", "ambiguous_exact_definition",
@@ -150,8 +151,8 @@ def _modifier(row, canonical, version):
     result["pool"] = _select(result["pool"], ("id", "status", "basis"), canonical)
     _enum(result["family"], tuple(COMBINATIONS))
     if result["family"] in CRITICAL:
-        if version != "0.4.0":
-            raise ValueError("Static critical inventory requires compiler version 0.4.0")
+        if version not in ("0.4.0", "0.4.1"):
+            raise ValueError("Static critical inventory requires a supported critical compiler version")
         if result["template_sign"] != "+":
             raise ValueError("Static critical inventory requires an exact positive template sign")
         _object(row, ("semantics",))
@@ -236,6 +237,24 @@ def _definition(row, identity):
         raise ValueError("Static combat exact pools must agree with their public definition identity")
 
 
+def _omission(row, canonical, version):
+    result = _select(row, ("item", "path", "list", "nativeId", "reason"), canonical)
+    issue = "evidence_issue" if canonical else "evidenceIssue"
+    if "evidence" in row or issue in row:
+        if version != "0.4.1":
+            raise ValueError("Static cast evidence requires compiler version 0.4.1")
+        if "evidence" in row and issue in row:
+            raise ValueError("Static cast evidence cannot also contain an evidence issue")
+    if "evidence" in row:
+        from .castevidence import project, summary
+
+        result["evidence"] = summary(row["evidence"]) if canonical else project(row["evidence"])
+    if issue in row:
+        _enum(row[issue], EVIDENCE_ISSUES)
+        result["evidence_issue"] = row[issue]
+    return result
+
+
 def _rows(result):
     items = {row["alias"]: row for row in result["items"]}
     seen = set()
@@ -264,6 +283,20 @@ def _rows(result):
                 else:
                     _native(row["native_id"])
                     _enum(row["reason"], REASONS)
+                    if "evidence" in row:
+                        _native(row["native_id"], True)
+                        identity = item["identity"]
+                        if (row["reason"] != "unsupported_family" or identity["status"] != "exact"
+                                or identity["kind"] != "base"
+                                or row["evidence"]["definition"]["catalog"] != identity["catalog"]):
+                            raise ValueError("Static cast evidence requires its exact omitted base-item binding")
+                    elif "evidence_issue" in row:
+                        _native(row["native_id"], True)
+                        if row["reason"] != "unsupported_family" or item["identity"]["status"] != "exact":
+                            raise ValueError("Static cast evidence issues require an exactly identified omitted item")
+                        if (item["identity"]["kind"] != "base"
+                                and row["evidence_issue"] != "evidence_definition_shape"):
+                            raise ValueError("Static cast numeric evidence issues require a base-item definition")
             if row["path"] in seen:
                 raise ValueError("Static combat ledger rows require distinct source paths")
             seen.add(row["path"])
@@ -297,7 +330,7 @@ def _project(document, source_sha256, canonical):
         row["identity"] = _identity(row["identity"], canonical)
     _items(result)
     result["modifiers"] = [_modifier(row, canonical, result["version"]) for row in _list(result["modifiers"])]
-    result["omitted"] = [_select(row, ("item", "path", "list", "nativeId", "reason"), canonical)
+    result["omitted"] = [_omission(row, canonical, result["version"])
                          for row in _list(result["omitted"])]
     result["structural_gaps"] = [_select(row, ("item", "path", "reason"), canonical)
                                  for row in _list(result["structural_gaps"])]

@@ -51,6 +51,34 @@ TITrack хранит FE-оценки по `(config_base_id, season_id)`, а TLI 
 [TITrack schema:86–97](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/db/schema.py#L86-L97),
 [Companion median:696–717](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/server/server.js#L696-L717).
 
+### TITrack: откуда берётся reference price
+
+В том же pin TITrack parser читает напечатанные `XchgSearchPrice`, берёт первый
+`refer` запроса и сопоставляет ответ по `SynId`. Parser пытается выделить FE
+unit prices, преобразованные во `float`; записи объявлений и роллы не извлекаются.
+Статический разбор ветвей обнаружил ограничение: в старом порядке
+non-FE currency → prices → FE currency буфер предыдущей секции может попасть
+в FE-массив. Это не выполненный эксперимент; универсальная корректность
+фильтрации смешанных валют не подтверждена.
+[Request:139–150](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/parser/exchange_parser.py#L139-L150),
+[response:152–210](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/parser/exchange_parser.py#L152-L210).
+
+Collector записывает reference price по типу и сезону. Метод `percentile_10`
+выбирает индекс `max(0, int(n * 0.10) - 1)` и предполагает готовую сортировку,
+сам её не выполняет. Настроенные 300 секунд не гарантируют freshness: очистка
+запускается только при более чем 50 pending-запросах; при сопоставлении возраст
+не проверяется.
+[Индекс:213–238](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/parser/exchange_parser.py#L213-L238),
+[сопоставление и cache:552–590](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/collector/collector.py#L552-L590).
+
+Request parser не сохраняет остальные фильтры поиска: цена, записанная по базе,
+может происходить из запроса конкретных роллов. Нет связи с отдельным listing,
+его affix/rolls, регионом и полнотой страниц. Это не доказанная цена всей базы
+или выбранной вещи. Следующий опыт должен сохранить полный коррелированный
+запрос/ответ и проверить, печатает ли игра поля объявлений, которые этот parser
+игнорирует. Код TITrack при исследовании не исполнялся; его local API/cloud
+не являются игровым request-контрактом.
+
 ## Следующий необходимый witness
 
 Нужен проверенный ограниченный снимок текущего разрешённого read-only адаптера:

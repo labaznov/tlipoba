@@ -69,6 +69,11 @@ Regex Companion принимает конкретную операцию `XchgSe
 [writer:703–707](https://github.com/Syncingoutt/Fenix/blob/d2d3d850d96a16070030790b3de03b1a527078a4/src/core/logParser.ts#L703-L707),
 [Go-Torch:21–59](https://github.com/nWidart/Go-Torch/blob/735e15097caf48dd2ec57a85a6197f244ed23620/internal/parser/parser.go#L21-L59).
 
+Дополнительная проверка TITrack проследила `XchgSearchPrice` до типовой цены,
+без роллов объявлений и сохранённого контекста фильтров. Его собственные local
+API/cloud не дают игровой запрос билда. См.
+[цепочку, допущения цены и возраста ответа](equipment-price-sources.md#titrack-откуда-берётся-reference-price).
+
 Для сравнения, уже проверенный Lens связывает ask и роллы предмета внутри одной
 клиентской строки рынка. Его метод требует работающего локального reader,
 сохраняет ограничения выбора view и числовой точности; это другой способ

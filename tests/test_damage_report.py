@@ -35,6 +35,32 @@ def profileevidence():
     return {"source_sha256": "a" * 64, "installed_skill_profiles": project(records(), installation(), catalog())}
 
 
+class LevelReportTests(unittest.TestCase):
+    """Both report entry points preserve diagnostic levels without changing damage."""
+
+    def test_both_reports_show_level_candidates_and_unknown_effective_levels(self):
+        from test_importer import leveled
+
+        self.assertTrue(all(all(value in page for value in (
+            "Кандидаты прибавок к уровню навыков", "Кандидаты не складываются", "Effective level: неизвестно", "2.70"))
+            for page in pages(leveled())))
+
+    def test_legacy_reports_do_not_invent_a_level_section(self):
+        self.assertTrue(all("Кандидаты прибавок к уровню навыков" not in page for page in pages({})))
+
+    def test_null_and_source_mismatched_level_documents_are_refused(self):
+        from test_importer import leveled
+
+        for change in ("null", "source"):
+            data = leveled()
+            if change == "null":
+                data["installed_level_candidates"] = None
+            else:
+                data["source_sha256"] = "f" * 64
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                pages(data)
+
+
 class InstalledProfileReportTests(unittest.TestCase):
     """Keep observed-level catalog lookups distinct from effective skill damage."""
 

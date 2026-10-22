@@ -109,6 +109,18 @@ def profilesummary(data):
     return {"installed_skill_profiles": profiles}
 
 
+def levelsummary(data):
+    """Keep diagnostic level candidates bound to the record and its observed installation."""
+    if "installed_level_candidates" not in data:
+        return {}
+    from .levelbundle import summary
+
+    bundle = summary(data["installed_level_candidates"], data.get("installed_skills"))
+    if bundle["source"]["sha256"] != data.get("source_sha256"):
+        raise ValueError("Installed level candidates differ from the record source hash")
+    return {"installed_level_candidates": bundle}
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -158,6 +170,7 @@ def snapshot(data):
     result.update(installedsummary(data))
     result.update(supportsummary(data))
     result.update(profilesummary(data))
+    result.update(levelsummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

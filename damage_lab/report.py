@@ -210,6 +210,15 @@ def supportdetails(record):
             + "</details></section>")
 
 
+def leveldetails(record):
+    """Show source-bound level-grant candidates without deriving a level or applying damage."""
+    from .importer import levelsummary
+    from .levelreport import section
+
+    projected = levelsummary(record)
+    return "" if not projected else section(projected["installed_level_candidates"], record["installed_skills"])
+
+
 def profiledetails(record):
     """Show validated catalog lookups at observed gem levels without promoting effective damage."""
     from .importer import profilesummary
@@ -528,6 +537,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {installeddetails(record)}
 {supportdetails(record)}
 {profiledetails(record)}
+{leveldetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -698,6 +708,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {installeddetails(record)}
 {supportdetails(record)}
 {profiledetails(record)}
+{leveldetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

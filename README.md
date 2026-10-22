@@ -138,6 +138,8 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 
 [Разбор эффектов специальных поддержек](docs/SUPPORT_EFFECTS.md) проверяет полный native ID, собственный tier и точный roll, сохраняя литералы каталога отдельно. Новый пакет с `manifest.installedSupportEffects` автоматически переносит эти кандидаты в SQLite, JSON и оба HTML через [проверку байтов и каталожных координат](docs/SUPPORT_BUNDLE.md). Активация, effective level и grouping остаются неизвестными; кандидаты не масштабируют DPS.
 
+[Кандидаты прибавок к уровням навыков](docs/LEVEL_BUNDLE.md) из `manifest.installedLevelCandidates` проходят проверку байтов, source hash, установленного состава и declared catalog provenance. SQLite, JSON и три HTML отчёта сохраняют собственные роллы, литералы, вычисленные привязки, пробелы рангов и неоднозначные установки. Кандидаты не складываются; effective level и полный DPS остаются неизвестными.
+
 [Боевой слой raw spell](docs/RAW_COMBAT.md) соединяет этот результат с явными Tangle/topology, Cold defence, бронёй, damage taken и uptime. Крит и скорость не считаются повторно; неизвестные inheritance/topology/target gates блокируют полный DPS. Полностью вымышленный пример: `python -m examples.calculate_raw_combat`.
 
 [Сравнение полных боевых замен](docs/COMBAT_UPGRADES.md) пересчитывает каждый rawcombat-сценарий при одной цели и uptime и ранжирует известный положительный прирост по явной цене. Неизвестные эффекты блокируют дельту и рейтинг; автоматического подбора вещей или рыночных цен здесь пока нет.

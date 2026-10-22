@@ -1,4 +1,6 @@
 import copy
+from pathlib import Path
+import tempfile
 import unittest
 from html.parser import HTMLParser
 
@@ -34,6 +36,68 @@ class BuildInputReportTests(unittest.TestCase):
             "Явный выбор камня", "gem[1]", "Каталожные поля на уровне камня", "Кандидаты модификаторов",
             "Наблюдаемая группа", "Пробелы расчёта", "effective level", "неизвестно",
         )))
+
+    def test_source_bound_level_candidates_are_displayed_without_deriving_inputs_or_damage(self):
+        from damage_lab.buildinputs import assemble
+        from test_importer import leveled
+
+        value = assemble(leveled(), skill_alias="gem[1]")
+        original = copy.deepcopy(value)
+        page = render(value)
+        self.assertTrue(all(text in page for text in (
+            "Кандидаты прибавок к уровню навыков", "Effective level: неизвестно", "Кандидаты не складываются",
+            "DPS не рассчитан", "91437", "2.70", "Собственные роллы предметов", "Каталожные литералы",
+            "network_bytes_verified: false", "current_patch_verified: false", "rank_scaling_unknown",
+        )) and value == original and value["status"] == "blocked" and value["raw_spell"] is None)
+
+    def test_legacy_reports_have_no_level_candidate_section(self):
+        self.assertNotIn("Кандидаты прибавок к уровню навыков", render(report()))
+
+    def test_the_level_section_keeps_every_target_even_when_the_requested_alias_is_unobserved(self):
+        from damage_lab.archive import archive
+        from damage_lab.buildinputs import assemble
+        from test_damage_archive import attachedlevels, facts, package
+
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            path = package(directory)
+            attachedlevels(path)
+            record = archive(path, None, facts(directory), directory / "out.sqlite")
+            value = assemble(record, skill_alias="gem[999]")
+            page = render(value)
+            self.assertTrue(all("<h3>Цель " + str(identity) + "</h3>" in page for identity in (90017, 90029, 90041, 90053))
+                            and value["skill"] is None and value["raw_spell"] is None)
+
+    def test_null_forged_or_extra_level_evidence_cannot_bypass_the_existing_report_guard(self):
+        from damage_lab.buildinputs import assemble
+        from test_importer import leveled
+
+        for change in ("null", "level", "flag", "count", "extra"):
+            with self.subTest(change=change):
+                value = assemble(leveled(), skill_alias="gem[1]")
+                bundle = value["record"]["installed_level_candidates"]
+                if change == "null":
+                    value["record"]["installed_level_candidates"] = None
+                elif change == "level":
+                    bundle["targets"]["91437"]["effective_level"] = 37
+                elif change == "flag":
+                    bundle["runtime_verified"] = True
+                elif change == "count":
+                    bundle["accounting"]["candidates"] += 1
+                else:
+                    bundle["opaque"] = "PRIVATE-LEVEL-INPUT-CANARY"
+                with self.assertRaisesRegex(ValueError, "^Build input HTML requires an unchanged assembled report$"):
+                    render(value)
+
+    def test_the_level_candidate_section_remains_passive_without_external_resources(self):
+        from damage_lab.buildinputs import assemble
+        from test_importer import leveled
+
+        tags = []
+        Surface(tags).feed(render(assemble(leveled(), skill_alias="gem[1]")))
+        self.assertFalse(any(tag in {"script", "img", "iframe", "object", "embed", "link", "form", "input"}
+                             or any(name.startswith("on") or name in {"src", "href", "action"} for name in attributes)
+                             for tag, attributes in tags))
 
     def test_malformed_reports_fail_without_echoing_private_payloads(self):
         for value in (None, [], True, {}, {"record": {}}, {"record": {}, "selection": None},

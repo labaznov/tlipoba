@@ -103,6 +103,11 @@ def render(report):
         canonical = assemble(record, skill_alias=alias)
         if json.dumps(report, sort_keys=True, allow_nan=False) != json.dumps(canonical, sort_keys=True, allow_nan=False):
             raise ValueError
+        levels = ""
+        if "installed_level_candidates" in canonical["record"]:
+            from .levelreport import section
+
+            levels = section(canonical["record"]["installed_level_candidates"], canonical["record"]["installed_skills"])
     except (KeyError, TypeError, ValueError, AttributeError, OverflowError, RecursionError):
         raise ValueError("Build input HTML requires an unchanged assembled report") from None
     report = canonical
@@ -129,6 +134,7 @@ pre{{font:13px/1.5 monospace}}summary{{cursor:pointer;color:#9de1d1}}details{{ma
 <section><h2>Кандидаты модификаторов</h2>{_modifiers(report['modifiers'])}</section>
 <section><h2>Наблюдаемая группа</h2><p>Статус: {text(report['installation']['status'])}<br>
 Совместное размещение не доказывает активацию или применимость поддержки</p>{_installation(report['installation'])}</section>
+{levels}
 <section><h2>Пробелы расчёта</h2>{items(report['gaps'])}<h3>Допущения и границы</h3>{items(report['assumptions'])}</section>
 <footer>Сценарий rawspell не создан; неизвестные значения не заменены нулями</footer>
 </main></body></html>"""

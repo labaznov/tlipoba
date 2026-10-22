@@ -64,8 +64,72 @@ def profiled():
     return data
 
 
+def leveled():
+    """Keep a fictional source-bound level-grant bundle without an effective level."""
+    from damage_lab.levelbundle import read
+    from test_levelbundle import diagnostic
+
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder)
+        _, descriptor, source, installation = diagnostic(path)
+        bundle, _ = read(path, descriptor, source, installation)
+    data = record()
+    data.update(source_sha256=source, installed_skills=installation, installed_level_candidates=bundle)
+    return data
+
+
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
+
+    def test_level_candidates_survive_the_snapshot_without_changing_stats_or_benchmarks(self):
+        from damage_lab.importer import snapshot
+
+        data = leveled()
+        result = snapshot(data)
+        self.assertEqual((result["installed_level_candidates"], result["stats"], result["benchmark"]),
+                         (data["installed_level_candidates"], {"spell_dps": 84317}, {"survival": 9217}))
+
+    def test_level_summary_distinguishes_absence_from_a_null_document(self):
+        from damage_lab.importer import levelsummary
+
+        self.assertEqual(levelsummary(record()), {})
+        with self.assertRaises(ValueError):
+            levelsummary({**record(), "installed_level_candidates": None})
+
+    def test_level_summary_requires_matching_record_and_installation_sources(self):
+        from damage_lab.importer import levelsummary
+
+        for field in ("source_sha256", "installed_skills"):
+            data = leveled()
+            if field == "source_sha256":
+                data[field] = "f" * 64
+            else:
+                data[field]["source"]["sha256"] = "f" * 64
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                levelsummary(data)
+
+    def test_level_summary_strips_unknown_properties_and_detaches_nested_candidates(self):
+        from damage_lab.importer import levelsummary
+
+        data = leveled()
+        data["installed_level_candidates"]["targets"]["91437"]["candidates"][0]["private"] = "discard-me"
+        result = levelsummary(data)["installed_level_candidates"]
+        result["targets"]["91437"]["candidates"][0]["amount"]["exact"] = "9"
+        self.assertEqual(("private" in result["targets"]["91437"]["candidates"][0],
+            data["installed_level_candidates"]["targets"]["91437"]["candidates"][0]["amount"]["exact"]), (False, "2.70"))
+
+    def test_automatic_import_keeps_level_candidates_without_manual_stats_or_effective_levels(self):
+        from test_damage_archive import attachedlevels, package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            attachedlevels(path)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, result["installed_level_candidates"]["accounting"]["targets"],
+                              result["installed_level_candidates"]["arithmetic_ready"],
+                              result["installed_level_candidates"]["targets"]["90017"]["effective_level"]), (0, 4, False, None))
 
     def test_installed_profiles_keep_observed_levels_and_unknown_damage_gates_in_the_snapshot(self):
         from damage_lab.importer import snapshot

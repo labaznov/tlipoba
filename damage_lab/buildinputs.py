@@ -6,6 +6,7 @@ import re
 
 from .importer import snapshot
 from .ledgerinputs import inputs
+from .rawspell import evaluate
 
 
 FORMAT = "tli-build-input-report-v1"
@@ -68,8 +69,41 @@ def _installation(record, selected, profiles, gaps):
     return {"status": "observed_group_only", "members": copy.deepcopy(members)}
 
 
+def _raw(record, selected, profiles, gaps):
+    if selected is None or selected["profile"] is None:
+        gaps.append("raw_spell_context_unavailable")
+        return None, None
+    profile = selected["profile"]
+    identity = profile["identity"]
+    path = f"skill/{selected['catalog_category']}/master"
+    documents = [row for row in profiles["catalog"]["documents"]
+                 if row["role"] == "master" and row["logical_path"] == path]
+    if identity["guidStatus"] != "ok" or len(documents) != 1:
+        gaps.append("raw_spell_context_unavailable")
+        return None, None
+    tags, hit = profile["tags"], profile["hit"]
+    if (tags["status"] != "supplied" or "spell" not in tags["skill"]
+            or hit["status"] != "catalog_render_consistent" or hit["type"] != "physical"):
+        gaps.append("raw_spell_path_unsupported")
+        return None, None
+    evidence = {"version": [path], "level": [selected["path"]],
+                "base": [path + ".skills[" + identity["guid"] + "]"], "conversion": []}
+    omitted = {"effective_level_unknown", "current_patch_unverified", "base_damage_unverified",
+               "conversion_unverified", "combat_context_unresolved"}
+    document = {"format": "tli-raw-cold-spell-v1",
+                "context": {"source_sha256": record["source_sha256"], "catalog_sha256": documents[0]["member_sha256"],
+                            "skill_id": identity["guid"], "effective_level": None,
+                            "gates": {name: {"status": "unknown", "evidence": references}
+                                      for name, references in evidence.items()}},
+                "damage": None, "critical": None, "casting": None,
+                "missing": list(dict.fromkeys(gap for gap in gaps if gap not in omitted)),
+                "notes": ["Imported candidate rows are not complete damage, critical or casting groups",
+                          "No panel or benchmark supplies unavailable raw inputs"]}
+    return document, evaluate(document)
+
+
 def assemble(record, *, skill_alias):
-    """Select a gem and project applicable observed rows, leaving complete raw spell inputs unavailable."""
+    """Project a selected gem and evaluate its source-bound unavailable raw groups."""
     if type(skill_alias) is not str or re.fullmatch(r"gem\[[1-9][0-9]{0,8}\]", skill_alias, re.ASCII) is None:
         raise ValueError("Build inputs require an explicit positive gem alias")
     canonical = snapshot(record)
@@ -106,9 +140,10 @@ def assemble(record, *, skill_alias):
             modifiers = inputs(ledger, skill_tags=tags["skill"])
             gaps.extend("modifiers:" + row["kind"] for row in modifiers["gaps"])
     installation = _installation(canonical, selected, profiles, gaps)
+    spell, result = _raw(canonical, selected, profiles, gaps)
     return {"format": FORMAT, "status": "blocked", "arithmetic_ready": False, "runtime_verified": False,
             "identity_verified": False, "import_complete": False, "source_sha256": source,
             "selection": {"alias": skill_alias, "basis": "explicit_alias", "status": status},
             "skill": copy.deepcopy(selected), "modifiers": modifiers, "installation": installation,
-            "gaps": list(dict.fromkeys(gaps)), "raw_spell": None, "record": canonical,
+            "gaps": list(dict.fromkeys(gaps)), "raw_spell": spell, "raw_result": result, "record": canonical,
             "assumptions": list(ASSUMPTIONS)}

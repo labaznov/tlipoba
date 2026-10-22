@@ -92,6 +92,21 @@ def _installation(data):
              if rows else "<p>В наблюдаемой группе нет строк</p>") + "".join(details))
 
 
+def _rawmodel(report):
+    spell, result = report["raw_spell"], report["raw_result"]
+    if spell is None:
+        return "<section><h2>Модель rawspell и evaluator</h2><p>Контекст rawspell не создан; параметры не подставлены</p></section>"
+    context = spell["context"]
+    rows = [(text(name), _known(context[name])) for name in ("source_sha256", "catalog_sha256", "skill_id", "effective_level")]
+    groups = [(text(name), "неизвестно" if spell[name] is None else "задана") for name in ("damage", "critical", "casting")]
+    return ("<section><h2>Модель rawspell и evaluator</h2><p>Статус evaluator: " + text(result["status"])
+            + "<br>Числовой DPS: " + _known(result["pre_defence_dps"]) + "</p>"
+            + _table(rows, ("Контекст", "Значение"))
+            + "<p>SHA каталога относится к выбранному master member; это не wrapper hash или runtime verification</p>"
+            + _table(groups, ("Группа", "Состояние")) + "<h3>Gaps evaluator</h3>" + items(result["gaps"])
+            + "<p>Частичные кандидаты не превращены в полные pools; Lucky, roll model и tick policy не выбраны</p></section>")
+
+
 def render(report):
     """Reassemble an unchanged diagnostic before displaying its source-bound inputs."""
     try:
@@ -138,6 +153,7 @@ pre{{font:13px/1.5 monospace}}summary{{cursor:pointer;color:#9de1d1}}details{{ma
 <section><h2>Наблюдаемая группа</h2><p>Статус: {text(report['installation']['status'])}<br>
 Совместное размещение не доказывает активацию или применимость поддержки</p>{_installation(report['installation'])}</section>
 {levels}
+{_rawmodel(report)}
 <section><h2>Пробелы расчёта</h2>{items(report['gaps'])}<h3>Допущения и границы</h3>{items(report['assumptions'])}</section>
-<footer>Сценарий rawspell не создан; неизвестные значения не заменены нулями</footer>
+<footer>{'Сценарий rawspell передан evaluator и заблокирован' if report['raw_spell'] is not None else 'Контекст rawspell не создан'}; неизвестные значения не заменены нулями</footer>
 </main></body></html>"""

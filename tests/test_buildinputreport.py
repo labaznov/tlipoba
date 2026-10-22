@@ -50,6 +50,39 @@ class BuildInputReportTests(unittest.TestCase):
             "Наблюдаемая группа", "Пробелы расчёта", "effective level", "неизвестно",
         )))
 
+    def test_the_real_blocked_raw_model_shows_context_unavailable_groups_and_evaluator_gaps(self):
+        page = render(report())
+        self.assertTrue(all(value in page for value in (
+            "Модель rawspell и evaluator", "Статус evaluator: blocked", "synthetic-guid", "c" * 64,
+            "damage: unavailable", "critical: unavailable", "casting: unavailable", "version: unknown",
+            "level: unknown", "base: unknown", "conversion: unknown", "damage</td><td>неизвестно",
+            "Числовой DPS: неизвестно", "Сценарий rawspell передан evaluator и заблокирован",
+        )) and "Сценарий rawspell не создан" not in page)
+
+    def test_a_missing_raw_context_is_visible_without_borrowing_the_first_profiles_identity(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+
+        value = record()
+        value["installed_skill_profiles"]["members"][0]["profile"]["identity"].update(guid=None, guidStatus="absent")
+        page = render(assemble(value, skill_alias="gem[1]"))
+        self.assertTrue("Контекст rawspell не создан" in page and "raw_spell_context_unavailable" in page
+                        and "Статус evaluator: blocked" not in page and "synthetic-guid" not in page)
+
+    def test_derived_raw_inputs_and_results_cannot_be_forged_after_assembly(self):
+        for path, value in ((("raw_spell",), None), (("raw_result",), None), (("raw_result", "status"), "conditional"),
+                            (("raw_result", "pre_defence_dps"), 731), (("raw_result", "gaps"), []),
+                            (("raw_spell", "context", "catalog_sha256"), "b" * 64),
+                            (("raw_spell", "casting"), {"interval": 1, "increased": 0, "more": [], "frequency": None})):
+            with self.subTest(path=path):
+                data = report()
+                node = data
+                for name in path[:-1]:
+                    node = node[name]
+                node[path[-1]] = value
+                with self.assertRaisesRegex(ValueError, "^Build input HTML requires an unchanged assembled report$"):
+                    render(data)
+
     def test_full_gear_cast_evidence_is_displayed_separately_from_applied_modifiers(self):
         page = render(castreport("gem[1]"))
         self.assertTrue(all(value in page for value in (
@@ -95,7 +128,7 @@ class BuildInputReportTests(unittest.TestCase):
         before = assemble(value, skill_alias="gem[1]")
         after = castreport("gem[1]")
         self.assertEqual((after["gaps"], after["raw_spell"], after["status"], after["arithmetic_ready"]),
-                         (before["gaps"], None, before["status"], False))
+                         (before["gaps"], before["raw_spell"], before["status"], False))
 
     def test_cast_evidence_html_drops_opaque_payloads_and_remains_passive(self):
         from damage_lab.buildinputs import assemble

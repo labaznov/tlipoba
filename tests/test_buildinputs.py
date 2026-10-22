@@ -16,7 +16,11 @@ def record():
     data = supported()
     observed = installation()
     data["installed_skills"] = observed
-    data["installed_skill_profiles"] = project(records(), observed, catalog())
+    definitions = records()
+    definitions["90017"]["tags"] = ["Physical" if tag == "Cold" else tag for tag in definitions["90017"]["tags"]]
+    definitions["90017"]["english"] = {key: value.replace("Cold", "Physical")
+                                         for key, value in definitions["90017"]["english"].items()}
+    data["installed_skill_profiles"] = project(definitions, observed, catalog())
     data["static_combat"] = static(document(), data["source_sha256"])
     support = data["installed_support_effects"]
     effect = copy.deepcopy(support["members"][1]["effects"])
@@ -39,13 +43,27 @@ def record():
 class BuildInputsTests(unittest.TestCase):
     """Connect automatic observations without fabricating complete raw damage inputs."""
 
+    def test_the_observed_spell_context_reaches_the_real_evaluator_with_unavailable_groups(self):
+        from damage_lab.rawspell import evaluate
+
+        report = assemble(record(), skill_alias="gem[1]")
+        self.assertEqual((report["raw_spell"]["format"], report["raw_result"]),
+                         ("tli-raw-cold-spell-v1", evaluate(report["raw_spell"])))
+
+    def test_an_invalid_catalog_guid_does_not_create_a_guessed_raw_spell_identity(self):
+        data = record()
+        data["installed_skill_profiles"]["members"][0]["profile"]["identity"].update(guid=None, guidStatus="absent")
+        report = assemble(data, skill_alias="gem[1]")
+        self.assertEqual((report["raw_spell"], report["raw_result"], "raw_spell_context_unavailable" in report["gaps"]),
+                         (None, None, True))
+
     def test_an_explicit_gem_selects_its_profile_and_scoped_modifier_candidates_without_dps(self):
         report = assemble(record(), skill_alias="gem[1]")
         self.assertEqual((report["format"], report["selection"], report["skill"]["skill_id"],
                           report["skill"]["effective_level"], len(report["modifiers"]["added"]),
-                          report["modifiers"]["skill"]["inferred"], report["raw_spell"], report["arithmetic_ready"]),
+                          report["modifiers"]["skill"]["inferred"], report["raw_result"]["status"], report["arithmetic_ready"]),
                          ("tli-build-input-report-v1", {"alias": "gem[1]", "basis": "explicit_alias", "status": "observed"},
-                          90017, None, 1, False, None, False))
+                          90017, None, 1, False, "blocked", False))
 
     def test_group_members_remain_observed_installation_instead_of_enabled_effects(self):
         report = assemble(record(), skill_alias="gem[1]")
@@ -55,11 +73,70 @@ class BuildInputsTests(unittest.TestCase):
 
     def test_known_lookup_fields_never_fill_effective_level_critical_or_cast_pools(self):
         report = assemble(record(), skill_alias="gem[1]")
-        self.assertTrue(report["status"] == "blocked" and report["raw_spell"] is None
+        self.assertTrue(report["status"] == "blocked" and all(report["raw_spell"][field] is None for field in ("damage", "critical", "casting"))
                         and {"effective_level_unknown", "current_patch_unverified", "base_damage_unverified",
                              "main_attributes_unresolved", "critical_pools_unresolved", "cast_pools_unresolved",
                              "conversion_unverified", "support_activation_unverified", "combat_context_unresolved"}
                         .issubset(report["gaps"]))
+
+    def test_raw_context_uses_the_exact_selected_master_member_hash_and_catalog_guid(self):
+        data = record()
+        documents = data["installed_skill_profiles"]["catalog"]["documents"]
+        documents[0]["member_sha256"] = "7" * 64
+        documents.reverse()
+        report = assemble(data, skill_alias="gem[1]")
+        context = report["raw_spell"]["context"]
+        self.assertEqual((context["source_sha256"], context["catalog_sha256"], context["skill_id"], context["effective_level"],
+                          {name: gate["status"] for name, gate in context["gates"].items()}),
+                         (data["source_sha256"], "7" * 64, "synthetic-guid", None,
+                          {name: "unknown" for name in ("version", "level", "base", "conversion")}))
+
+    def test_raw_missing_excludes_combat_context_and_gate_duplicates_but_keeps_source_pool_gaps(self):
+        report = assemble(record(), skill_alias="gem[1]")
+        missing = report["raw_spell"]["missing"]
+        self.assertTrue({"main_attributes_unresolved", "critical_pools_unresolved", "cast_pools_unresolved",
+                         "support_activation_unverified", "modifiers:omitted_rows"}.issubset(missing)
+                        and not {"effective_level_unknown", "current_patch_unverified", "base_damage_unverified",
+                                 "conversion_unverified", "combat_context_unresolved"}.intersection(missing)
+                        and report["raw_result"]["pre_defence_dps"] is None and report["raw_result"]["trace"] == [])
+
+    def test_unsupported_or_unbound_hit_paths_do_not_create_a_raw_model(self):
+        for change in ("cold", "missing_hit", "not_spell", "invalid_tags"):
+            with self.subTest(change=change):
+                data = record()
+                profile = data["installed_skill_profiles"]["members"][0]["profile"]
+                if change == "cold":
+                    profile["hit"]["type"] = "cold"
+                elif change == "missing_hit":
+                    profile["hit"] = {"status": "level_not_in_table"}
+                elif change == "not_spell":
+                    profile["tags"]["skill"].remove("spell")
+                else:
+                    profile["tags"] = {"status": "invalid", "skill": None, "damageTypes": None, "reserved": None}
+                report = assemble(data, skill_alias="gem[1]")
+                self.assertEqual((report["raw_spell"], report["raw_result"], "raw_spell_path_unsupported" in report["gaps"]),
+                                 (None, None, True))
+
+    def test_missing_profile_alias_and_valid_guid_gaps_never_borrow_another_context(self):
+        for change in ("profile", "alias", "guid"):
+            with self.subTest(change=change):
+                data = record()
+                if change == "profile":
+                    data.pop("installed_skill_profiles")
+                elif change == "guid":
+                    data["installed_skill_profiles"]["members"][0]["profile"]["identity"].update(guid=None, guidStatus="invalid")
+                report = assemble(data, skill_alias="gem[999]" if change == "alias" else "gem[1]")
+                self.assertEqual((report["raw_spell"], report["raw_result"], "raw_spell_context_unavailable" in report["gaps"]),
+                                 (None, None, True))
+
+    def test_raw_document_and_evaluator_scenarios_are_independently_detached(self):
+        data = record()
+        original = copy.deepcopy(data)
+        report = assemble(data, skill_alias="gem[1]")
+        report["raw_spell"]["context"]["gates"]["level"]["evidence"].append("changed")
+        report["raw_result"]["scenario"]["notes"].append("changed")
+        self.assertEqual((data, "changed" in report["raw_result"]["scenario"]["context"]["gates"]["level"]["evidence"]),
+                         (original, False))
 
     def test_missing_profile_evidence_is_an_unavailable_selection_without_inferred_tags(self):
         data = record()
@@ -169,5 +246,5 @@ class BuildInputsTests(unittest.TestCase):
         data["stats"].update(spell_dps=127831, crit_multiplier=7.31, cast_rate=11.3)
         data["benchmark"]["average_dps"] = 77131827
         after = assemble(data, skill_alias="gem[1]")
-        fields = ("skill", "modifiers", "installation", "gaps", "raw_spell")
+        fields = ("skill", "modifiers", "installation", "gaps", "raw_spell", "raw_result")
         self.assertEqual({field: before[field] for field in fields}, {field: after[field] for field in fields})

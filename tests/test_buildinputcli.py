@@ -300,7 +300,7 @@ class BuildInputCliTests(unittest.TestCase):
                 status = main(["--package", str(root / "package"), "--skill", "gem[4]", "--output", str(root / "result")], archiver=archive)
             self.assertEqual((status, list(root.iterdir())), (1, []))
 
-    def test_the_actual_assembler_saves_unknown_inputs_without_invoking_raw_damage(self):
+    def test_the_actual_assembler_saves_an_evaluated_blocked_model_without_numeric_damage(self):
         from damage_lab.buildinputs import assemble
         from test_buildinputs import record
 
@@ -317,10 +317,45 @@ class BuildInputCliTests(unittest.TestCase):
                 status = main(["--package", str(root / "package"), "--skill", "gem[1]", "--output", str(root / "result")], archiver=archive)
             report = json.loads((root / "result/inputs.json").read_text(encoding="utf-8"))
             self.assertEqual((status, report["status"], report["selection"], report["skill"]["effective_level"],
-                              report["raw_spell"], report["arithmetic_ready"], "effective_level_unknown" in report["gaps"],
+                              report["raw_spell"]["damage"], report["raw_result"]["status"], report["raw_result"]["pre_defence_dps"],
+                              report["arithmetic_ready"], "effective_level_unknown" in report["gaps"],
                               "critical_pools_unresolved" in report["gaps"], "PRIVATE-INPUT-CANARY" in json.dumps(report)),
                              (0, "blocked", {"alias": "gem[1]", "basis": "explicit_alias", "status": "observed"},
-                              None, None, False, True, True, False))
+                              None, None, "blocked", None, False, True, True, False))
+
+    def test_a_complete_synthetic_package_publishes_the_evaluator_model_bound_to_its_archived_profile(self):
+        from damage_lab.rawspell import evaluate
+        from test_damage_archive import package
+        from test_skillcatalogbundle import attached, persisted
+        from test_installedprofiles import records
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = package(root)
+            artifact, descriptor = attached(source)
+            definitions = records()
+            definitions["90017"]["tags"] = ["Spell", "Projectile", "Physical"]
+            definitions["90017"]["english"] = {key: value.replace("Cold", "Physical")
+                                                 for key, value in definitions["90017"]["english"].items()}
+            artifact["records"] = definitions
+            persisted(source, artifact, descriptor)
+            manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
+            manifest["installedSkillCatalog"] = descriptor
+            (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            original = {path.name: path.read_bytes() for path in source.iterdir() if path.is_file()}
+            target = root / "result"
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--package", str(source), "--skill", "gem[1]", "--output", str(target)])
+            report = json.loads((target / "inputs.json").read_text(encoding="utf-8"))
+            with contextlib.closing(sqlite3.connect(target / "database.sqlite")) as connection:
+                profiles = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='installed_skill_profiles'").fetchone()[0])
+                digest = connection.execute("SELECT sha256 FROM sources WHERE role='source'").fetchone()[0]
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, report["raw_result"], report["raw_spell"]["context"]["source_sha256"],
+                              profiles, "Статус evaluator: blocked" in page,
+                              {path.name: path.read_bytes() for path in source.iterdir() if path.is_file()}),
+                             (0, evaluate(report["raw_spell"]), digest, report["record"]["installed_skill_profiles"], True, original))
 
     def test_an_unobserved_alias_is_saved_as_blocked_without_selecting_a_different_gem(self):
         from damage_lab.buildinputs import assemble

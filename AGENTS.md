@@ -11,12 +11,27 @@ Build an independent local Torchlight Infinite planner, inspired by the capabili
 - Never edit a file owned by an active agent; coordinate scope changes explicitly
 - On ambiguity, state the interpretation and resolve material unknowns; do not hide assumptions
 
+## Local resource budget
+
+The owner reported severe slowdown and rebooted after accumulated worker processes. Keep parallel reasoning within this shared Windows budget
+
+- Use the coordinator, one Claude queue worker and at most one Codex subagent at a time; do not nest delegation
+- Run at most one heavy local job across both repositories: a test suite, capture, catalog scan, bulk download or build
+- The coordinator owns this shared slot and explicitly assigns it in the helper task before launch, including previously queued work; unassigned tasks may only do small scoped reads or edits
+- While an assigned job runs, the coordinator edits or reads small scoped files instead of starting another heavy job
+- Reuse returned terminal session IDs and existing verified watchers/servers; do not start replacement loops or servers while an earlier instance may still run
+- Keep commands in the foreground with bounded timeouts; account for owned children when a command fails or times out
+- Before starting and after finishing a long job, check that its owned processes ended; identify them by PID, start time and task ownership, never just an image name
+- Never kill all Python, Node, shell or Claude processes; preserve unrelated applications and needed helper sessions
+- Hash only the task's declared inputs and outputs; do not recursively inventory historical captures, catalogs, caches or Git objects for routine edits
+- If the owner reports slowdown or workers accumulate, stop launching jobs and inspect ownership before continuing
+
 ## External Claude helper
 
 The user provides Claude Code Opus 5.5 Extra through the file queue in the separate exporter repository. The protocol is `C:/Repos/tli-build-exporter/handoff/README.md`; read it before first use and follow its exact templates and permission boundaries.
 
 - Before substantial work, check the modification time of `C:/Repos/tli-build-exporter/handoff/.claude-alive`
-- When the heartbeat is no older than 2 minutes, actively delegate as much useful independent work as possible, including difficult research, implementation, diagnosis and review
+- When the heartbeat is no older than 2 minutes, delegate useful independent work, including difficult research, implementation, diagnosis and review, within the local resource budget
 - Supply complete tasks with exact paths, context, expected outputs, ownership and verification commands
 - Keep ready independent tasks queued when useful; the external watcher processes its queue serially, so order tasks by dependency and priority
 - Continue local work while Claude runs; read reports at dependency boundaries and verify their claims
@@ -37,10 +52,10 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 ## Implementation and tests
 
 - Run checks locally on the user's Windows machine; do not configure or trigger GitHub Actions runners or Linux/macOS checks unless the user changes this preference
-- Run `python scripts/test.py` with the configured Python executable for the local test suite; do not install a self-hosted runner service as a substitute
+- Run `python scripts/test.py` once with the configured Python executable for the full local test suite; it invokes `python -m unittest discover -s tests -v`, so do not repeat discovery separately without a new change or failure
 - Use Python 3.13 or newer and the standard library unless a dependency is justified and authorized
 - Follow TDD for functional changes: first demonstrate the behavior with a failing test, then implement the smallest passing change
-- Run `python -m unittest discover -s tests -v` before reporting a functional change complete
+- Complete that full suite before reporting a functional change complete; do not install a self-hosted runner service as a substitute
 - Keep tests deterministic and independent of the game, Internet and user exports; use synthetic inputs and temporary directories
 - Map test files to feature files, keep each test focused on one behavior, and prefer short tests with one assertion
 - Prefer fakes over mocks and real temporary filesystem inputs over filesystem mocking

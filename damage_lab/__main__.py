@@ -45,6 +45,9 @@ def main(argv=None, *, archiver=None):
     if commands and commands[0] == "import-log":
         from .logcli import main as importing
         return importing(commands[1:])
+    if commands and commands[0] == "inputs":
+        from .buildinputcli import main as preparing
+        return preparing(commands[1:], archiver=archiver)
     if commands and commands[0] == "upgrades":
         from .upgradecli import main as upgrading
         return upgrading(commands[1:])

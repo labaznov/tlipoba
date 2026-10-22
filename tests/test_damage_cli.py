@@ -16,6 +16,20 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_inputs_command_needs_no_manual_character_stats_or_combat_parameters(self):
+        from test_damage_archive import package
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            attached(path)
+            status = main(["inputs", "--package", str(path), "--skill", "gem[1]", "--output", str(root / "result")])
+            report = json.loads((root / "result/inputs.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["selection"]["alias"], report["skill"]["skill_id"], report["raw_spell"],
+                              (root / "result/index.html").is_file(), (root / "result/database.sqlite").is_file()),
+                             (0, "gem[1]", 90017, None, True, True))
+
     def test_catalog_profiles_are_preserved_without_changing_the_calculated_damage(self):
         from test_damage_archive import facts, observations, package
         from test_skillcatalogbundle import attached

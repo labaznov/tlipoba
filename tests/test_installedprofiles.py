@@ -58,8 +58,74 @@ def projectile():
     return {"7401": {**projectiles(), "catalogPath": "skill/Support", "tags": ["Support"]}}, observed, metadata
 
 
+def passive(*, raw_catalog=False):
+    """Keep an unsupported fictional passive distinct from an empty or enabled effect."""
+    _, observed, metadata = ordinary(raw_catalog=True)
+    observed["groups"][0]["members"][0].update(skill_id=7112)
+    metadata["categories"]["Passive"] = {"master": "present", "english": "present"}
+    for role, span in (("master", [701, 791]), ("english", [801, 909])):
+        row = copy.deepcopy(metadata["documents"][0])
+        path = "skill/Passive/" + ("master" if role == "master" else "i18n/en")
+        row.update(role=role, category="Passive", logicalPath=path, address="/data/SS14/" + path + ".json",
+                   member=path, byteRange=span)
+        metadata["documents"].append(row)
+    return {"7112": {"tlidbId": 7112, "id": "synthetic-passive", "category": "Passive", "catalogPath": "skill/Passive",
+                     "tags": ["Aura"], "english": {"description": "Fictional unresolved passive"}}}, observed, metadata if raw_catalog else catalog_project(metadata)
+
+
+def icefocus(*, raw_catalog=False):
+    """Bind a fictional Focus buff to its own observed passive installation."""
+    from test_passiveeffects import record
+
+    _, observed, metadata = passive(raw_catalog=raw_catalog)
+    observed["groups"][0]["members"][0].update(skill_id=8318, gem_level=17)
+    return {"8318": {**record(), "tags": ["Focus", "Cold"]}}, observed, metadata
+
+
 class InstalledProfileTests(unittest.TestCase):
     """Keep catalog lookups at observed gem levels separate from effective skill values."""
+
+    def test_the_focus_buff_keeps_its_own_declared_scalar_and_unverified_state(self):
+        from damage_lab.installedprofiles import summary
+
+        value = summary(project(*icefocus()))["members"][0]["passive_effect"]
+        self.assertEqual((value["identity"]["catalog_id"], value["lookup"]["level"], value["candidate"]["scope"],
+                          value["candidate"]["value"]["fraction"], value["effective_level"], value["activation"]),
+                         (8318, 17, "focus_buff", {"numerator": -13, "denominator": 800}, None, "unknown"))
+
+    def test_a_profiled_passive_keeps_an_explicit_unresolved_effect_instead_of_an_enabled_pool(self):
+        value = project(*passive())
+        leaf = value["members"][0]["passive_effect"]
+        self.assertEqual((value["version"], leaf["identity"]["catalog_id"], leaf["lookup"]["level"], leaf["status"],
+                          leaf["candidate"], leaf["arithmetic_ready"]), ("0.1.2", 7112, 7, "unresolved", None, False))
+
+    def test_version_011_profiles_remain_unchanged_without_passive_observations(self):
+        from damage_lab.installedprofiles import summary
+
+        value = project(*ordinary())
+        value["version"] = "0.1.1"
+        for member in value["members"]:
+            member.pop("passive_effect")
+        self.assertEqual(summary(value), value)
+
+    def test_passive_effect_context_cannot_drift_from_its_installed_catalog_member(self):
+        from damage_lab.installedprofiles import summary
+
+        for field, invalid in (("catalog_id", 7113), ("guid", "different-passive"), ("level", 11)):
+            with self.subTest(field=field):
+                value = project(*passive())
+                leaf = value["members"][0]["passive_effect"]
+                leaf["lookup" if field == "level" else "identity"][field] = invalid
+                with self.assertRaises(ValueError):
+                    summary(value)
+
+    def test_version_012_requires_the_passive_field_even_for_nonpassive_members(self):
+        from damage_lab.installedprofiles import summary
+
+        value = project(records(), installation(), catalog())
+        value["members"][0].pop("passive_effect")
+        with self.assertRaises(ValueError):
+            summary(value)
 
     def test_projectile_scalars_and_literals_survive_the_existing_installed_member_binding(self):
         from damage_lab.installedprofiles import summary
@@ -88,6 +154,7 @@ class InstalledProfileTests(unittest.TestCase):
         data["version"] = "0.1.0"
         for member in data["members"]:
             member.pop("ordinary_support")
+            member.pop("passive_effect")
         self.assertEqual(summary(data), data)
 
     def test_ordinary_support_context_cannot_drift_from_its_installed_catalog_member(self):
@@ -128,7 +195,7 @@ class InstalledProfileTests(unittest.TestCase):
                           result["import_complete"], result["activation"], result["patch"], result["effective_level"],
                           member["alias"], member["group"], member["path"], member["gem_level"],
                           member["effective_level"], member["lookup_level_meaning"], member["profile"]["hit"]),
-                         ("tli-installed-skill-profiles-v1", "0.1.1", "0.2.1",
+                         ("tli-installed-skill-profiles-v1", "0.1.2", "0.2.1",
                           {"members": 4, "profiled": 1, "gaps": 3, "reconciles": True},
                           False, False, False, False, "unknown", "unknown", None,
                           "gem[1]", "group[1]", "sections.SkillLayout.data[0][0]", 7, None,

@@ -68,8 +68,42 @@ def attached(directory, *, error=False):
     return artifact, descriptor
 
 
+def focus(directory):
+    """Attach a fictional Focus buff with exact saved catalog and installation bytes."""
+    from test_installedprofiles import icefocus
+    from test_skillbundle import attached as skills, saved
+
+    raw, skill = skills(directory)
+    raw["groups"][0]["members"][0].update(skillId=8318, gemLevel=17)
+    saved(directory, raw, skill)
+    artifact, descriptor, source, _ = diagnostic(directory)
+    records, observed, metadata = icefocus(raw_catalog=True)
+    observed["source"]["sha256"] = source
+    artifact.update(records=json.loads(json.dumps(records, default=float)), catalog=metadata,
+                    requestedIds=[8318, 90029, 90041, 90053])
+    descriptor["catalogDocuments"] = len(metadata["documents"])
+    persisted(directory, artifact, descriptor)
+    path = directory / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest.update(installedSkills=skill, installedSkillCatalog=descriptor)
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return descriptor, source, observed
+
+
 class SkillCatalogBundleTests(unittest.TestCase):
     """Bind saved installed-skill catalog evidence without filling missing effective levels."""
+
+    def test_passive_decimal_and_rational_cells_reach_the_source_bound_profile_without_rounding(self):
+        from test_damage_archive import package
+
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            descriptor, source, observed = focus(directory)
+            result, _ = read(directory, descriptor, source, observed)
+            value = result["members"][0]["passive_effect"]
+            self.assertEqual((value["candidate"]["value"]["fraction"], value["candidate"]["scope"],
+                              value["effective_level"], value["arithmetic_ready"]),
+                             ({"numerator": -13, "denominator": 800}, "focus_buff", None, False))
 
     def test_exact_decimal_support_cells_reach_the_ordinary_candidate_without_a_float_round_trip(self):
         from test_installedprofiles import ordinary

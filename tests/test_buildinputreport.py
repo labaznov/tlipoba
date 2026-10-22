@@ -77,6 +77,32 @@ class OrdinarySupportInputReportTests(unittest.TestCase):
             render(report())
 
 
+class PassiveEffectInputReportTests(unittest.TestCase):
+    """Preserve passive candidates even when the requested active skill is unavailable."""
+
+    def test_an_unobserved_selection_keeps_the_focus_buff_without_filling_raw_groups(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_damage_report import passiveevidence
+
+        data = record()
+        data.update(passiveevidence())
+        value = assemble(data, skill_alias="gem[999]")
+        page = render(value)
+        self.assertTrue(all(fragment in page for fragment in (
+            "Пассивные навыки: кандидаты эффектов", "-13/8%", "focus_buff", "cold_damage",
+            "Эффекты пассивных навыков не применены к DPS",
+        )) and value["raw_spell"] is None and value["status"] == "blocked")
+
+    def test_passive_fragment_errors_keep_the_existing_fixed_report_error(self):
+        def unavailable(record):
+            raise ValueError("PRIVATE-PASSIVE-INPUT-CANARY")
+
+        with patch("damage_lab.report.passivedetails", unavailable), self.assertRaisesRegex(
+                ValueError, "^Build input HTML requires an unchanged assembled report$"):
+            render(report())
+
+
 class MemoryDefinitionInputReportTests(unittest.TestCase):
     """Expose every imported memory row independently of selected skill availability."""
 

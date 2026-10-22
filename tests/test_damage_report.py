@@ -51,6 +51,47 @@ def projectileevidence():
     return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*projectile())}
 
 
+def passiveevidence():
+    """Return a fictional Focus scalar independent of every active skill and its topology."""
+    from damage_lab.installedprofiles import project
+    from test_installedprofiles import icefocus
+
+    return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*icefocus())}
+
+
+class PassiveEffectReportTests(unittest.TestCase):
+    """Display Focus facts without activating a buff or adding separate skill damage."""
+
+    def test_both_reports_show_the_buff_and_unmodelled_effects_with_separate_scope(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Пассивные навыки: кандидаты эффектов", "-13/8%", "focus_buff", "cold_damage", "unmodelled_effects",
+            "Ледяные шипы и ресурс Focus не рассчитаны", "Эффекты пассивных навыков не применены к DPS",
+        )) for page in pages(passiveevidence())))
+
+    def test_legacy_profiles_do_not_invent_a_passive_effect_section(self):
+        from damage_lab.report import passivedetails
+
+        data = profileevidence()
+        data["installed_skill_profiles"]["version"] = "0.1.1"
+        for member in data["installed_skill_profiles"]["members"]:
+            member.pop("passive_effect")
+        self.assertEqual(passivedetails(data), "")
+
+    def test_passive_source_drift_is_refused_before_display(self):
+        from damage_lab.report import passivedetails
+
+        data = passiveevidence()
+        data["source_sha256"] = "f" * 64
+        with self.assertRaises(ValueError):
+            passivedetails(data)
+
+    def test_passive_rendering_drops_opaque_fields_without_changing_the_source_record(self):
+        data = passiveevidence()
+        data["installed_skill_profiles"]["members"][0]["passive_effect"]["candidate"]["opaque"] = "PRIVATE-PASSIVE-CANARY"
+        original = copy.deepcopy(data)
+        self.assertEqual((all("PRIVATE-PASSIVE-CANARY" not in page for page in pages(data)), data), (True, original))
+
+
 class OrdinarySupportReportTests(unittest.TestCase):
     """Show separate critical-hit candidates without applying them to damage."""
 

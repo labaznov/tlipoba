@@ -8,8 +8,8 @@ from .supportcatalog import summary as catalog_summary
 
 
 FORMAT = "tli-installed-skill-profiles-v1"
-VERSION = "0.1.1"
-VERSIONS = ("0.1.0", VERSION)
+VERSION = "0.1.2"
+VERSIONS = ("0.1.0", "0.1.1", VERSION)
 PROFILE_VERSION = "0.2.1"
 MEANING = "observed_gem_level_not_effective"
 
@@ -101,11 +101,15 @@ def project(records, installation, catalog):
                        lookup_level_meaning=MEANING,
                        catalog_category=record["category"] if record is not None else None,
                        status="gap" if reason else "profiled", reason=reason, profile=result,
-                       ordinary_support=None)
+                       ordinary_support=None, passive_effect=None)
             if result is not None and row["catalog_category"] == "Support":
                 from .ordinarysupport import effect
 
                 row["ordinary_support"] = effect(record, catalog_id=row["skill_id"], level=row["gem_level"])
+            if result is not None and row["catalog_category"] == "Passive":
+                from .passiveeffects import effect
+
+                row["passive_effect"] = effect(record, catalog_id=row["skill_id"], level=row["gem_level"])
             members.append(row)
     captured = installation["domains"]["client"]["status"] == "captured"
     return summary({"format": FORMAT, "version": VERSION, "profile_version": PROFILE_VERSION,
@@ -175,7 +179,7 @@ def _member(value, catalog, version):
         if (catalog["categories"][row["catalog_category"]]["english"] != "present"
                 and row["profile"]["hit"]["status"] != "no_binding"):
             raise ValueError("Installed catalog hit profiles require their declared English member")
-    if version == VERSION:
+    if version != "0.1.0":
         if "ordinary_support" not in value:
             raise ValueError("Installed profiles require the ordinary support observation field")
         candidate = value["ordinary_support"]
@@ -193,6 +197,24 @@ def _member(value, catalog, version):
         elif candidate is not None:
             raise ValueError("Only profiled ordinary supports can retain ordinary support observations")
         row["ordinary_support"] = candidate
+    if version == VERSION:
+        if "passive_effect" not in value:
+            raise ValueError("Installed profiles require the passive effect observation field")
+        candidate = value["passive_effect"]
+        eligible = row["profile"] is not None and row["catalog_category"] == "Passive"
+        if eligible:
+            from .passiveeffects import summary
+
+            candidate = summary(candidate)
+            if (candidate["identity"]["catalog_id"] != row["skill_id"] or candidate["lookup"]["level"] != row["gem_level"]
+                    or candidate["identity"]["guid"] != row["profile"]["identity"]["guid"]
+                    or candidate["identity"]["category"] != "Passive"):
+                raise ValueError("Passive effect evidence must match its installed catalog identity and level")
+            if candidate["candidate"] is not None and catalog["categories"]["Passive"]["english"] != "present":
+                raise ValueError("Passive effect candidates require their declared English member")
+        elif candidate is not None:
+            raise ValueError("Only profiled passives can retain passive effect observations")
+        row["passive_effect"] = candidate
     return row
 
 

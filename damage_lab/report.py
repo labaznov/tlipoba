@@ -245,6 +245,38 @@ def _ordinaryrows(data):
             "Эффекты не применены к DPS</p>" + "".join(rows) + "</section>")
 
 
+def _passiverows(data):
+    rows = []
+    for member in data["members"] or []:
+        effect = member.get("passive_effect")
+        if effect is None:
+            continue
+        candidate = effect["candidate"]
+        value = "неизвестно" if candidate is None else candidate["value"]["cell"]["text"] + "%"
+        role = ("<p>Кандидат buff Cold Damage; активация неизвестна<br>"
+                "Ледяные шипы и ресурс Focus не рассчитаны<br>"
+                "Собственный дополнительный урон этого навыка не добавлен к buff</p>" if candidate is not None else "")
+        rows.append("<details><summary>" + text(member["alias"]) + ": " + text(value) + "</summary>"
+                    + role + "<div class=scroll><pre>" + text(json.dumps({
+                        "catalog_id": member["skill_id"], "gem_level": member["gem_level"],
+                        "group": member["group"], "path": member["path"], "effect": effect,
+                    }, ensure_ascii=False, indent=2)) + "</pre></div></details>")
+    if not rows:
+        return ""
+    return ("<section><h2>Пассивные навыки: кандидаты эффектов</h2>"
+            "<p>Наблюдаемый уровень камня не является effective level<br>"
+            "Активация, patch и additional pool неизвестны<br>"
+            "Эффекты пассивных навыков не применены к DPS</p>" + "".join(rows) + "</section>")
+
+
+def passivedetails(record):
+    """Show validated passive candidates independently of the selected main skill."""
+    from .importer import profilesummary
+
+    projected = profilesummary(record)
+    return "" if not projected else _passiverows(projected["installed_skill_profiles"])
+
+
 def memorydetails(record):
     """Show validated memory definitions without inferring modifier operators or activation."""
     from .importer import memorysummary
@@ -340,7 +372,7 @@ def profiledetails(record):
             f"сохранённых записей: {catalog['skills']}; невалидных: {catalog['invalid_records']}; "
             f"удержанных строк: {catalog['withheld_records']}</p>"
             "<details><summary>Каталожные координаты и области SHA профилей</summary>" + exact(catalog) + "</details></section>"
-            + _ordinaryrows(data))
+            + _ordinaryrows(data) + _passiverows(data))
 
 
 def _castrows(data):

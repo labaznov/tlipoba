@@ -24,7 +24,7 @@
 структурно проверенные заявления producer. Проверка artifact bytes и равенства
 реальному package source относится к внешнему reader.
 
-Формат результата — `tli-installed-skill-profiles-v1`, версия `0.1.0`,
+Формат результата — `tli-installed-skill-profiles-v1`, версия `0.1.2`,
 `profile_version=0.2.1`. Верхние поля:
 
 - `source {sha256, binding: caller_supplied}` и безопасная каноническая `catalog`
@@ -51,12 +51,23 @@ catalog_category, status, reason, profile`, а также `effective_level=null`
 сохраняют null. Legacy 0.1.0 читается без нового поля. Кандидаты видны в трёх
 HTML, но не применяются к панели, rawspell или суммам критического урона.
 Leaf 0.1.1 добавляет `7401`: signed damage и отдельный literal projectile
-quantity. Внешний формат профилей сохраняет 0.1.1; `ordinary_support` проверяется
+quantity. Leaf `ordinary_support` проверяется
 собственным versioned summary. У существующей 7420 leaf 0.1.0 сохраняется
 прежний canonical payload без повышения версии. Literal `+2` не назначает
 итоговое число снарядов или попаданий.
 Каталожный loader разбирает decimal через Decimal, сохраняя прежний запрет
 непредставимого float overflow/underflow; Decimal не выходит в canonical JSON.
+
+Формат 0.1.2 добавляет nullable `passive_effect` в каждую строку. Для
+профилированной категории Passive вызывается [`passiveeffects`](PASSIVE_EFFECTS.md)
+с точным ID и наблюдаемым уровнем; summary повторно связывает ID/GUID/category
+и lookup с этой установкой. Другие категории и gap-строки требуют null.
+Legacy 0.1.0 и 0.1.1 сохраняются без добавления этого поля.
+Подтверждён только каталожный scalar Cold Damage buff для 8318; неподдержанные
+Passive остаются отдельными unresolved observations. Все пассивные кандидаты
+показываются в трёх HTML независимо от выбранного основного навыка. Активация,
+effective level, additional pool и patch неизвестны; self-skill literal,
+Glacial Spike и Focus resource не рассчитаны. DPS от этих данных не меняется.
 
 `status=profiled` означает только вызов `skillprofile.profile` для точного ID на
 наблюдаемом `gem_level`. Два экземпляра одного навыка на разных уровнях получают

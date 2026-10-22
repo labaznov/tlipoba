@@ -118,11 +118,12 @@ def render(report):
         canonical = assemble(record, skill_alias=alias)
         if json.dumps(report, sort_keys=True, allow_nan=False) != json.dumps(canonical, sort_keys=True, allow_nan=False):
             raise ValueError
-        from .report import castdetails, ordinarydetails, memorydetails
+        from .report import castdetails, ordinarydetails, memorydetails, passivedetails
 
         cast = castdetails(canonical["record"])
         ordinary = ordinarydetails(canonical["record"])
         memories = memorydetails(canonical["record"])
+        passives = passivedetails(canonical["record"])
         levels = ""
         if "installed_level_candidates" in canonical["record"]:
             from .levelreport import section
@@ -156,6 +157,7 @@ pre{{font:13px/1.5 monospace}}summary{{cursor:pointer;color:#9de1d1}}details{{ma
 Совместное размещение не доказывает активацию или применимость поддержки</p>{_installation(report['installation'])}</section>
 {levels}
 {ordinary}
+{passives}
 {memories}
 {_rawmodel(report)}
 <section><h2>Пробелы расчёта</h2>{items(report['gaps'])}<h3>Допущения и границы</h3>{items(report['assumptions'])}</section>

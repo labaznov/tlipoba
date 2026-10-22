@@ -10,6 +10,12 @@
 
 Официальное дополнение от 14 октября, раздел «技能调整 · 五彩魔矢», фиксирует для Chromatic Shot уровень 20: **498–831**, shotgun coefficient **80%**, вместо 529–881 и 70%. Для этой проверки сервер вернул китайскую страницу даже с `lang=en`. [Официальный SS14, строки 100–103 снимка страницы](https://torchlight.xd.com/ss14pn/?lang=en)
 
+Повторное получение 23 октября сохранило исходные HTTP bytes и точный раздел
+дополнения: [происхождение вариантов](chromatic-patch-witness.md). Этот ответ
+подтверждает base уровней 1 и 20 и shotgun coefficient, но не effectiveness 123%.
+Последнее значение отдельно показано строкой уровня 20 на TLIDB. Ни один из этих
+источников не устанавливает runtime/config revision сохранённого персонажа.
+
 ## Дополнительные бонусы: граница группы — affix
 
 Общая схема: `base × (1 + Σ increased) × Π additional_factors`. Повторы **одного affix** складываются внутри фактора; специально отмеченный `multiplies` использует произведение по стекам. Это не разрешает объединять разные affix только из-за общего `cold_damage` или другого stat key. [Damage Calculation, строки 33–37](https://tlidb.com/en/Damage_Calculation), [Stacks and Multiplication Rules, строки 33–38](https://tlidb.com/en/Stacks_and_Multiplication_Rules)

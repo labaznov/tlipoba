@@ -164,10 +164,10 @@
       "id": "chromatic.ss14_level20",
       "formula": "base_physical_min = 498; base_physical_max = 831; added_effectiveness = 1.23; base_projectiles = 1; intrinsic_projectile_bonus = 2; falloff_coefficient = 0.8",
       "unit": "damage; fraction; count",
-      "domain": "Chromatic Shot level 20, live SS14",
+      "domain": "Chromatic Shot reference level 20, source statements only; character runtime applicability unverified",
       "status": "verified",
       "sourceKeys": ["official", "chromatic"],
-      "notes": ["Official 14 October addendum / 技能调整 · 五彩魔矢 lines 100-103", "Chromatic Shot Details and level 20", "Do not extrapolate level 21+ from a flat or missing progression tail"]
+      "notes": ["Official 14 October addendum states base level 1 and 20 and shotgun coefficient only; response SHA256 70be3a71abaf2b85586553342f8ad9a0f65c42426c7b150cec89ae39eb56b169, section bytes [196585,197176)", "Added effectiveness 1.23 is stated by TLIDB Chromatic Shot level 20 and was not located in that official response", "Neither season label nor publication date verifies the saved character runtime/config revision", "Do not extrapolate level 21+ from a flat or missing progression tail"]
     },
     {
       "id": "shotgun.retention_mapping",

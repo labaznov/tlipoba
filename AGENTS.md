@@ -26,6 +26,15 @@ The owner reported severe slowdown and rebooted after accumulated worker process
 - Hash only the task's declared inputs and outputs; do not recursively inventory historical captures, catalogs, caches or Git objects for routine edits
 - If the owner reports slowdown or workers accumulate, stop launching jobs and inspect ownership before continuing
 
+## Game experiment windows
+
+- Control the game UI only during a user-authorized window when the owner is not playing; input inactivity alone is not authorization
+- During the owner's play, use saved inputs or public-source research and do not take mouse or keyboard focus
+- Start with read-only navigation and stat acquisition; reversible build changes need a saved baseline, one changed variable and verified restoration
+- Pause on user return, focus loss, ambiguity or unexpected dialogs; record incomplete restoration instead of silently assuming success
+- Do not buy, sell, craft, spend currency or delete items as part of a routine experiment
+- Use ordinary UI and the existing read-only exporter; do not write to game memory
+
 ## External Claude helper
 
 The user provides Claude Code Opus 5.5 Extra through the file queue in the separate exporter repository. The protocol is `C:/Repos/tli-build-exporter/handoff/README.md`; read it before first use and follow its exact templates and permission boundaries.

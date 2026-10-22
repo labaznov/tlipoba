@@ -67,8 +67,6 @@ def _context(value):
         if type(value[field]) is not str or not re.fullmatch(r"[0-9a-f]{64}", value[field]):
             raise ValueError("Skill context requires exact source and catalog SHA256 hashes")
     _text(value["skill_id"], "Skill identity")
-    if type(value["effective_level"]) is not int or not 1 <= value["effective_level"] <= 1000:
-        raise ValueError("Effective skill level must be an integer within the supported range")
     _object(value["gates"], "version level base conversion", "Evidence gates")
     gaps = []
     for name, gate in value["gates"].items():
@@ -80,6 +78,9 @@ def _context(value):
             raise ValueError("A confirmed gate requires evidence references")
         if gate["status"] != "confirmed":
             gaps.append(f"{name}: {gate['status']}")
+    if value["effective_level"] is not None or value["gates"]["level"]["status"] == "confirmed":
+        if type(value["effective_level"]) is not int or not 1 <= value["effective_level"] <= 1000:
+            raise ValueError("Effective skill level must be an integer within the supported range")
     return gaps
 
 
@@ -87,6 +88,7 @@ def evaluate(document):
     """Return a conditional raw expectation or a blocked result with explicit evidence gaps.
 
     Gate confirmations are assertions of the caller, not a game/API verification.
+    A null effective level is retained only behind an unknown or conflicting level gate.
     Base damage must be Physical and conversion must be ordinary complete conversion
     to Cold; native added Cold retains its separate modifier path.
     """

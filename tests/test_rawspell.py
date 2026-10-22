@@ -42,6 +42,79 @@ def subnormal():
 class RawSpellTests(unittest.TestCase):
     """Check a raw spell expectation without using a character panel."""
 
+    def test_an_unresolved_level_can_remain_null_while_numeric_damage_is_blocked(self):
+        for status in ("unknown", "conflict"):
+            with self.subTest(status=status):
+                document = scenario()
+                document["context"]["effective_level"] = None
+                document["context"]["gates"]["level"] = {"status": status, "evidence": []}
+                result = evaluate(document)
+                self.assertEqual((result["status"], result["pre_defence_dps"], result["gaps"], result["trace"],
+                                  result["scenario"]["context"]["effective_level"]),
+                                 ("blocked", None, ["level: " + status], [], None))
+
+    def test_a_confirmed_level_cannot_be_null_even_when_another_gate_is_unknown(self):
+        for name in ("version", "base", "conversion"):
+            with self.subTest(name=name):
+                document = scenario()
+                document["context"]["effective_level"] = None
+                document["context"]["gates"][name]["status"] = "unknown"
+                with self.assertRaisesRegex(ValueError, "Effective skill level"):
+                    evaluate(document)
+
+    def test_supplied_levels_still_require_strict_integers_with_every_gate_status(self):
+        for status in ("confirmed", "unknown", "conflict"):
+            for level in (True, False, 0, -3, 1001, 17.0, "17", {}, []):
+                with self.subTest(status=status, level=level):
+                    document = scenario()
+                    document["context"]["effective_level"] = level
+                    document["context"]["gates"]["level"]["status"] = status
+                    with self.assertRaisesRegex(ValueError, "Effective skill level"):
+                        evaluate(document)
+
+    def test_confirmed_integer_boundary_levels_remain_supported(self):
+        outcomes = []
+        for level in (1, 1000):
+            document = scenario()
+            document["context"]["effective_level"] = level
+            result = evaluate(document)
+            outcomes.append((result["status"], result["scenario"]["context"]["effective_level"],
+                             round(result["pre_defence_dps"], 6)))
+        self.assertEqual(outcomes, [("conditional", 1, 935.583), ("conditional", 1000, 935.583)])
+
+    def test_unknown_level_does_not_supply_a_missing_effective_level_field(self):
+        document = scenario()
+        del document["context"]["effective_level"]
+        document["context"]["gates"]["level"]["status"] = "unknown"
+        with self.assertRaises(ValueError):
+            evaluate(document)
+
+    def test_null_level_does_not_bypass_other_gate_and_damage_validation(self):
+        for change in ("gate", "damage", "hash"):
+            with self.subTest(change=change):
+                document = scenario()
+                document["context"]["effective_level"] = None
+                document["context"]["gates"]["level"]["status"] = "unknown"
+                if change == "gate":
+                    document["context"]["gates"]["conversion"]["evidence"] = []
+                elif change == "damage":
+                    document["damage"]["base"]["min"] = True
+                else:
+                    document["context"]["source_sha256"] = "invalid"
+                with self.assertRaises(ValueError):
+                    evaluate(document)
+
+    def test_null_level_blocked_scenarios_are_detached_from_the_caller(self):
+        document = scenario()
+        document["context"]["effective_level"] = None
+        document["context"]["gates"]["level"]["status"] = "conflict"
+        original = copy.deepcopy(document)
+        result = evaluate(document)
+        result["scenario"]["context"]["effective_level"] = 29
+        result["scenario"]["context"]["gates"]["level"]["evidence"].append("changed")
+        result["gaps"].append("changed")
+        self.assertEqual(document, original)
+
     def test_positive_expected_hit_cannot_underflow_to_zero(self):
         document = subnormal()
         document["critical"].update(chance=1, multiplier=.5)

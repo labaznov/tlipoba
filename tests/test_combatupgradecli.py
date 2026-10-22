@@ -15,6 +15,21 @@ from test_combatupgrades import scenario
 class CombatUpgradeCliTests(unittest.TestCase):
     """Publish only complete conditional comparisons while preserving local inputs and existing paths."""
 
+    def test_unknown_effective_levels_remain_null_and_block_all_upgrade_rankings(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            document = scenario()
+            for target in [document["baseline"], *[candidate["scenario"] for candidate in document["candidates"]]]:
+                target["spell"]["context"]["effective_level"] = None
+                target["spell"]["context"]["gates"]["level"]["status"] = "unknown"
+            source = root / "scenario.json"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            status = main(["--scenario", str(source), "--output", str(root / "result")])
+            report = json.loads((root / "result/comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["baseline"]["dps"], report["ranking"],
+                              report["scenario"]["baseline"]["spell"]["context"]["effective_level"],
+                              [row["delta"] for row in report["candidates"]]), (0, None, [], None, [None, None]))
+
     def test_missing_required_arguments_return_one_without_exiting_or_echoing_input(self):
         outcomes = []
         for arguments in ([], ["--scenario", "PRIVATE-COMBAT-CANARY"], ["--output", "PRIVATE-COMBAT-CANARY"], ["--scenario"]):

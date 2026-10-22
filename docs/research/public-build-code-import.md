@@ -12,7 +12,7 @@ GitHub source/metadata; игровые endpoints, credentials и реальны�
 
 ## Проверенные версии
 
-На момент проверки GitHub HEAD совпал с указанным pin. Даты — committer UTC.
+Ниже приведены проверенные опубликованные ревизии. Даты — committer UTC.
 
 | Проект | Commit | Дата |
 |---|---|---|
@@ -20,7 +20,7 @@ GitHub source/metadata; игровые endpoints, credentials и реальны�
 | TLIPoB | [`1da3826ab5539536a83378fd4aea20ffb3559f98`](https://github.com/aclinia/torchlight-of-building/commit/1da3826ab5539536a83378fd4aea20ffb3559f98) | 2026-04-15 |
 | TITrack | [`7798e02db8cfc5fb3b5eb927e3600fef99815b5e`](https://github.com/astockman99/TITrack/commit/7798e02db8cfc5fb3b5eb927e3600fef99815b5e) | 2026-10-18 |
 | TLI Lens | [`687f5a752a963963830f223bd435bdb510265451`](https://github.com/deafwave/tli-lens/commit/687f5a752a963963830f223bd435bdb510265451) | 2026-10-19 |
-| TLI Companion, опубликованный код | [`604e05e0ae0c88798abfbedac5998a288848c768`](https://github.com/julien-szy/tli-companion/commit/604e05e0ae0c88798abfbedac5998a288848c768) | 2026-10-22 |
+| TLI Companion, опубликованный код | [`33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83`](https://github.com/julien-szy/tli-companion/commit/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83) | 2026-10-22 |
 
 ## TLIBuilder: декодирование своего документа
 
@@ -68,12 +68,27 @@ code и не возвращают полный состав навыков, та
 [inventory:68–86](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/api/routes/inventory.py#L68-L86),
 [parser:23–125](https://github.com/astockman99/TITrack/blob/7798e02db8cfc5fb3b5eb927e3600fef99815b5e/src/titrack/parser/log_parser.py#L23-L125).
 
-У актуального Companion действительно есть `/api/builds`: POST принимает
-пользовательский JSON version 1 с собственным ID, шагами покупки и loadout;
-GET по 36-символьному ID возвращает JSON из своей SQLite. Это конкретный
-проверенный API документов, не game-code resolver. Он не устанавливает XD session
-или соответствие документа игровому Pro Build. [POST/GET:424–457](https://github.com/julien-szy/tli-companion/blob/604e05e0ae0c88798abfbedac5998a288848c768/server/server.js#L424-L457),
-[принимаемая schema:107–136](https://github.com/julien-szy/tli-companion/blob/604e05e0ae0c88798abfbedac5998a288848c768/server/sanitize.js#L107-L136).
+В Companion повторно проверен [диапазон из четырёх коммитов](https://api.github.com/repos/julien-szy/tli-companion/compare/604e05e0ae0c88798abfbedac5998a288848c768...33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83) до `33f1d091…`: появился собственный
+code `TLIC1.` — Base64URL с `deflate-raw` и JSON. Decoder распаковывает его локально;
+app import создаёт редактируемый draft без прежнего ID. Это обмен planner documents,
+без запроса игрового Pro Build payload.
+[Codec:344–371](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/src/ui/planner.js#L344-L371),
+[app import:71–84](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/src/ui/build.js#L71-L84).
+
+`/api/builds` по-прежнему принимает пользовательский JSON version 1 и возвращает
+документ из своей SQLite. Schema расширена traits/talents, skill slugs и gear с
+текстовыми stat lines; это не наблюдённые игровые rolls или verified identity.
+[Schema:118–198](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/server/sanitize.js#L118-L198),
+[POST:424–437](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/server/server.js#L424-L437),
+[GET:477–481](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/server/server.js#L477-L481).
+
+Отдельная новая log-цепочка распознаёт equip/unequip и base/GoldId hints, из которых
+tracker собирает частичное состояние экипировки. Она не принимает build code;
+полного gear snapshot при login сам parser не обещает. Этот источник не даёт
+контракта code → полный состав персонажа.
+[Parser:8–11,74–92](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/src/parser.js#L8-L11),
+[events:74–92](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/src/parser.js#L74-L92),
+[tracker:198–207](https://github.com/julien-szy/tli-companion/blob/33f1d091f3a7e4f71a0b177acf31c2e5e6d5ba83/src/tracker.js#L198-L207).
 
 Просмотренный Lens `state.mjs` запускает локальный `tli_dump --portable-json`
 либо читает последний сохранённый dump при `--reuse`. Это адаптер открытой

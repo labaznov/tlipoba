@@ -36,8 +36,151 @@ def archive(package, observations, facts, database, **inputs):
     return record()
 
 
+def supported():
+    """Pair synthetic candidate evidence with its declared master and English metadata."""
+    from damage_lab.supportcatalog import project as catalog
+    from damage_lab.supportinventory import project as inventory
+    from test_supportcatalog import document as catalog_document
+    from test_supportinventory import document as inventory_document
+
+    data = record()
+    raw = catalog_document()
+    path = "skill/Noble_Support/i18n/en"
+    raw["documents"].append({**raw["documents"][1], "category": "Noble_Support", "logicalPath": path,
+                             "member": path, "address": f"/data/SS14/{path}.json", "byteRange": [411, 612]})
+    raw["categories"]["Noble_Support"]["english"] = "present"
+    data["installed_support_effects"] = inventory(inventory_document(), data["source_sha256"])
+    data["installed_support_catalog"] = catalog(raw)
+    return data
+
+
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
+
+    def test_support_candidates_and_catalog_remain_non_arithmetic_in_the_snapshot(self):
+        from damage_lab.importer import snapshot
+
+        result = snapshot(supported())
+        self.assertEqual((result["installed_support_effects"]["arithmetic_ready"],
+                          result["installed_support_effects"]["activation"],
+                          result["installed_support_catalog"]["network_bytes_verified"],
+                          result["stats"], result["benchmark"]),
+                         (False, "unknown", False, {"spell_dps": 84317}, {"survival": 9217}))
+
+    def test_support_summary_requires_both_diagnostic_documents(self):
+        from damage_lab.importer import supportsummary
+
+        for field in ("installed_support_effects", "installed_support_catalog"):
+            with self.subTest(field=field):
+                data = supported()
+                data.pop(field)
+                with self.assertRaises(ValueError):
+                    supportsummary(data)
+
+    def test_support_summary_cannot_belong_to_another_record_source(self):
+        from damage_lab.importer import supportsummary
+
+        for source in (None, "b" * 64):
+            with self.subTest(source=source):
+                data = supported()
+                data["source_sha256"] = source
+                with self.assertRaises(ValueError):
+                    supportsummary(data)
+
+    def test_support_summary_drops_unknown_fields_without_aliasing_nested_evidence(self):
+        from damage_lab.importer import supportsummary
+
+        data = supported()
+        for node in (data["installed_support_effects"], data["installed_support_effects"]["members"][1],
+                     data["installed_support_effects"]["members"][1]["effects"],
+                     data["installed_support_catalog"], data["installed_support_catalog"]["documents"][0]):
+            node["opaque"] = "PRIVATE-SUPPORT-IMPORT-MARKER"
+        result = supportsummary(data)
+        result["installed_support_catalog"]["documents"][0]["byte_range"][0] = 1
+        result["installed_support_effects"]["members"][1]["effects"]["constants"].clear()
+        self.assertEqual(("PRIVATE-SUPPORT-IMPORT-MARKER" in json.dumps(result),
+                          data["installed_support_catalog"]["documents"][0]["byte_range"],
+                          len(data["installed_support_effects"]["members"][1]["effects"]["constants"])),
+                         (False, [19, 87], 4))
+
+    def test_support_summary_revalidates_claims_and_declared_catalog_coherence(self):
+        from damage_lab.importer import supportsummary
+
+        for path, value in ((("installed_support_effects", "runtime_verified"), True),
+                            (("installed_support_catalog", "network_bytes_verified"), True),
+                            (("installed_support_catalog", "records"), 999),
+                            (("installed_support_catalog", "categories", "Noble_Support", "english"), "missing")):
+            with self.subTest(path=path):
+                data = supported()
+                node = data
+                for field in path[:-1]:
+                    node = node[field]
+                node[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    supportsummary(data)
+
+    def test_support_summary_distinguishes_absence_from_null_documents(self):
+        from damage_lab.importer import supportsummary
+
+        self.assertEqual(supportsummary(record()), {})
+        for inventory, catalog in ((None, None), (None, {}), ({}, None)):
+            with self.subTest(inventory=inventory, catalog=catalog):
+                data = record()
+                data.update(installed_support_effects=inventory, installed_support_catalog=catalog)
+                with self.assertRaises(ValueError):
+                    supportsummary(data)
+
+    def test_support_summary_requires_declared_catalog_sources_for_typed_effects(self):
+        from damage_lab.importer import supportsummary
+
+        data = supported()
+        catalog = data["installed_support_catalog"]
+        catalog["documents"] = [entry for entry in catalog["documents"] if entry["category"] != "Noble_Support"]
+        catalog["categories"]["Noble_Support"] = {"master": "missing", "english": "missing"}
+        with self.assertRaises(ValueError):
+            supportsummary(data)
+
+    def test_automatic_import_keeps_source_bound_support_candidates_without_manual_stats(self):
+        from test_damage_archive import package
+        from test_supportbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            attached(path)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            inventory = result["installed_support_effects"]
+            self.assertEqual((status, inventory["source"]["sha256"] == result["source_sha256"],
+                              inventory["arithmetic_ready"], inventory["activation"],
+                              result["installed_support_catalog"]["network_bytes_verified"], result["import_status"]),
+                             (0, True, False, "unknown", False, "partial"))
+
+    def test_support_producer_error_does_not_invent_an_empty_canonical_inventory(self):
+        from test_damage_archive import package
+        from test_supportbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            attached(path, error=True)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, "installed_support_effects" in result,
+                              "installed_support_catalog" in result, result["import_status"]),
+                             (0, False, False, "partial"))
+
+    def test_legacy_package_keeps_support_effects_unavailable_in_the_automatic_import(self):
+        from test_damage_archive import package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, "installed_support_effects" in result,
+                              "installed_support_catalog" in result, result["import_status"]),
+                             (0, False, False, "partial"))
 
     def test_import_json_keeps_installation_and_unknown_activation_without_manual_stats(self):
         from test_damage_archive import package

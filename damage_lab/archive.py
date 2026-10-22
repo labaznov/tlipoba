@@ -557,6 +557,20 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Installed skill inventory failed; support acquisition remains incomplete")
     else:
         coverage.append("Installed skill inventory is unavailable in this legacy package")
+    support = None
+    catalog = None
+    support_origin = None
+    if "installedSupportEffects" in manifest:
+        from .supportbundle import read
+        support, catalog, support_origin = read(package, manifest["installedSupportEffects"], hashes["source"][0])
+        if support is not None:
+            documents["installed_support_effects"] = support
+            documents["installed_support_catalog"] = catalog
+            coverage.append("Installed support effect candidates were imported automatically; activation effective levels and arithmetic remain unverified")
+        else:
+            coverage.append("Installed support effect acquisition failed; missing effects are not empty or zero effects")
+    else:
+        coverage.append("Installed support effect candidates are unavailable in this legacy package")
     modifiers = None
     modifier_origin = None
     if "staticCombat" in manifest:
@@ -713,6 +727,9 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["static_combat_provenance"] = provenance
     if installation is not None:
         result["installed_skills"] = installation
+    if support is not None:
+        result["installed_support_effects"] = support
+        result["installed_support_catalog"] = catalog
 
     inputs = [("facts", str(facts), *fingerprint(facts), 1)]
     documents["facts"] = facts_data
@@ -736,6 +753,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("static_combat", *modifier_origin))
     if attachment is not None:
         inputs.append(("installed_skills", *attachment))
+    if support_origin is not None:
+        inputs.append(("installed_support_effects", *support_origin))
 
     database.parent.mkdir(parents=True, exist_ok=True)
     open(database, "xb").close()

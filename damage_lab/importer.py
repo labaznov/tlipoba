@@ -83,6 +83,20 @@ def installedsummary(data):
     return {"installed_skills": installation}
 
 
+def supportsummary(data):
+    """Keep paired diagnostic support evidence without applying it to damage."""
+    if "installed_support_effects" not in data and "installed_support_catalog" not in data:
+        return {}
+    if "installed_support_effects" not in data or "installed_support_catalog" not in data:
+        raise ValueError("Support effect inventory and catalog require paired diagnostic documents")
+    from .supportbundle import summary
+
+    inventory, catalog = summary(data["installed_support_effects"], data["installed_support_catalog"])
+    if inventory["source"]["sha256"] != data.get("source_sha256"):
+        raise ValueError("Support effect inventory differs from the record source hash")
+    return {"installed_support_effects": inventory, "installed_support_catalog": catalog}
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -130,6 +144,7 @@ def snapshot(data):
         result["build_resolution"] = summary(data["build_resolution"])
     result.update(staticsummary(data))
     result.update(installedsummary(data))
+    result.update(supportsummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

@@ -10,6 +10,152 @@ def installation():
     return project(document(), "a" * 64)
 
 
+def supportevidence():
+    """Return a synthetic paired inventory and local catalog declaration bound to one source."""
+    from damage_lab.supportcatalog import project as catalog
+    from damage_lab.supportinventory import project as inventory
+    from test_supportcatalog import document as catalog_document
+    from test_supportinventory import document as inventory_document
+
+    raw = catalog_document()
+    path = "skill/Noble_Support/i18n/en"
+    raw["documents"].append({**raw["documents"][1], "category": "Noble_Support", "logicalPath": path,
+                             "member": path, "address": f"/data/SS14/{path}.json", "byteRange": [401, 487]})
+    raw["categories"]["Noble_Support"]["english"] = "present"
+    return {"source_sha256": "a" * 64, "installed_support_effects": inventory(inventory_document(), "a" * 64),
+            "installed_support_catalog": catalog(raw)}
+
+
+class SupportEffectReportTests(unittest.TestCase):
+    """Show diagnostic installed effect candidates without promoting their runtime or damage semantics."""
+
+    def test_both_reports_separate_native_rolls_catalog_literals_and_unknown_activation(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Эффекты установленных поддержек", "Кандидаты эффектов: 1", "Активация неизвестна",
+            "Эффективный уровень неизвестен", "Эффекты поддержек не применены к DPS", "gem[2]", "group[1]",
+            "sections.SkillLayout.data[0][1]", "Нативные роллы", "Каталожные константы", "24.125", "0.24125",
+            "native_prefix_row", "catalog_literal", "catalog_literal_unverified_runtime", "additional_group_identity",
+        )) for page in pages(supportevidence())))
+
+    def test_catalog_hash_scopes_and_all_unverified_claims_remain_visible(self):
+        self.assertTrue(all(all(value in page for value in (
+            "arithmetic_ready: false", "runtime_verified: false", "identity_verified: false", "import_complete: false",
+            "network_bytes_verified: false", "current_patch_verified: false", "Объявленное происхождение каталога",
+            "wrapper_sha256 — весь wrapper", "member_sha256 — диапазон byte_range", "Документов каталога: 4",
+            "Строк каталога: 17", "удержанных строк: 6", "без English entry: 5", "a" * 64, "b" * 64, "d" * 64,
+            "cache_member_exact_slice", "needed-bundles.json", "skill/Noble_Support/i18n/en",
+        )) for page in pages(supportevidence())))
+
+    def test_unavailable_members_and_counts_are_unknown_instead_of_zero_or_an_empty_inventory(self):
+        record = supportevidence()
+        data = record["installed_support_effects"]
+        data.update(client_layer="absent", members=None)
+        data["accounting"] = {field: None for field in data["accounting"]}
+        self.assertTrue(all(all(value in page for value in (
+            "Состав поддержек неизвестен; это не пустой список", "Записей: неизвестно",
+            "Кандидаты эффектов: неизвестно", "Исключено: неизвестно", "Пробелов: неизвестно",
+        )) and "Записей: 0" not in page and "В захваченном слое нет записей" not in page for page in pages(record)))
+
+    def test_missing_source_coordinates_display_unknown_instead_of_python_none(self):
+        record = supportevidence()
+        record["installed_support_effects"]["members"][2].update(
+            path=None, reason="source_coordinates_invalid", base_id=None, category=None)
+        self.assertTrue(all("<td>6<br>неизвестно</td>" in page and "source_coordinates_invalid" in page
+                            and "<br>None</td>" not in page for page in pages(record)))
+
+    def test_exact_roll_digits_are_preserved_without_display_rounding(self):
+        record = supportevidence()
+        value = record["installed_support_effects"]["members"][1]["effects"]["rolled_lines"][0]["values"][0]
+        value.update(exact="24.123456789", fraction="0.24123456789")
+        self.assertTrue(all("24.123456789" in page and "0.24123456789" in page for page in pages(record)))
+
+    def test_partial_rows_show_their_gap_without_discarding_known_candidates(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Пробелов: 1", "Кандидаты эффектов: 1", "catalog_record_missing", "excluded_category",
+            "Пропуски строк и пробелы констант", "additional_group_identity", "unresolved",
+        )) for page in pages(supportevidence())))
+
+    def test_unmapped_prefix_rows_remain_visible_omissions_beside_catalog_literals(self):
+        from damage_lab.supporteffects import effects
+        from damage_lab.supportinventory import project
+        from test_supporteffects import catalog, row
+        from test_supportinventory import document
+
+        record = supportevidence()
+        raw = document()
+        raw["members"][1]["effects"] = effects(catalog(), native_base_id=90017, prefix_rows=[row("Unmapped99", ["24.125"])])
+        record["installed_support_effects"] = project(raw, "a" * 64)
+        self.assertTrue(all(all(value in page for value in (
+            "no_exact_definition", "prefix[0]", "Пропуски строк и пробелы констант", "catalog_literal",
+        )) for page in pages(record)))
+
+    def test_reports_refuse_support_evidence_from_a_different_or_missing_record_source(self):
+        from damage_lab.report import supportdetails
+
+        for source in (None, "b" * 64):
+            with self.subTest(source=source):
+                record = supportevidence()
+                record["source_sha256"] = source
+                with self.assertRaises(ValueError):
+                    supportdetails(record)
+
+    def test_reports_revalidate_top_nested_and_catalog_false_claims(self):
+        from damage_lab.report import supportdetails
+
+        for path, value in ((("installed_support_effects", "arithmetic_ready"), True),
+                            (("installed_support_effects", "runtime_verified"), 0),
+                            (("installed_support_effects", "activation"), "active"),
+                            (("installed_support_effects", "effective_level"), 7),
+                            (("installed_support_effects", "members", 1, "effects", "arithmetic_ready"), True),
+                            (("installed_support_catalog", "current_patch_verified"), True)):
+            with self.subTest(path=path):
+                record = supportevidence()
+                node = record
+                for field in path[:-1]:
+                    node = node[field]
+                node[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    supportdetails(record)
+
+    def test_private_unknown_text_and_raw_identifiers_cannot_enter_either_html(self):
+        record = supportevidence()
+        inventory = record["installed_support_effects"]
+        effect = inventory["members"][1]["effects"]
+        for node in (inventory, inventory["source"], inventory["members"][1], effect, effect["identity"],
+                     effect["rolled_lines"][0], effect["constants"][0], record["installed_support_catalog"],
+                     record["installed_support_catalog"]["documents"][0]):
+            node["opaque"] = '<script>PRIVATE-SUPPORT-CANARY</script>'
+            node["instance_id"] = "PRIVATE-SUPPORT-CANARY"
+        self.assertTrue(all("PRIVATE-SUPPORT-CANARY" not in page and "<script>" not in page for page in pages(record)))
+
+    def test_malicious_known_text_is_refused_instead_of_rendered_as_active_content(self):
+        from damage_lab.report import supportdetails
+
+        record = supportevidence()
+        record["installed_support_effects"]["members"][1]["effects"]["rolled_lines"][0]["template"] = '<img src=x onerror="private()">'
+        with self.assertRaises(ValueError):
+            supportdetails(record)
+
+    def test_legacy_absence_never_invents_a_support_effect_section(self):
+        from damage_lab.report import supportdetails
+
+        self.assertEqual((supportdetails({}), ["Эффекты установленных поддержек" in page for page in pages({})]),
+                         ("", [False, False]))
+
+    def test_incomplete_or_null_pairs_cannot_be_displayed_as_successful_imports(self):
+        from damage_lab.report import supportdetails
+
+        for missing in ("installed_support_effects", "installed_support_catalog", "both_null"):
+            with self.subTest(missing=missing):
+                record = supportevidence()
+                if missing == "both_null":
+                    record.update(installed_support_effects=None, installed_support_catalog=None)
+                else:
+                    del record[missing]
+                with self.assertRaises(ValueError):
+                    supportdetails(record)
+
+
 class InstalledReportTests(unittest.TestCase):
     """Show observed installation separately from activation and effective levels."""
 

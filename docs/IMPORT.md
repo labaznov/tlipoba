@@ -111,3 +111,21 @@ python -m damage_lab import --package "ПАПКА_ЭКСПОРТА" --panel-log 
 ## Наблюдаемая установка навыков
 
 Новый пакет с `manifest.installedSkills` подхватывается обычными командами автоматически. [Source-bound inventory](SKILL_BUNDLE.md) проверяет точные байты artifact и исходного снимка и сохраняет безопасные aliases, публичные skill ID, gem levels, координаты и co-membership. JSON, SQLite и HTML различают установку, неизвестную активацию и неизвестный effective level. Роль поддержки не выводится из соседства слотов, готовый DPS не корректируется. Ошибка producer либо отсутствие descriptor остаются пробелом получения данных; отсутствие наблюдаемого слоя не становится нулевым составом.
+
+## Эффекты установленных специальных поддержек
+
+`manifest.installedSupportEffects` автоматически подключает фиксированный
+`installed-support-effects.json` версии `0.2.0`. Проверяются SHA прочитанных bytes,
+source hash, версии, typed counts и четыре literal false claims. Безопасные
+`installed_support_effects` и `installed_support_catalog` сохраняются парой в
+SQLite, `import.json`, `calculation.json` и обоих HTML. Каталог описывает declared
+локальные master/English slices; его hashes не выдаются за повторную проверку
+cache или текущего клиента. [Контракт reader](SUPPORT_BUNDLE.md) описывает границы.
+
+Роллы из собственного native Prefix отделены от литералов каталога. Typed
+candidate требует master и English своей категории; withheld ID не разрешается
+как кандидат. Неизвестные layers и значения сохраняют `null`, а error producer
+даёт явный coverage gap без пустого inventory. Повреждённые bytes или ложные
+claims отклоняются до создания базы. У старого пакета descriptor может отсутствовать.
+Активация, effective level, patch и grouping остаются неизвестными; наличие
+кандидата не меняет ранее рассчитанный DPS и не подтверждает полноту импорта.

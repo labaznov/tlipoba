@@ -60,7 +60,7 @@ Compiler 0.4.0 также сохраняет обычный critical rating и �
 
 Чистый `skillprofile.profile` извлекает main stats, разделённые теги, stated effectiveness/seconds и точный каталожный hit с полной проверкой reference render. У сохранённого 7007 один `#-#` token корректно использует Min/Max pair; раннее предположение о повреждённом binding исправлено. Извлечение полей не разрешает конфликт старой SS14 базы, effective level, post-20 профиль или активацию. Byte-level profile binder и автоматическая сборка полного hit остаются следующими шагами.
 
-`supporteffects.effects` связывает точные full native ID/rolls со своими tiered definitions и сохраняет catalog-literal константы, включая 100% Physical→Cold, с отдельным происхождением. Числа не округляются скрыто; malformed schema и неоднозначные дубликаты не становятся точными роллами. Это диагностический чистый блок с `arithmeticReady=false`; автоматический installation join и byte-level bundle consumer ещё не интегрированы.
+`supporteffects.effects` связывает точные full native ID/rolls со своими tiered definitions и сохраняет catalog-literal константы, включая 100% Physical→Cold, с отдельным происхождением. Числа не округляются скрыто; malformed schema и неоднозначные дубликаты не становятся точными роллами. Installation join и byte-level consumer теперь подключены к обычному импорту через `manifest.installedSupportEffects`: кандидаты и declared catalog provenance сохраняются в SQLite, JSON и обоих HTML. Это диагностические данные с `arithmeticReady=false`; активация, effective level и grouping не определены и к DPS не добавлены.
 
 ## 4. Сравнение вариантов
 
@@ -73,6 +73,8 @@ Compiler 0.4.0 также сохраняет обычный critical rating и �
 Команда `upgrades --scenario ... --output ...` атомарно сохраняет JSON и HTML в новый каталог на Windows. Она не получает рыночные цены и не заменяет автоматический нормализатор вещей.
 
 `combatupgrades.evaluate` также сравнивает полные исходные боевые сценарии после topology и защиты цели. Полный target, uptime и skill/catalog/roll/tick context общие; base/pools/topology могут изменяться полной заменой с собственными gates. Неполный baseline или кандидат не получает числовую дельту/рейтинг; цены принадлежат вызывающей стороне. Автоматический resolver реальных замен ещё не готов.
+
+Команда `combat-upgrades --scenario ... --output ...` сохраняет полный JSON и HTML этого сравнения с трассировкой spell и combat. Неизвестные gates блокируют числовые рекомендации, а общий target и uptime сохраняются. Публикация результата атомарна в новом каталоге Windows; получение настоящих цен и сборка сценария реального предмета остаются отдельными задачами.
 
 Готово, когда синтетические случаи и проверенные игровые примеры воспроизводят направление и величину изменения в пределах заявленной модели.
 

@@ -141,6 +141,75 @@ def installeddetails(record):
             f"</details><p>SHA-256 исходного снимка: {text(data['source']['sha256'])}</p></section>")
 
 
+def supportdetails(record):
+    """Display validated installed candidates and declared catalog slices without applying damage."""
+    from .importer import supportsummary
+
+    projected = supportsummary(record)
+    if not projected:
+        return ""
+    inventory = projected["installed_support_effects"]
+    catalog = projected["installed_support_catalog"]
+
+    def known(value):
+        return "неизвестно" if value is None else text(value)
+
+    def exact(value):
+        return ("<p>Неизвестно</p>" if value is None else "<div class=scroll><pre>"
+                + text(json.dumps(value, ensure_ascii=False, indent=2)) + "</pre></div>")
+
+    rows, details = [], []
+    if inventory["members"] is None:
+        members = "<p>Состав поддержек неизвестен; это не пустой список</p>"
+    else:
+        for member in inventory["members"]:
+            rows.append(f"<tr><td>{text(member['alias'])}<br>{known(member['group'])}</td>"
+                        f"<td>{known(member['slot'])}<br>{known(member['path'])}</td>"
+                        f"<td>{known(member['gem_level']['value'])}</td><td>{known(member['category'])}</td>"
+                        f"<td>{text(member['status'])}<br>{known(member['reason'])}<br>{text(member['group_status'])}</td></tr>")
+            effect = member["effects"]
+            if effect is not None:
+                metadata = {field: effect[field] for field in (
+                    "arithmetic_ready", "runtime_verified", "activation", "effective_level", "patch",
+                    "additional_group_identity", "prefix", "catalog_schema",
+                )}
+                details.append(f"<details><summary>{text(member['alias'])}: кандидаты эффектов</summary>"
+                               "<h3>Нативные роллы</h3>" + exact(effect["rolled_lines"])
+                               + "<h3>Каталожные константы</h3>" + exact(effect["constants"])
+                               + "<h3>Пропуски строк и пробелы констант</h3>" + exact(effect["omissions"])
+                               + exact(effect["constant_issues"]) + "<h3>Статусы интерпретации</h3>"
+                               + exact(metadata) + "</details>")
+        members = ("<div class=scroll><table><thead><tr><th>Камень и группа</th><th>Слот и источник</th>"
+                   "<th>Наблюдаемый уровень камня</th><th>Категория</th><th>Статус и причина</th></tr></thead>"
+                   f"<tbody>{''.join(rows)}</tbody></table></div>"
+                   if rows else "<p>В захваченном слое нет записей</p>")
+    counts = inventory["accounting"]
+    flags = "; ".join(field + ": " + json.dumps(inventory[field]) for field in (
+        "arithmetic_ready", "runtime_verified", "identity_verified", "import_complete",
+    ))
+    return ("<section><h2>Эффекты установленных поддержек</h2>"
+            "<p>Активация неизвестна<br>Эффективный уровень неизвестен<br>"
+            "Уровень камня — наблюдаемое поле, а не эффективный уровень<br>Эффекты поддержек не применены к DPS</p>"
+            f"<p>{text(flags)}<br>Patch: {text(inventory['patch'])}<br>"
+            f"Слой клиента: {text(inventory['client_layer'])}; слой сервера: {text(inventory['server_layer'])}</p>"
+            f"<p>Записей: {known(counts['members'])}; Кандидаты эффектов: {known(counts['effect_candidates'])}; "
+            f"Исключено: {known(counts['excluded'])}; Пробелов: {known(counts['gaps'])}</p>"
+            + members + "".join(details)
+            + "<h3>Ограничения доказательств</h3>" + items(inventory["limitations"])
+            + f"<p>SHA-256 исходного снимка: {text(inventory['source']['sha256'])}</p>"
+            "<h3>Объявленное происхождение каталога</h3>"
+            "<p>Хеши относятся к сохранённым локальным байтам и здесь повторно не вычисляются<br>"
+            "network_bytes_verified: false; current_patch_verified: false<br>"
+            "wrapper_sha256 — весь wrapper; member_sha256 — диапазон byte_range</p>"
+            f"<p>Документов каталога: {len(catalog['documents'])}; категорий: {len(catalog['categories'])}<br>"
+            f"Строк каталога: {catalog['records']}; сохранённых записей: {catalog['skills']}; "
+            f"невалидных: {catalog['invalid_records']}; удержанных строк: {catalog['withheld_records']}; "
+            f"без English entry: {catalog['records_without_english']}</p>"
+            "<details><summary>Координаты, области SHA и карты адресов</summary>"
+            + exact({field: catalog[field] for field in ("derivation", "identity_bridges", "mapping_files", "documents", "categories")})
+            + "</details></section>")
+
+
 def staticdetails(record):
     """Show source-bound catalog interpretations separately from applied damage."""
     if "static_combat" not in record:
@@ -394,6 +463,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {resolutiondetails(record)}
 {staticdetails(record)}
 {installeddetails(record)}
+{supportdetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -562,6 +632,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {resolutiondetails(record)}
 {staticdetails(record)}
 {installeddetails(record)}
+{supportdetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

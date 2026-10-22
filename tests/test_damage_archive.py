@@ -11,6 +11,72 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+class SupportEffectBundleTests(unittest.TestCase):
+    """Archive support candidates and declared catalog metadata without changing character stats."""
+
+    def test_effect_candidates_and_catalog_are_preserved_in_record_sqlite_and_hashed_origin(self):
+        from test_supportbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attached(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = {role: json.loads(value) for role, value in connection.execute(
+                    "SELECT role,json FROM documents WHERE role IN ('installed_support_effects','installed_support_catalog')")}
+                self.assertEqual((stored, connection.execute(
+                    "SELECT sha256,stored FROM sources WHERE role='installed_support_effects'").fetchone()),
+                                 ({key: result[key] for key in ("installed_support_effects", "installed_support_catalog")},
+                                  (descriptor["sha256"], 1)))
+
+    def test_failed_support_acquisition_is_a_gap_without_empty_effect_or_catalog_documents(self):
+        from test_supportbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attached(directory, error=True)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual((any(key in result for key in ("installed_support_effects", "installed_support_catalog")),
+                                  connection.execute("SELECT stored FROM sources WHERE role='installed_support_effects'").fetchone()[0],
+                                  any("Installed support effect acquisition failed" in row for row in result["coverage"])),
+                                 (False, 0, True))
+
+    def test_legacy_packages_disclose_unavailable_support_effect_acquisition(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertTrue(any("Installed support effect candidates are unavailable" in row for row in archive(
+                package(root), None, facts(root), root / "out.sqlite")["coverage"]))
+
+    def test_changed_support_artifact_is_refused_before_database_creation(self):
+        from test_supportbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attached(directory)
+            with (directory / "installed-support-effects.json").open("ab") as handle:
+                handle.write(b" ")
+            with self.assertRaises(ValueError):
+                archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertFalse((root / "out.sqlite").exists())
+
+    def test_diagnostic_support_effects_preserve_preexisting_stats_and_benchmark(self):
+        from test_supportbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            before = archive(directory, observations(root), facts(root), root / "before.sqlite")
+            attached(directory)
+            after = archive(directory, observations(root), facts(root), root / "after.sqlite")
+            self.assertEqual((after["stats"], after["benchmark"], after["installed_support_effects"]["arithmetic_ready"],
+                              after["installed_support_catalog"]["network_bytes_verified"]),
+                             (before["stats"], before["benchmark"], False, False))
+
+
 class InstalledBundleTests(unittest.TestCase):
     """Archive observed skill membership without inferring active effects."""
 

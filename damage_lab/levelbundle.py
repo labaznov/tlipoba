@@ -10,8 +10,7 @@ from .supportbundle import _pairs, _float, _constant
 
 
 FILE = "installed-level-candidates.json"
-VERSION = "0.1.2"
-RESOLVER = "0.3.1"
+CONTRACTS = (("0.1.2", "0.3.1"), ("0.2.0", "0.4.0"))
 FORMAT = "tli-installed-level-candidates-canonical-v1"
 MAX_BYTES = 64 * 1024 * 1024
 FLAGS = "arithmeticReady runtimeVerified identityVerified importComplete".split()
@@ -135,7 +134,7 @@ def _bundle(document, installation, canonical):
     result = _select(document, "format version resolverFormat resolverVersion source catalog auxiliary selection requestedIds targets "
                      + " ".join(FLAGS), canonical)
     _require(result["format"] == (FORMAT if canonical else "tli-installed-level-candidates-v1")
-             and result["version"] == VERSION and result["resolver_version"] == RESOLVER
+             and (result["version"], result["resolver_version"]) in CONTRACTS
              and result["resolver_format"] == "tli-effective-level-candidates-v0"
              and all(result[_name(field)] is False for field in FLAGS))
     result["format"] = FORMAT
@@ -169,7 +168,8 @@ def _bundle(document, installation, canonical):
         masters = {row["logical_path"] for row in result["catalog"]["documents"] if row["role"] == "master"}
         for identity in ids:
             target = summarize_target(targets[str(identity)]) if canonical else project_target(targets[str(identity)], source["sha256"])
-            _require(target["source"]["sha256"] == source["sha256"] and target["target"]["skill_id"] == identity)
+            _require(target["version"] == result["resolver_version"]
+                     and target["source"]["sha256"] == source["sha256"] and target["target"]["skill_id"] == identity)
             matches = [member for member in members if member["skill_id"] == identity]
             observation = target["target"]
             _require(observation["catalog"]["path"] is None or observation["catalog"]["path"] in masters)
@@ -211,8 +211,10 @@ def read(package, descriptor, source_sha256, installation, *, max_bytes=MAX_BYTE
     _require(type(max_bytes) is int and 1 <= max_bytes <= MAX_BYTES)
     _hash(source_sha256)
     _select(descriptor, "file version resolverVersion status sha256 sourceSha256 " + " ".join(FLAGS + COUNTS))
-    _require(descriptor["file"] == FILE and descriptor["version"] == VERSION
-             and descriptor["resolverVersion"] == RESOLVER and descriptor["status"] in ("diagnostic", "error"))
+    _require(descriptor["file"] == FILE
+             and type(descriptor["version"]) is str and type(descriptor["resolverVersion"]) is str
+             and (descriptor["version"], descriptor["resolverVersion"]) in CONTRACTS
+             and descriptor["status"] in ("diagnostic", "error"))
     _require(all(descriptor[field] is False for field in FLAGS))
     _hash(descriptor["sha256"])
     code = descriptor.get("error")
@@ -234,7 +236,7 @@ def read(package, descriptor, source_sha256, installation, *, max_bytes=MAX_BYTE
     _preflight(artifact)
     _select(artifact, "format version resolverFormat resolverVersion status source " + " ".join(FLAGS))
     _select(artifact["source"], "file sha256")
-    _require(artifact["version"] == VERSION and artifact["resolverVersion"] == RESOLVER
+    _require(artifact["version"] == descriptor["version"] and artifact["resolverVersion"] == descriptor["resolverVersion"]
              and artifact["resolverFormat"] == "tli-effective-level-candidates-v0"
              and artifact["status"] == descriptor["status"] and artifact["source"]["file"] == "source.json"
              and artifact["source"]["sha256"] == source and all(artifact[field] is False for field in FLAGS))

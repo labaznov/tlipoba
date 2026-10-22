@@ -11,9 +11,9 @@ project(document, source_sha256) -> dict
 summary(canonical) -> dict
 ```
 
-`project` принимает только `tli-effective-level-candidates-v0`, версию `0.3.1`.
+`project` принимает `tli-effective-level-candidates-v0`, версии `0.3.1` и `0.4.0`.
 Результат имеет `format: tli-effective-level-candidates-canonical-v1` и
-`version: 0.3.1`; версия описывает принятый producer, а canonical format — схему
+сохраняет версию producer; canonical format описывает схему
 проекции. `summary` заново проверяет именно эту проекцию. Обе функции возвращают
 отделённое дерево из известных полей и не меняют вход. Синтетическая фабрика
 `tests/test_levelcandidates.py:document()` демонстрирует полный контракт.
@@ -69,6 +69,40 @@ candidates[], domains{}, gaps[{domain,path,reason}], limitations[]
 `null`. Это поведение released producer, несмотря на фразу о nullable eligibility
 в его документации. `gem_level` — наблюдаемый уровень камня, не effective level;
 `skill_item_level` — лишь согласованная статистика counts с `semantics: unknown`.
+
+### Нативные поля конкретного навыка
+
+В `0.4.0` каждый target обязательно содержит `native_level_fields`:
+
+```text
+skills_row{join,path,join_field:"Id"},
+fields{Level{value,type},SkillItemLevel{value,type}},
+level_equals_gem, semantics{Level:"unknown",SkillItemLevel:"unknown"},
+arithmetic_ready:false, effective_level:null
+```
+
+Producer связывает единственный установленный клиентский экземпляр с единственной
+строкой `sections.ServerSource.data.featuresInfo.skills.skills[i]` по точному `Id`.
+Идентификатор экземпляра не экспортируется. Эта привязка отличается от server
+skillLayout: наличие одного слоя не доказывает другой. Consumer проверяет схему,
+путь, типы и согласованность, но не перечитывает строку источника.
+
+Только `exact_instance` допускает путь строки и наблюдаемые поля. Остальные статусы
+(`target_unavailable`, `no_instance`, `ambiguous_instance`, `no_skills_row`,
+`collection_limit`, `section_<status>`) сохраняют оба поля как `unavailable/null`.
+У точно связанной строки отсутствующее/null поле имеет `type: missing`, неверный
+тип — `invalid`; они не заменяются нулём. Integer сохраняется в пределах
+`-10^20 < n < 10^20`, включая ноль и отрицательные значения: это техническая
+граница наблюдения, а не утверждение о допустимом игровом уровне.
+
+`level_equals_gem` пересчитывается только для integer `Level` и известного gem
+level, иначе равен `null`. Совпадение значений не доказывает смысл поля и учёт
+прибавок. Ни одно из двух полей не становится effective level. Старый `0.3.1`
+не получает выдуманных наблюдений; его проекция остаётся прежней.
+
+Bundle принимает только проверенные пары `(0.1.2, 0.3.1)` и `(0.2.0, 0.4.0)`
+для `(bundle version, resolver version)`. Версия каждого target должна совпадать
+с resolver version всего bundle; descriptor и файл также должны согласоваться.
 
 ## Границы и безопасность
 

@@ -82,6 +82,20 @@ def diagnostic(directory):
     return artifact, descriptor, source, installation
 
 
+def native(directory):
+    """Persist the new pinned pair with a fictional native-level row."""
+    from test_levelcandidates import native as observation
+
+    artifact, descriptor, source, installation = diagnostic(directory)
+    artifact.update(version="0.2.0", resolverVersion="0.4.0")
+    descriptor.update(version="0.2.0", resolverVersion="0.4.0")
+    ledger = artifact["targets"]["91437"]
+    ledger["version"] = "0.4.0"
+    ledger["target"]["nativeLevelFields"] = observation()["target"]["nativeLevelFields"]
+    persisted(directory, artifact, descriptor)
+    return artifact, descriptor, source, installation
+
+
 class LevelBundleTests(unittest.TestCase):
     """Exact bytes and observed installations constrain diagnostic level evidence."""
 
@@ -107,6 +121,64 @@ class LevelBundleTests(unittest.TestCase):
             self.assertEqual((result["version"], result["targets"]["91437"]["effective_level"],
                               result["targets"]["91437"]["candidates"][0]["amount"]["exact"],
                               result["accounting"]["candidates"], origin[-1]), ("0.1.2", None, "2.70", 6, 1))
+
+    def test_the_new_pinned_pair_preserves_native_observations_through_revalidation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            _, descriptor, source, installation = native(directory)
+            result, _ = read(directory, descriptor, source, installation)
+            self.assertEqual(summary(result, installation)["targets"]["91437"]["target"]["native_level_fields"]["fields"],
+                             {"Level": {"value": 17, "type": "int"}, "SkillItemLevel": {"value": 63, "type": "int"}})
+
+    def test_a_new_bundle_cannot_contain_a_legacy_resolver_target(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            artifact, descriptor, source, installation = native(directory)
+            artifact["targets"]["91437"]["version"] = "0.3.1"
+            artifact["targets"]["91437"]["target"].pop("nativeLevelFields")
+            persisted(directory, artifact, descriptor)
+            with self.assertRaises(ValueError):
+                read(directory, descriptor, source, installation)
+
+    def test_legacy_bundles_cannot_smuggle_new_resolver_targets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            artifact, descriptor, source, installation = native(directory)
+            artifact.update(version="0.1.2", resolverVersion="0.3.1")
+            descriptor.update(version="0.1.2", resolverVersion="0.3.1")
+            persisted(directory, artifact, descriptor)
+            with self.assertRaises(ValueError):
+                read(directory, descriptor, source, installation)
+
+    def test_mixed_bundle_and_resolver_versions_are_unreviewed(self):
+        for bundle, resolver in (("0.1.2", "0.4.0"), ("0.2.0", "0.3.1")):
+            with self.subTest(bundle=bundle, resolver=resolver), tempfile.TemporaryDirectory() as folder:
+                directory = Path(folder)
+                artifact, descriptor, source, installation = native(directory)
+                artifact.update(version=bundle, resolverVersion=resolver)
+                descriptor.update(version=bundle, resolverVersion=resolver)
+                persisted(directory, artifact, descriptor)
+                with self.assertRaises(ValueError):
+                    read(directory, descriptor, source, installation)
+
+    def test_artifact_and_descriptor_must_agree_on_the_reviewed_pair(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            artifact, descriptor, source, installation = native(directory)
+            artifact.update(version="0.1.2", resolverVersion="0.3.1")
+            persisted(directory, artifact, descriptor)
+            with self.assertRaises(ValueError):
+                read(directory, descriptor, source, installation)
+
+    def test_canonical_version_containers_fail_with_a_controlled_contract_error(self):
+        for field in ("version", "resolver_version"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as folder:
+                directory = Path(folder)
+                _, descriptor, source, installation = native(directory)
+                result, _ = read(directory, descriptor, source, installation)
+                result[field] = ["0.4.0"]
+                with self.assertRaises(ValueError):
+                    summary(result, installation)
 
     def test_summary_is_detached_and_strips_unknown_properties_at_every_known_boundary(self):
         with tempfile.TemporaryDirectory() as folder:

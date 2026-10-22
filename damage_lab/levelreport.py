@@ -57,13 +57,15 @@ def _target(ledger):
                  _known(value["bound_level_candidates"]), _text(value["candidate_coverage"]))
                for name, value in ledger["domains"].items()]
     gaps = [(_text(row["domain"]), _known(row["path"]), _text(row["reason"])) for row in ledger["gaps"]]
+    native = ("<details><summary>Нативные поля уровней: семантика неизвестна</summary>"
+              + _exact(target["native_level_fields"]) + "</details>" if "native_level_fields" in target else "")
     return ("<article><h3>Цель " + _text(target["skill_id"]) + "</h3>" + ambiguity
             + _table(rows, ("Наблюдение", "Значение"))
             + "<p>Вычисленная привязка таланта не является native ID. Eligibility остаётся unverified; "
             "совпадение слов с tags не доказывает применимость. Amount неизвестного rank не заменяется нулём.</p>"
             + "<details><summary>Каталог и SkillItemLevel: семантика неизвестна</summary>"
             + _exact({"catalog": target["catalog"], "skill_item_level": target["skill_item_level"]}) + "</details>"
-            + _candidates(ledger) + "<h4>Покрытие доменов</h4>"
+            + native + _candidates(ledger) + "<h4>Покрытие доменов</h4>"
             + _table(domains, ("Домен", "Статус", "Наблюдается", "Привязано", "Кандидатов", "Coverage"))
             + "<details><summary>Подробные счётчики и ограничения</summary>" + _exact(ledger["domains"])
             + _exact(ledger["limitations"]) + "</details><h4>Gaps цели</h4>"

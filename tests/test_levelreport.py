@@ -92,6 +92,20 @@ class LevelReportTests(unittest.TestCase):
                 "Effective level: неизвестно", "runtime_verified: false", "identity_verified: false",
             )) and summary(value, installation) == value)
 
+    def test_native_fields_render_as_observations_with_unknown_semantics(self):
+        from damage_lab.levelbundle import read
+        from test_levelbundle import native
+
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            _, descriptor, source, installation = native(directory)
+            value, _ = read(directory, descriptor, source, installation)
+            page = section(value, installation)
+            self.assertTrue(all(text in page for text in (
+                "Нативные поля уровней", "sections.ServerSource.data.featuresInfo.skills.skills[9]",
+                "SkillItemLevel", "63", "level_equals_gem", "unknown", "Effective level: неизвестно",
+            )))
+
     def test_real_validation_refuses_unknown_payloads_instead_of_dumping_them(self):
         from damage_lab.levelbundle import read
         from test_levelbundle import diagnostic

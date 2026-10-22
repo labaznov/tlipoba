@@ -7,7 +7,7 @@ from decimal import Decimal
 
 FORMAT = "tli-effective-level-candidates-v0"
 CANONICAL_FORMAT = "tli-effective-level-candidates-canonical-v1"
-VERSION = "0.3.1"
+VERSIONS = ("0.3.1", "0.4.0")
 LIMITATIONS = (
     "source sha256 binds the caller-supplied document only; no bytes are read or verified",
     "catalog members are taken as supplied; no catalog bytes, currency or patch are verified",
@@ -18,10 +18,12 @@ LIMITATIONS = (
 KEYS = dict(zip(
     "arithmetic_ready runtime_verified identity_verified import_complete effective_level uniquely_derivable skill_id "
     "gem_level skill_item_level scope_tokens all_tokens_in_skill_tags skill_category native_id tier_id tier_bounds "
-    "node_type max_points server_point bound_level_candidates candidate_coverage placement_verified catalog_members catalog_level_mentions".split(),
+    "node_type max_points server_point bound_level_candidates candidate_coverage placement_verified catalog_members catalog_level_mentions "
+    "native_level_fields skills_row join_field level_equals_gem".split(),
     "arithmeticReady runtimeVerified identityVerified importComplete effectiveLevel uniquelyDerivable skillId "
     "gemLevel skillItemLevel scopeTokens allTokensInSkillTags skillCategory nativeId tierId tierBounds "
-    "nodeType maxPoints serverPoint boundLevelCandidates candidateCoverage placementVerified catalogMembers catalogLevelMentions".split()))
+    "nodeType maxPoints serverPoint boundLevelCandidates candidateCoverage placementVerified catalogMembers catalogLevelMentions "
+    "nativeLevelFields skillsRow joinField levelEqualsGem".split()))
 DOMAINS = dict(zip(
     "gear talents divinity_slates pactspirits ethereal_prism supports hero_traits hero_memories sp_talent_tree "
     "other_wear_items jewel_items talent_jewelry_data_list hero_character_items".split(),
@@ -127,7 +129,41 @@ def _lexeme(value):
     return _pattern(value, r"-?[0-9]{1,12}(?:\.[0-9]{1,9})?")
 
 
-def _target(value, canonical):
+def _native(value, target, canonical):
+    result = _object(value, "skills_row fields level_equals_gem semantics arithmetic_ready effective_level", canonical)
+    row = _object(result["skills_row"], "join path join_field", canonical)
+    _enum(row["join"], ("exact_instance", "target_unavailable", "no_instance", "ambiguous_instance",
+                        "no_skills_row", "collection_limit")
+          + tuple("section_" + status for status in STATUSES if status != "captured"))
+    _fixed(row["join_field"], "Id")
+    _require((row["join"] == "target_unavailable") == (target["status"] != "observed"))
+    exact = row["join"] == "exact_instance"
+    if exact:
+        _path(row["path"], rf"sections\.ServerSource\.data\.featuresInfo\.skills\.skills\[{INDEX}\]")
+    else:
+        _fixed(row["path"], None)
+    fields = _object(result["fields"], "Level SkillItemLevel", canonical)
+    for name, field in fields.items():
+        field = _object(field, "value type", canonical)
+        _enum(field["type"], ("int", "missing", "invalid") if exact else ("unavailable",))
+        if field["type"] == "int":
+            _integer(field["value"], -10 ** 20 + 1, 10 ** 20)
+        else:
+            _fixed(field["value"], None)
+        fields[name] = field
+    gem = target["gem_level"]
+    equality = (fields["Level"]["value"] == gem["value"]
+                if exact and fields["Level"]["type"] == "int" and gem["status"] == "ok" else None)
+    _fixed(result["level_equals_gem"], equality)
+    semantics = _object(result["semantics"], "Level SkillItemLevel", canonical)
+    _fixed(semantics, {"Level": "unknown", "SkillItemLevel": "unknown"})
+    _fixed(result["arithmetic_ready"], False)
+    _fixed(result["effective_level"], None)
+    result.update(skills_row=row, fields=fields, semantics=semantics)
+    return result
+
+
+def _target(value, canonical, version):
     result = _object(value, "skill_id status path gem_level catalog skill_item_level", canonical)
     _integer(result["skill_id"], 1, 10 ** 20)
     _enum(result["status"], ["observed", "not_installed", "ambiguous_installation", "collection_limit"]
@@ -165,6 +201,9 @@ def _target(value, canonical):
              or all(counts[key] is not None for key in ("total", "equal", "different", "missing", "invalid"))
              and counts["total"] == sum(counts[key] for key in ("equal", "different", "missing", "invalid")))
     result["skill_item_level"] = counts
+    if version == "0.4.0":
+        native = _object(value, "native_level_fields", canonical)["native_level_fields"]
+        result["native_level_fields"] = _native(native, result, canonical)
     return result
 
 
@@ -384,7 +423,7 @@ def _project(document, source_sha256, canonical):
     _pattern(source_sha256, r"[0-9a-f]{64}")
     result = _object(document, "format version source arithmetic_ready runtime_verified identity_verified import_complete effective_level uniquely_derivable target candidates domains gaps limitations", canonical)
     _fixed(result["format"], CANONICAL_FORMAT if canonical else FORMAT)
-    _fixed(result["version"], VERSION)
+    _enum(result["version"], VERSIONS)
     result["format"] = CANONICAL_FORMAT
     result["source"] = _object(result["source"], "sha256 binding", canonical)
     _fixed(result["source"]["sha256"], source_sha256)
@@ -394,7 +433,7 @@ def _project(document, source_sha256, canonical):
     _fixed(result["effective_level"], None)
     _fixed(result["limitations"], list(LIMITATIONS))
     result["limitations"] = list(LIMITATIONS)
-    result["target"] = _target(result["target"], canonical)
+    result["target"] = _target(result["target"], canonical, result["version"])
     result["candidates"] = [_candidate(row, result["target"], canonical) for row in _list(result["candidates"])]
     result["gaps"] = [_gap(row, canonical) for row in _list(result["gaps"])]
     domains = _object(result["domains"], " ".join(DOMAINS), True) if canonical else _object(result["domains"], " ".join(DOMAINS.values()), True)

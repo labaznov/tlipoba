@@ -77,6 +77,20 @@ def document():
                             "no effective level is derived: candidates are never summed"]}
 
 
+def native():
+    """Describe fictional native fields without assigning their level semantics."""
+    value = document()
+    value["version"] = "0.4.0"
+    value["target"]["nativeLevelFields"] = {
+        "skillsRow": {"join": "exact_instance", "path": "sections.ServerSource.data.featuresInfo.skills.skills[9]",
+                      "joinField": "Id"},
+        "fields": {"Level": {"value": 17, "type": "int"}, "SkillItemLevel": {"value": 63, "type": "int"}},
+        "levelEqualsGem": True, "semantics": {"Level": "unknown", "SkillItemLevel": "unknown"},
+        "arithmeticReady": False, "effectiveLevel": None,
+    }
+    return value
+
+
 class LevelCandidatesTests(unittest.TestCase):
     """Public projection keeps candidates diagnostic and source-bound."""
 
@@ -84,6 +98,115 @@ class LevelCandidatesTests(unittest.TestCase):
         result = project(document(), "a" * 64)
         self.assertEqual((result["format"], result["effective_level"], result["candidates"][0]["amount"]["exact"]),
                          (CANONICAL_FORMAT, None, "2.70"))
+
+    def test_native_levels_keep_the_exact_row_without_deriving_an_effective_level(self):
+        result = project(native(), "a" * 64)
+        fields = result["target"]["native_level_fields"]
+        self.assertEqual((result["version"], fields["skills_row"], fields["fields"], fields["level_equals_gem"],
+                          fields["semantics"], fields["arithmetic_ready"], fields["effective_level"], result["effective_level"]),
+                         ("0.4.0", {"join": "exact_instance", "path": "sections.ServerSource.data.featuresInfo.skills.skills[9]",
+                                    "join_field": "Id"},
+                          {"Level": {"value": 17, "type": "int"}, "SkillItemLevel": {"value": 63, "type": "int"}},
+                          True, {"Level": "unknown", "SkillItemLevel": "unknown"}, False, None, None))
+
+    def test_native_fields_survive_detached_canonical_revalidation(self):
+        result = project(native(), "a" * 64)
+        expected = copy.deepcopy(result)
+        result["target"]["native_level_fields"]["fields"]["Level"]["private"] = "discard-me"
+        self.assertEqual(summary(result), expected)
+
+    def test_legacy_ledgers_do_not_invent_native_observations(self):
+        self.assertNotIn("native_level_fields", project(document(), "a" * 64)["target"])
+
+    def test_new_ledgers_require_the_native_observation_contract(self):
+        value = document()
+        value["version"] = "0.4.0"
+        with self.assertRaises(ValueError):
+            project(value, "a" * 64)
+
+    def test_native_values_require_an_exact_row_join(self):
+        for status in ("no_instance", "ambiguous_instance", "no_skills_row", "collection_limit", "section_invalid"):
+            with self.subTest(status=status):
+                value = native()
+                value["target"]["nativeLevelFields"]["skillsRow"].update(join=status, path=None)
+                with self.assertRaises(ValueError):
+                    project(value, "a" * 64)
+
+    def test_unavailable_native_fields_remain_unknown(self):
+        for status in ("no_instance", "ambiguous_instance", "no_skills_row", "collection_limit", "section_invalid",
+                       "section_not_decoded", "section_not_available", "section_not_captured", "section_absent",
+                       "section_unrecognized"):
+            with self.subTest(status=status):
+                value = native()
+                fields = value["target"]["nativeLevelFields"]
+                fields["skillsRow"].update(join=status, path=None)
+                fields["fields"] = {name: {"value": None, "type": "unavailable"} for name in ("Level", "SkillItemLevel")}
+                fields["levelEqualsGem"] = None
+                self.assertEqual(project(value, "a" * 64)["target"]["native_level_fields"]["skills_row"]["join"], status)
+
+    def test_unknown_fields_cannot_be_substituted_for_native_integers(self):
+        for row in ({"value": True, "type": "int"}, {"value": "17", "type": "int"},
+                    {"value": 17, "type": "invalid"}, {"value": None, "type": "int"},
+                    {"value": 10 ** 20, "type": "int"}, {"value": None, "type": "unavailable"}):
+            with self.subTest(row=row):
+                value = native()
+                value["target"]["nativeLevelFields"]["fields"]["SkillItemLevel"] = row
+                with self.assertRaises(ValueError):
+                    project(value, "a" * 64)
+
+    def test_native_integer_bounds_do_not_assert_game_level_ranges(self):
+        for number in (0, -13):
+            with self.subTest(number=number):
+                value = native()
+                value["target"]["nativeLevelFields"]["fields"]["SkillItemLevel"]["value"] = number
+                self.assertEqual(project(value, "a" * 64)["target"]["native_level_fields"]["fields"]["SkillItemLevel"]["value"], number)
+
+    def test_missing_or_invalid_native_levels_cannot_claim_gem_equality(self):
+        for status in ("missing", "invalid"):
+            with self.subTest(status=status):
+                value = native()
+                value["target"]["nativeLevelFields"]["fields"]["Level"] = {"value": None, "type": status}
+                value["target"]["nativeLevelFields"]["levelEqualsGem"] = None
+                self.assertIsNone(project(value, "a" * 64)["target"]["native_level_fields"]["level_equals_gem"])
+
+    def test_native_level_difference_remains_a_difference_without_a_formula(self):
+        value = native()
+        value["target"]["nativeLevelFields"]["fields"]["Level"]["value"] = 23
+        value["target"]["nativeLevelFields"]["levelEqualsGem"] = False
+        self.assertFalse(project(value, "a" * 64)["target"]["native_level_fields"]["level_equals_gem"])
+
+    def test_an_unknown_gem_level_cannot_be_compared_to_a_native_integer(self):
+        value = native()
+        value["target"]["gemLevel"].update(value=None, status="invalid_level")
+        value["target"]["nativeLevelFields"]["levelEqualsGem"] = None
+        self.assertIsNone(project(value, "a" * 64)["target"]["native_level_fields"]["level_equals_gem"])
+
+    def test_native_row_and_equality_claims_are_recomputed(self):
+        for key, change in (("skillsRow", {"join": "exact_instance", "path": "sections.SkillLayout.data[0][0]", "joinField": "Id"}),
+                            ("skillsRow", {"join": "exact_instance", "path": "sections.ServerSource.data.featuresInfo.skills.skills[4096]", "joinField": "Id"}),
+                            ("skillsRow", {"join": "exact_instance", "path": "sections.ServerSource.data.featuresInfo.skills.skills[9]", "joinField": "BaseId"}),
+                            ("levelEqualsGem", False), ("levelEqualsGem", 1), ("arithmeticReady", True),
+                            ("effectiveLevel", 17), ("semantics", {"Level": "effective_level", "SkillItemLevel": "unknown"})):
+            with self.subTest(key=key, change=change):
+                value = native()
+                value["target"]["nativeLevelFields"][key] = change
+                with self.assertRaises(ValueError):
+                    project(value, "a" * 64)
+
+    def test_unobserved_targets_cannot_claim_a_native_row(self):
+        value = native()
+        value["target"].update(status="ambiguous_installation", path=None, gemLevel=None)
+        with self.assertRaises(ValueError):
+            project(value, "a" * 64)
+
+    def test_unobserved_targets_keep_an_explicit_unavailable_witness(self):
+        value = native()
+        value["target"].update(status="ambiguous_installation", path=None, gemLevel=None)
+        fields = value["target"]["nativeLevelFields"]
+        fields["skillsRow"].update(join="target_unavailable", path=None)
+        fields["fields"] = {name: {"value": None, "type": "unavailable"} for name in ("Level", "SkillItemLevel")}
+        fields["levelEqualsGem"] = None
+        self.assertIsNone(project(value, "a" * 64)["target"]["native_level_fields"]["effective_level"])
 
     def test_opaque_status_is_exclusive_to_the_special_tree(self):
         value = document()

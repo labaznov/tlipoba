@@ -37,7 +37,11 @@ def _common(baseline, target):
         raise ValueError("Combat upgrade variants must share the complete target and uptime")
     for section, field in (("context", "skill_id"), ("context", "catalog_sha256"),
                            ("damage", "roll_model"), ("casting", "frequency")):
-        if baseline["spell"][section][field] != target["spell"][section][field]:
+        # Shared unknown groups block deltas without asserting a roll or tick policy
+        if baseline["spell"][section] is None and target["spell"][section] is None:
+            continue
+        if (baseline["spell"][section] is None or target["spell"][section] is None
+                or baseline["spell"][section][field] != target["spell"][section][field]):
             raise ValueError("Combat upgrade variants must share skill, catalog, roll model and tick hypothesis")
 
 

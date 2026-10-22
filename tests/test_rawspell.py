@@ -42,6 +42,91 @@ def subnormal():
 class RawSpellTests(unittest.TestCase):
     """Check a raw spell expectation without using a character panel."""
 
+    def test_each_explicitly_unavailable_group_blocks_even_with_confirmed_context_gates(self):
+        for name in ("damage", "critical", "casting"):
+            with self.subTest(name=name):
+                document = scenario()
+                document[name] = None
+                result = evaluate(document)
+                self.assertEqual((result["status"], result["pre_defence_dps"], result["trace"], result["gaps"],
+                                  result["scenario"][name]), ("blocked", None, [], [name + ": unavailable"], None))
+
+    def test_all_unavailable_groups_preserve_unknown_context_without_creating_zero_inputs(self):
+        document = scenario()
+        document.update(damage=None, critical=None, casting=None)
+        document["context"]["effective_level"] = None
+        document["context"]["gates"]["level"] = {"status": "unknown", "evidence": []}
+        document["missing"] = ["incomplete source pools"]
+        result = evaluate(document)
+        self.assertEqual((result["gaps"], result["scenario"], set(result)),
+            (["level: unknown", "incomplete source pools", "damage: unavailable", "critical: unavailable", "casting: unavailable"],
+             document, {"format", "status", "pre_defence_dps", "gaps", "scenario", "trace", "assumptions"}))
+
+    def test_nonnull_sibling_groups_are_fully_validated_before_an_unavailable_group_can_return(self):
+        for absent, present, field, invalid in (("damage", "critical", "chance", True),
+                                               ("critical", "casting", "interval", 0),
+                                               ("casting", "damage", "effectiveness", float("nan"))):
+            with self.subTest(absent=absent, present=present):
+                document = scenario()
+                document[absent] = None
+                document[present][field] = invalid
+                with self.assertRaises(ValueError):
+                    evaluate(document)
+
+    def test_empty_or_invalid_groups_are_not_treated_as_explicitly_unavailable(self):
+        for name in ("damage", "critical", "casting"):
+            for invalid in ({}, [], True, False, "unknown", 0):
+                with self.subTest(name=name, invalid=invalid):
+                    document = scenario()
+                    document[name] = invalid
+                    document["missing"] = ["blocked by another source gap"]
+                    with self.assertRaises(ValueError):
+                        evaluate(document)
+
+    def test_unavailable_groups_do_not_make_context_missing_or_notes_validation_optional(self):
+        for change in ("hash", "level", "gate", "notes", "missing"):
+            with self.subTest(change=change):
+                document = scenario()
+                document.update(damage=None, critical=None, casting=None)
+                if change == "hash":
+                    document["context"]["source_sha256"] = "PRIVATE-RAW-CANARY"
+                elif change == "level":
+                    document["context"]["effective_level"] = None
+                elif change == "gate":
+                    document["context"]["gates"]["version"]["evidence"] = []
+                else:
+                    document[change] = None
+                with self.assertRaises(ValueError):
+                    evaluate(document)
+
+    def test_explicit_unknown_does_not_supply_an_absent_group_field(self):
+        for name in ("damage", "critical", "casting"):
+            with self.subTest(name=name):
+                document = scenario()
+                document.update(damage=None, critical=None, casting=None)
+                del document[name]
+                with self.assertRaises(ValueError):
+                    evaluate(document)
+
+    def test_unavailable_groups_do_not_hide_invalid_modifier_rows_in_a_supplied_group(self):
+        for name, scope in (("damage", "all"), ("casting", None)):
+            with self.subTest(name=name):
+                document = scenario()
+                document["critical"] = None
+                document[name]["more"] = [modifier("duplicate", "same", .2, scope), modifier("duplicate", "same", .3, scope)]
+                with self.assertRaises(ValueError):
+                    evaluate(document)
+
+    def test_blocked_group_scenarios_remain_detached_without_mutating_supplied_siblings(self):
+        document = scenario()
+        document["damage"] = None
+        original = copy.deepcopy(document)
+        result = evaluate(document)
+        result["scenario"]["casting"]["more"].append(modifier("later", "later", .2))
+        result["scenario"]["notes"].append("changed")
+        result["gaps"].append("changed")
+        self.assertEqual((document, result["scenario"]["damage"]), (original, None))
+
     def test_an_unresolved_level_can_remain_null_while_numeric_damage_is_blocked(self):
         for status in ("unknown", "conflict"):
             with self.subTest(status=status):

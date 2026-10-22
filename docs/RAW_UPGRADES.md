@@ -21,6 +21,13 @@
 
 У всех вариантов обязаны совпадать `context.skill_id`, `context.catalog_sha256`, `damage.roll_model` и `casting.frequency`. Источник, effective level, база и прочие поддержанные параметры могут изменяться: каждый сценарий должен иметь собственные подтверждённые gates. Изменение числа не подтверждает gate автоматически; ссылки evidence остаются утверждениями вызывающего адаптера. Версия, полнота и активация эффектов требуют реального нормализатора.
 
+Явные неизвестные группы поддерживаются по контракту rawspell. Общие
+`damage: null` или `casting: null` допустимы только с обеих сторон: сравнение
+сохраняет blocked и не назначает roll/tick policy. Неизвестная группа только
+с одной стороны вызывает контролируемый `ValueError`, поскольку общая policy
+не установлена. Неизвестный `critical` также блокирует дельту и рейтинг;
+известные skill/catalog checks продолжают действовать.
+
 ## Результат и блокировки
 
 Отчёт `tli-raw-upgrade-report-v1` сохраняет detached `scenario`, исходный raw-result в `baseline`, raw-result каждого кандидата, `currency`, `price_source: caller` и `quantity_scope: pre_defence_single_caster`. Общий `status` равен статусу baseline: blocked либо conditional; условный отчёт может содержать заблокированные варианты. Общие `gaps` относятся к baseline, у каждого кандидата отдельно сохраняется объединение baseline/candidate gaps.

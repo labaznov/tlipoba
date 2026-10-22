@@ -23,6 +23,34 @@ def candidate(identity, target, cost):
 class RawUpgradesTests(unittest.TestCase):
     """Compare complete source-hit replacements without reusing a panel aggregate."""
 
+    def test_unavailable_spell_groups_block_comparison_without_hiding_supplied_candidates(self):
+        for group in ("damage", "critical", "casting"):
+            for side in ("baseline", "candidate", "both"):
+                with self.subTest(group=group, side=side):
+                    document = scenario()
+                    document["candidates"] = [candidate("replacement", copy.deepcopy(document["baseline"]), 13)]
+                    if side in ("baseline", "both"):
+                        document["baseline"][group] = None
+                    if side in ("candidate", "both"):
+                        document["candidates"][0]["scenario"][group] = None
+                    if group in ("damage", "casting") and side != "both":
+                        with self.assertRaisesRegex(ValueError, "must share skill"):
+                            evaluate(document)
+                        continue
+                    result = evaluate(document)
+                    row = result["candidates"][0]
+                    self.assertEqual((row["delta"], row["relative"], row["per_cost"], row["status"],
+                                      row["eligible_for_ranking"], result["ranking"], group + ": unavailable" in row["gaps"]),
+                                     (None, None, None, "blocked", False, [], True))
+
+    def test_unavailable_damage_does_not_allow_a_different_known_skill(self):
+        document = scenario()
+        document["baseline"]["damage"] = None
+        document["candidates"] = [candidate("replacement", spell(), 13)]
+        document["candidates"][0]["scenario"]["context"]["skill_id"] = "other-synthetic-spell"
+        with self.assertRaisesRegex(ValueError, "must share skill"):
+            evaluate(document)
+
     def test_a_flat_replacement_recomputes_the_full_hit_instead_of_adding_both_items(self):
         document = scenario()
         target = copy.deepcopy(document["baseline"])

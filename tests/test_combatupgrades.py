@@ -37,6 +37,32 @@ def unit(amount):
 class CombatUpgradesTests(unittest.TestCase):
     """Compare complete conditional combat replacements without duplicating owned spell or target stages."""
 
+    def test_unavailable_spell_groups_cannot_produce_combat_deltas_or_price_rankings(self):
+        for group in ("damage", "critical", "casting"):
+            for side in ("baseline", "candidate", "both"):
+                with self.subTest(group=group, side=side):
+                    document = scenario()
+                    document["candidates"] = document["candidates"][:1]
+                    if side in ("baseline", "both"):
+                        document["baseline"]["spell"][group] = None
+                    if side in ("candidate", "both"):
+                        document["candidates"][0]["scenario"]["spell"][group] = None
+                    if group in ("damage", "casting") and side != "both":
+                        with self.assertRaisesRegex(ValueError, "must share skill"):
+                            evaluate(document)
+                        continue
+                    row = evaluate(document)["candidates"][0]
+                    self.assertEqual((row["delta"], row["relative"], row["per_cost"], row["status"],
+                                      row["eligible_for_cost_ranking"], "spell: " + group + ": unavailable" in row["gaps"]),
+                                     (None, None, None, "blocked", False, True))
+
+    def test_unavailable_casting_does_not_allow_different_known_target_conditions(self):
+        document = scenario()
+        document["baseline"]["spell"]["casting"] = None
+        document["candidates"][0]["scenario"]["target"]["cold_resistance"] = .37
+        with self.assertRaisesRegex(ValueError, "complete target and uptime"):
+            evaluate(document)
+
     def test_hit_and_topology_replacements_match_independent_full_combat_oracles(self):
         result = evaluate(scenario())
         self.assertEqual((round(result["baseline"]["dps"], 6),

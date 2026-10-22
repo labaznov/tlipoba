@@ -35,7 +35,10 @@ def _finite(value, label):
 def _common(baseline, target):
     for section, field in (("context", "skill_id"), ("context", "catalog_sha256"),
                            ("damage", "roll_model"), ("casting", "frequency")):
-        if baseline[section][field] != target[section][field]:
+        # Shared unknown groups block deltas without asserting a roll or tick policy
+        if baseline[section] is None and target[section] is None:
+            continue
+        if baseline[section] is None or target[section] is None or baseline[section][field] != target[section][field]:
             raise ValueError("Raw upgrade variants must share skill, catalog, roll model and tick hypothesis")
 
 

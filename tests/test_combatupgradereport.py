@@ -22,6 +22,17 @@ class Surface(HTMLParser):
 class CombatUpgradeReportTests(unittest.TestCase):
     """Present complete conditional combat comparisons without introducing damage arithmetic."""
 
+    def test_unknown_spell_policies_are_visible_without_zero_or_empty_policy_defaults(self):
+        document = scenario()
+        document["baseline"]["spell"].update(damage=None, critical=None, casting=None)
+        for item in document["candidates"]:
+            item["scenario"]["spell"].update(damage=None, critical=None, casting=None)
+        page = render(evaluate(document))
+        self.assertTrue("Модель броска</td><td>Неизвестна" in page
+                        and "Tick-гипотеза</td><td>Неизвестна" in page
+                        and "damage: unavailable" in page and "casting: unavailable" in page
+                        and "Нет допущенных вариантов" in page)
+
     def test_full_combat_comparison_shows_the_independent_delta_and_caller_price(self):
         document = scenario()
         document["baseline"] = unit(173)

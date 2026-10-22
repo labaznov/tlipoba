@@ -20,9 +20,9 @@ def _conditions(report):
     target = scenario["target"]
     rows = [("Навык", text(spell["context"]["skill_id"])),
             ("SHA каталога", text(spell["context"]["catalog_sha256"])),
-            ("Модель броска", text(spell["damage"]["roll_model"])),
-            ("Tick-гипотеза", "Не задана" if spell["casting"]["frequency"] is None
-             else quantity(spell["casting"]["frequency"], "Hz") + " Hz"),
+            ("Модель броска", "Неизвестна" if spell["damage"] is None else text(spell["damage"]["roll_model"])),
+            ("Tick-гипотеза", "Неизвестна" if spell["casting"] is None else
+             "Не задана" if spell["casting"]["frequency"] is None else quantity(spell["casting"]["frequency"], "Hz") + " Hz"),
             ("Uptime", quantity(scenario["uptime"], "fraction"))]
     rows.extend((label, quantity(target[key], unit)) for key, label, unit in (
         ("cold_resistance", "Сопротивление Cold", "fraction"),

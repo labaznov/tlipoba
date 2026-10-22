@@ -84,11 +84,46 @@ def _context(value):
     return gaps
 
 
+def _damage(value):
+    _object(value, "base physical cold effectiveness increased more roll_model", "Damage")
+    for field in ("base", "physical", "cold"):
+        _range(value[field])
+    _number(value["effectiveness"], 0, 1e6, "Added effectiveness")
+    _object(value["increased"], "all physical cold", "Increased damage")
+    for number in value["increased"].values():
+        _number(number, -1, 1e6, "Increased damage")
+    if value["roll_model"] != "midpoint":
+        raise ValueError("Only the explicit midpoint damage roll model is supported")
+    _rows(value["more"], True)
+
+
+def _critical(value):
+    _object(value, "chance multiplier lucky more", "Critical expectation")
+    _number(value["chance"], 0, 1, "Critical chance")
+    _number(value["multiplier"], 0, 100, "Critical multiplier")
+    _number(value["more"], -1, 100, "Critical-only more")
+    if type(value["lucky"]) is not bool:
+        raise ValueError("Lucky critical chance must be a boolean")
+
+
+def _casting(value):
+    _object(value, "interval increased more frequency", "Casting")
+    _number(value["interval"], 0, 1e6, "Base cast interval")
+    if value["interval"] == 0:
+        raise ValueError("Base cast interval must be positive")
+    _number(value["increased"], -1, 1e6, "Increased cast speed")
+    _rows(value["more"], False)
+    if value["frequency"] is not None and (type(value["frequency"]) is not int or value["frequency"] != 30):
+        raise ValueError("Tick frequency must be 30 or None")
+
+
 def evaluate(document):
     """Return a conditional raw expectation or a blocked result with explicit evidence gaps.
 
     Gate confirmations are assertions of the caller, not a game/API verification.
     A null effective level is retained only behind an unknown or conflicting level gate.
+    Entire null damage, critical or casting groups remain unavailable and block arithmetic.
+    Every supplied non-null group is fully validated before returning a blocked result.
     Base damage must be Physical and conversion must be ordinary complete conversion
     to Cold; native added Cold retains its separate modifier path.
     """
@@ -97,30 +132,12 @@ def evaluate(document):
         raise ValueError("Unsupported raw spell format")
     gaps = _context(document["context"]) + _texts(document["missing"], "Missing effects")
     _texts(document["notes"], "Scenario notes")
-    damage = _object(document["damage"], "base physical cold effectiveness increased more roll_model", "Damage")
-    for field in ("base", "physical", "cold"):
-        _range(damage[field])
-    _number(damage["effectiveness"], 0, 1e6, "Added effectiveness")
-    _object(damage["increased"], "all physical cold", "Increased damage")
-    for value in damage["increased"].values():
-        _number(value, -1, 1e6, "Increased damage")
-    if damage["roll_model"] != "midpoint":
-        raise ValueError("Only the explicit midpoint damage roll model is supported")
-    _rows(damage["more"], True)
-    crit = _object(document["critical"], "chance multiplier lucky more", "Critical expectation")
-    _number(crit["chance"], 0, 1, "Critical chance")
-    _number(crit["multiplier"], 0, 100, "Critical multiplier")
-    _number(crit["more"], -1, 100, "Critical-only more")
-    if type(crit["lucky"]) is not bool:
-        raise ValueError("Lucky critical chance must be a boolean")
-    casting = _object(document["casting"], "interval increased more frequency", "Casting")
-    _number(casting["interval"], 0, 1e6, "Base cast interval")
-    if casting["interval"] == 0:
-        raise ValueError("Base cast interval must be positive")
-    _number(casting["increased"], -1, 1e6, "Increased cast speed")
-    _rows(casting["more"], False)
-    if casting["frequency"] is not None and (type(casting["frequency"]) is not int or casting["frequency"] != 30):
-        raise ValueError("Tick frequency must be 30 or None")
+    for name, validator in (("damage", _damage), ("critical", _critical), ("casting", _casting)):
+        if document[name] is None:
+            gaps.append(name + ": unavailable")
+        else:
+            validator(document[name])
+    damage, crit, casting = (document[name] for name in ("damage", "critical", "casting"))
     result = {"format": "tli-raw-cold-spell-report-v1", "status": "blocked" if gaps else "conditional",
               "pre_defence_dps": None, "gaps": gaps, "scenario": copy.deepcopy(document), "trace": [],
               "assumptions": [

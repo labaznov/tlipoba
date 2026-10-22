@@ -18,6 +18,8 @@
 
 Compiler 0.4.0 также сохраняет обычный critical rating и два scope critical damage с обязательным `arithmetic_ready=false`. Неизвестный оператор critical damage остаётся явным; распознавание этих строк не меняет расчёт и не подтверждает runtime.
 
+Чистый `criticalstats` собирает рейтинг и полный crit multiplier из явно заданных полных pools с обязательным выбором оператора, делителя и cap. Unknown inputs или gates блокируют числа; Lucky и crit-only hit more относятся к следующей стадии. Связка с rawspell проверена независимыми синтетическими ожиданиями; автоматическая сборка полных критических pools Carino ещё не подтверждена.
+
 Частичный static gear ledger автоматически входит в импорт с проверкой source/artifact SHA, версий, счётчиков и заявленного происхождения каждого документа каталога. JSON, SQLite и HTML сохраняют typed строки и пропуски; к DPS они не применяются. Следующий resolver должен учитывать неподдержанные эффекты и подтверждать runtime отдельно от совпадения статического определения.
 
 Новые пакеты также автоматически содержат installation-only inventory навыков. Consumer 0.1.2 проверяет безопасную проекцию, source/artifact SHA, версии, счётчики и связи, затем сохраняет её в SQLite, import/calculation JSON и HTML. Уровень камня не становится effective level; activation, роль поддержки, panel skill и freshness остаются неизвестными. Producer error и старый пакет без descriptor дают отдельный coverage gap без выдуманного пустого состава. Прежний условный DPS сохраняется.

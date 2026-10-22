@@ -27,6 +27,13 @@ Damage `more` содержит строки с ровно `id`, `affix`, `scope:
 
 Сопротивление, броня, received damage, Tangle, количество снарядов, shotgun и uptime сюда не входят. Отдельный [боевой слой rawcombat](RAW_COMBAT.md) соединяет эти стадии с явной topology, защитой цели, taken и uptime, без повторного крита или скорости. Пока реальные source gates Carino остаются открытыми, синтетический результат не заменяет его полный DPS.
 
+Подготовку полного chance и crit multiplier из явно заданных исходных pools
+выполняет отдельный [criticalstats](CRITICAL_STATS.md). Он требует выбора
+оператора ordinary crit damage, делителя рейтинга, cap и evidence gates;
+unknown блокирует числа. Его full-stat more отделён от `critical.more` урона
+попадания и от Lucky. Автоматического переноса в rawspell пока нет; source,
+выбранный профиль и собственные gates rawspell проверяются отдельно.
+
 Воспроизводимый пример со всеми вымышленными входами:
 
 ```powershell

@@ -729,6 +729,42 @@ class ImporterTests(unittest.TestCase):
                 "identity_verified": False, "source_sha256": "b" * 64,
             })
 
+    def test_panel_numeric_policy_survives_the_safe_summary(self):
+        from damage_lab.importer import logsummary
+        from damage_lab.logstats import select
+        from test_logstats import document
+
+        selection = select(document(), 3217)
+        self.assertEqual(logsummary(selection["summary"])["numeric_policy"], {
+            "printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
+            "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
+                              "meaning": "selection_heuristic", "rounding_verified": False}})
+
+    def test_panel_numeric_policy_cannot_publish_extra_private_fields(self):
+        from damage_lab.importer import logsummary
+        from damage_lab.logstats import select
+        from test_logstats import document
+
+        selection = select(document(), 3217)["summary"]
+        selection["numeric_policy"] = {"private": "PRIVATE-MARKER"}
+        with self.assertRaisesRegex(ValueError, "numeric policy"):
+            logsummary(selection)
+
+    def test_panel_numeric_policy_rejects_nested_private_values(self):
+        from damage_lab.importer import logsummary
+        from damage_lab.logstats import select
+        from test_logstats import document
+
+        policy = {"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
+                  "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
+                                    "meaning": "selection_heuristic", "rounding_verified": False}}
+        for path in (("native_anchor", "private"), ("native_anchor", "meaning")):
+            selection = select(document(), 3217)["summary"]
+            selection["numeric_policy"] = json.loads(json.dumps(policy))
+            selection["numeric_policy"][path[0]][path[1]] = "PRIVATE-MARKER"
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "numeric policy"):
+                logsummary(selection)
+
     def test_import_writes_a_partial_record_without_manual_stats(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

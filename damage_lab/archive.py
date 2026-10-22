@@ -418,7 +418,7 @@ def logged(data, path, native, *, raw=False):
     document = snapshot(path) if raw else load(path)
     selection = select(document, anchors[0])
     summary = {key: selection["summary"][key] for key in (
-        "format", "status", "known", "unknown_attributes", "cohort", "identity_verified", "source_sha256",
+        "format", "status", "known", "unknown_attributes", "cohort", "identity_verified", "source_sha256", "numeric_policy",
     )}
     summary["cohort"] = {key: summary["cohort"][key] for key in ("timestamp", "frame")}
     summary["input_kind"] = "game_log" if raw else "panel_log"
@@ -450,7 +450,8 @@ def logged(data, path, native, *, raw=False):
             observed["panel"][matches[0]] = row
         else:
             observed["panel"].append(row)
-    coverage.append(f"Panel log refines rounded native Spell DPS anchor {anchors[0]} with full-precision log values")
+    coverage.append(f"Panel log selects printed values within 0.5 of native Spell DPS anchor {anchors[0]}; "
+                    "this is a selection heuristic, printer rounding is unknown and normalized numbers use binary64")
     return observed, document, selection, coverage
 
 

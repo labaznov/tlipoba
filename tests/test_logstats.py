@@ -2,6 +2,7 @@
 
 import unittest
 from copy import deepcopy
+from decimal import Inexact, InvalidOperation, Rounded, localcontext
 
 
 def document():
@@ -26,6 +27,136 @@ def document():
 
 class LogstatsTests(unittest.TestCase):
     """Verify exact ID bindings and conservative state selection."""
+
+    def test_normalization_is_independent_of_caller_decimal_precision_and_traps(self):
+        from damage_lab.logstats import select
+
+        expected = select(document(), 3217)
+        with localcontext() as context:
+            context.prec, context.Emax, context.Emin = 3, 2, -2
+            context.traps[Inexact] = context.traps[Rounded] = True
+            result = select(document(), 3217)
+        self.assertEqual(result, expected)
+
+    def test_chance_above_one_hundred_percent_cannot_round_into_the_valid_domain(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][3].update(values=[100.1], raw_values=["100.1"])
+        with localcontext() as context:
+            context.prec = 1
+            with self.assertRaisesRegex(ValueError, "critical chance"):
+                select(payload, 3217)
+
+    def test_a_token_above_the_anchor_boundary_cannot_round_into_the_matching_window(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][0].update(values=[3217.5], raw_values=["3217.5000000000001"])
+        with localcontext() as context:
+            context.prec = 3
+            with self.assertRaisesRegex(ValueError, "no cohort matching"):
+                select(payload, 3217)
+
+    def test_anchor_comparison_preserves_digits_beyond_the_default_decimal_precision(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][0].update(values=[0.5], raw_values=["0.50000000000000000000000000001"])
+        with localcontext() as context:
+            context.prec = 28
+            with self.assertRaisesRegex(ValueError, "no cohort matching"):
+                select(payload, 0)
+
+    def test_chance_validation_preserves_digits_beyond_the_default_decimal_precision(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][3].update(values=[100.0], raw_values=["100.000000000000000000000000001"])
+        with localcontext() as context:
+            context.prec = 28
+            with self.assertRaisesRegex(ValueError, "critical chance"):
+                select(payload, 3217)
+
+    def test_exact_anchor_half_boundaries_still_match(self):
+        from damage_lab.logstats import select
+
+        for token in ("3216.5", "3217.5", "3217.4999999999999"):
+            payload = document()
+            payload["cohorts"][0]["attributes"][0].update(values=[float(token)], raw_values=[token])
+            with self.subTest(token=token), localcontext() as context:
+                context.prec = 2
+                self.assertEqual(select(payload, 3217)["summary"]["status"], "corroborated")
+
+    def test_normalization_does_not_set_caller_decimal_flags(self):
+        from damage_lab.logstats import select
+
+        with localcontext() as context:
+            context.prec = 3
+            context.clear_flags()
+            select(document(), 3217)
+            self.assertFalse(any(context.flags.values()))
+
+    def test_printed_tokens_do_not_claim_a_known_rounding_precision(self):
+        from damage_lab.logstats import select
+
+        self.assertEqual({row["precision"] for row in select(document(), 3217)["rows"]},
+                         {"printed token; rounding unknown; corroborated; identity_verified=false"})
+
+    def test_numeric_token_resource_bounds_are_checked_before_exact_arithmetic(self):
+        from damage_lab.logstats import select
+
+        for token in ("0" * 129, "0e999999999999999999", "0e-513"):
+            payload = document()
+            payload["cohorts"][0]["attributes"][3].update(values=[0], raw_values=[token])
+            with self.subTest(token=token), self.assertRaises(ValueError):
+                select(payload, 3217)
+
+    def test_extreme_explicit_exponents_are_refused_without_changing_caller_flags(self):
+        from damage_lab.logstats import select
+
+        for token in ("0e" + "9" * 19, "1e" + "9" * 100):
+            for trapped in (True, False):
+                payload = document()
+                payload["cohorts"][0]["attributes"][3].update(values=[0], raw_values=[token])
+                with self.subTest(trapped=trapped, token=token), localcontext() as context:
+                    context.traps[InvalidOperation] = trapped
+                    context.clear_flags()
+                    try:
+                        select(payload, 3217)
+                    except ValueError:
+                        result = ("refused", any(context.flags.values()))
+                    else:
+                        result = ("accepted", any(context.flags.values()))
+                    self.assertEqual(result, ("refused", False))
+
+    def test_a_fractional_count_cannot_round_into_an_integer(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][5].update(values=[5.0], raw_values=["5.0000000000000000000001"])
+        with localcontext() as context:
+            context.prec = 3
+            with self.assertRaisesRegex(ValueError, "integral counts"):
+                select(payload, 3217)
+
+    def test_canonical_integer_display_keeps_significant_trailing_zeros(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][2].update(values=[1e20], raw_values=["1e20"])
+        self.assertEqual(next(row["display"] for row in select(payload, 3217)["rows"] if row["key"] == "cast_rate"),
+                         "100000000000000000000 /s")
+
+    def test_admitted_zero_tokens_reach_the_numeric_resource_boundaries(self):
+        from damage_lab.logstats import select
+
+        for token in ("0" * 128, "0e512", "0e-512"):
+            payload = document()
+            payload["cohorts"][0]["attributes"][3].update(values=[0], raw_values=[token])
+            with self.subTest(token=token):
+                self.assertEqual(next(row["value"] for row in select(payload, 3217)["rows"]
+                                      if row["key"] == "crit_chance"), 0.0)
 
     def test_newer_unmatched_states_warn_that_the_selected_state_is_historical(self):
         from damage_lab.logstats import select
@@ -104,7 +235,7 @@ class LogstatsTests(unittest.TestCase):
                               if row["key"] == "crit_chance"), {
             "key": "crit_chance", "label": "Spell Critical Strike Chance",
             "value": 0.3175, "display": "31.75%", "unit": "fraction",
-            "precision": "log full precision; corroborated; identity_verified=false",
+            "precision": "printed token; rounding unknown; corroborated; identity_verified=false",
             "source": {"attr_id": "21212", "index": 1, "raw_value": "31.75", "raw_values": ["31.75"],
                        "timestamp": "2026-10-19T13:17:38.731Z", "frame": 731,
                        "line_numbers": [17, 18]},
@@ -237,6 +368,9 @@ class LogstatsTests(unittest.TestCase):
             "format": "tli-panel-log-v1", "status": "corroborated", "known": 9,
             "unknown_attributes": 1, "cohort": {"timestamp": "2026-10-19T13:17:38.731Z", "frame": 731},
             "identity_verified": False, "source_sha256": "a" * 64,
+            "numeric_policy": {"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
+                               "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
+                                                 "meaning": "selection_heuristic", "rounding_verified": False}},
         })
 
     def test_resolved_attributes_require_typed_lists_status_and_ordered_source_lines(self):

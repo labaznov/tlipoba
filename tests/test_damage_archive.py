@@ -1707,11 +1707,32 @@ class ArchivePanelLogTest(unittest.TestCase):
                              native_stats=native(root, directory), panel_log=path)
             row = next(row for row in result["observations"] if row["key"] == "spell_dps")
             self.assertEqual((row["evidence"], row["precision"], row["source"]),
-                             (str(path.resolve()), "log full precision; corroborated; identity_verified=false",
+                             (str(path.resolve()), "printed token; rounding unknown; corroborated; identity_verified=false",
                               {"attr_id": "10103", "index": 1, "raw_value": "43721.25",
                                "raw_values": ["43721.25"],
                                "timestamp": "2001-02-03T04:05:07.000Z", "frame": 713,
                                "line_numbers": [17, 18]}))
+
+    def test_panel_numeric_policy_reaches_json_sqlite_and_html_without_exactness_claims(self):
+        from damage_lab.importer import snapshot
+        from damage_lab.report import render_import
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            result = archive(directory, None, facts(root), root / "build.sqlite",
+                             native_stats=native(root, directory), panel_log=panel(root, "43721.25"))
+            with contextlib.closing(sqlite3.connect(root / "build.sqlite")) as connection:
+                selection = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='panel_log_selection'").fetchone()[0])
+            page = render_import(snapshot(result))
+            self.assertEqual((result["panel_log"]["numeric_policy"], snapshot(result)["panel_log"]["numeric_policy"],
+                              selection["summary"]["numeric_policy"],
+                              "Точность печати неизвестна" in page, "full-precision log" in page),
+                             ({"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
+                               "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
+                                                 "meaning": "selection_heuristic", "rounding_verified": False}},
+                              result["panel_log"]["numeric_policy"], result["panel_log"]["numeric_policy"], True, False))
 
     def test_database_keeps_log_document_hash_and_rounded_native_anchor(self):
         with tempfile.TemporaryDirectory() as temporary:

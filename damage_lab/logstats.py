@@ -1,7 +1,9 @@
 """Corroborate one offline panel state without asserting player identity."""
 
+import copy
 from decimal import Decimal
 from datetime import datetime
+from fractions import Fraction
 import math
 import operator
 import re
@@ -21,6 +23,45 @@ _OPTIONAL = {
     "11201": ("Armor DMG Mitigation Penetration", (("armor_penetration", "fraction", 100),)),
 }
 _KNOWN = _BINDINGS | _OPTIONAL
+_POLICY = {"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
+           "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
+                             "meaning": "selection_heuristic", "rounding_verified": False}}
+
+
+def policy(value):
+    """Validate the fixed public numeric policy without echoing arbitrary metadata."""
+    if value != _POLICY:
+        raise ValueError("Panel log numeric policy does not match the supported contract")
+    return copy.deepcopy(_POLICY)
+
+
+def _decimal(token):
+    try:
+        if (len(token) > 128 or re.fullmatch(
+                r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", token) is None):
+            raise ValueError
+        exponent = token.lower().partition("e")[2]
+        if exponent and not -512 <= int(exponent) <= 512:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("Panel log numeric token exceeds its supported grammar or bounds") from None
+    return Decimal(token)
+
+
+def _scaled(token, divisor):
+    value = _decimal(token)
+    if divisor == 1:
+        return value
+    if divisor != 100:
+        raise ValueError("Panel log unit divisor is unsupported")
+    sign, digits, exponent = value.as_tuple()
+    return Decimal((sign, digits, exponent - 2))
+
+
+def _display(value, divisor):
+    sign, digits, exponent = Decimal(str(value)).as_tuple()
+    text = format(Decimal((sign, digits, exponent + (2 if divisor == 100 else 0))), "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def _integer(value, name):
@@ -99,9 +140,9 @@ def _attribute(attribute):
         raise ValueError("Panel log numeric values and raw tokens require matching nonempty lists")
     for value, token in zip(attribute["values"], attribute["raw_values"]):
         try:
+            number = _decimal(token)
             if (value is True or value is False or not math.isfinite(value)
-                    or re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", token) is None
-                    or float(Decimal(token)) != value or (value == 0 and Decimal(token) != 0)):
+                    or float(number) != value or (value == 0 and number != 0)):
                 raise ValueError("Panel log raw numeric token must match its finite number")
         except (TypeError, OverflowError) as error:
             raise ValueError("Panel log raw numeric token must match its finite number") from error
@@ -115,10 +156,10 @@ def _attribute(attribute):
         if attribute["name"] != name or not cardinality:
             raise ValueError("Panel log known attribute requires its exact label and cardinality")
         for token, (key, unit, divisor) in zip(attribute["raw_values"], bindings):
-            value = Decimal(token) / divisor
+            value = _scaled(token, divisor)
             if value != 0 and float(value) == 0:
                 raise ValueError("Panel log unit conversion cannot underflow to zero")
-            if value < 0 or (unit == "count" and value != value.to_integral_value()):
+            if value < 0 or (unit == "count" and Fraction(value).denominator != 1):
                 raise ValueError("Panel log known values must be nonnegative with integral counts")
             if key == "crit_chance" and value > 1:
                 raise ValueError("Panel log critical chance must be between zero and one")
@@ -160,7 +201,7 @@ def select(document, expected_spell_dps):
         resolved.append(cohort)
     matches = [cohort for cohort in resolved
                if any(attribute["id"] == "10103"
-                      and abs(Decimal(attribute["raw_values"][0]) - expected_spell_dps) <= Decimal(".5")
+                      and abs(Fraction(_decimal(attribute["raw_values"][0])) - expected_spell_dps) <= Fraction(1, 2)
                       for attribute in cohort["attributes"])]
     if not matches:
         raise ValueError("Panel log has no cohort matching the native Spell DPS")
@@ -185,13 +226,13 @@ def select(document, expected_spell_dps):
         label, bindings = _KNOWN[attribute["id"]]
         for index, (key, unit, divisor) in enumerate(bindings):
             token = attribute["raw_values"][index]
-            value = float(Decimal(token) / divisor)
-            display = format((Decimal(str(value)) * divisor).normalize(), "f")
+            value = float(_scaled(token, divisor))
+            display = _display(value, divisor)
             rows.append({"key": key, "label": label,
                          "value": value,
                          "display": display + ("%" if divisor == 100 else " /s" if unit == "casts/s" else ""),
                          "unit": unit,
-                         "precision": "log full precision; corroborated; identity_verified=false",
+                         "precision": "printed token; rounding unknown; corroborated; identity_verified=false",
                          "source": {"attr_id": attribute["id"], "index": index + 1,
                                     "raw_value": token, "raw_values": attribute["raw_values"][:],
                                     "timestamp": cohort["timestamp"],
@@ -200,5 +241,6 @@ def select(document, expected_spell_dps):
                                       "known": len(rows), "unknown_attributes": sum(
                                           attribute["id"] not in _KNOWN for attribute in cohort["attributes"]),
                                       "cohort": {"timestamp": cohort["timestamp"], "frame": cohort["frame"]},
-                                      "identity_verified": False, "source_sha256": document["source"]["sha256"]},
+                                      "identity_verified": False, "source_sha256": document["source"]["sha256"],
+                                      "numeric_policy": policy(_POLICY)},
             "issues": issues}

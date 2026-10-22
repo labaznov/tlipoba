@@ -25,6 +25,9 @@ def logsummary(data):
         if data["input_kind"] not in ("game_log", "panel_log"):
             raise ValueError("Panel log input kind must be game_log or panel_log")
         result["input_kind"] = data["input_kind"]
+    if "numeric_policy" in data:
+        from .logstats import policy
+        result["numeric_policy"] = policy(data["numeric_policy"])
     return result
 
 

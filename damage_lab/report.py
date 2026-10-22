@@ -70,12 +70,18 @@ def logdetails(record):
     data = record["panel_log"]
     if data["identity_verified"] is not False:
         raise ValueError("Panel log cannot verify build identity")
+    precision = "<p>Точность печати и правило числового сопоставления не указаны в старом summary</p>"
+    if "numeric_policy" in data:
+        from .logstats import policy
+        policy(data["numeric_policy"])
+        precision = ("<p>Точность печати неизвестна; числовые поля — binary64, исходные токены сохранены. "
+                     "Допуск 0,5 для Spell DPS — эвристика выбора, а не подтверждённое правило округления</p>")
     return ("<section><h2>Лог панели</h2>"
             f"<p>Формат: {text(data['format'])}; статус: {text(data['status'])}<br>"
             f"Подтверждённых полей: {text(data['known'])}; неизвестных атрибутов: {text(data['unknown_attributes'])}<br>"
             f"Состояние: {text(data['cohort']['timestamp'])}; кадр: {text(data['cohort']['frame'])}<br>"
             f"SHA-256 лога: {text(data['source_sha256'])}<br>identity_verified: false</p>"
-            "<p>Совпадение Spell DPS не подтверждает принадлежность лога персонажу</p></section>")
+            "<p>Совпадение Spell DPS не подтверждает принадлежность лога персонажу</p>" + precision + "</section>")
 
 
 def provenance(row):

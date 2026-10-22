@@ -1,0 +1,170 @@
+import copy
+import unittest
+from html.parser import HTMLParser
+
+from damage_lab.buildinputreport import render
+
+
+def report():
+    """Assemble synthetic imported evidence through the public input contract."""
+    from damage_lab.buildinputs import assemble
+    from test_buildinputs import record
+
+    return assemble(record(), skill_alias="gem[1]")
+
+
+class Surface(HTMLParser):
+    """Record actual HTML tags and resource attributes independently of displayed text."""
+
+    def __init__(self, tags):
+        super().__init__()
+        self.tags = tags
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs)))
+
+
+class BuildInputReportTests(unittest.TestCase):
+    """Show automatic candidate inputs without resolving unknown effects or computing damage."""
+
+    def test_a_standalone_russian_report_keeps_blocked_inputs_separate_from_damage(self):
+        page = render(report())
+        self.assertTrue(all(value in page for value in (
+            "<!doctype html>", 'lang="ru"', "Автоматические входы расчёта DPS", "DPS пока не рассчитывается",
+            "Явный выбор камня", "gem[1]", "Каталожные поля на уровне камня", "Кандидаты модификаторов",
+            "Наблюдаемая группа", "Пробелы расчёта", "effective level", "неизвестно",
+        )))
+
+    def test_malformed_reports_fail_without_echoing_private_payloads(self):
+        for value in (None, [], True, {}, {"record": {}}, {"record": {}, "selection": None},
+                      {"record": {}, "selection": {"opaque": "PRIVATE-BUILD-INPUT-CANARY"}}):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "^Build input HTML requires an unchanged assembled report$"):
+                render(value)
+
+    def test_forged_gates_selection_source_values_and_extra_properties_are_refused(self):
+        for path, value in ((("status",), "conditional"), (("arithmetic_ready",), 0),
+                            (("runtime_verified",), True), (("identity_verified",), True), (("import_complete",), True),
+                            (("source_sha256",), "b" * 64), (("selection", "basis"), "automatic_main_skill"),
+                            (("selection", "alias"), "gem[999]"), (("raw_spell",), {}),
+                            (("gaps",), []), (("opaque",), "PRIVATE-BUILD-INPUT-CANARY")):
+            with self.subTest(path=path):
+                value_report = report()
+                node = value_report
+                for name in path[:-1]:
+                    node = node[name]
+                node[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    render(value_report)
+
+    def test_passive_html_contains_no_scripts_requests_or_active_elements(self):
+        tags = []
+        Surface(tags).feed(render(report()))
+        self.assertFalse(any(tag in {"script", "img", "iframe", "object", "embed", "link", "form", "input"}
+                             or any(name.startswith("on") or name in {"src", "href", "action"} for name in attributes)
+                             for tag, attributes in tags))
+
+    def test_rendering_is_deterministic_without_changing_assembled_inputs(self):
+        value = report()
+        original = copy.deepcopy(value)
+        page = render(value)
+        self.assertEqual((value, render(value)), (original, page))
+
+    def test_catalog_fields_keep_lexical_values_source_identity_and_unknown_effective_level(self):
+        page = render(report())
+        self.assertTrue(all(value in page for value in (
+            "90017", "a" * 64, "11 – 19", "catalog_render_consistent", "117.5%", "1.175", "0.73 s",
+            "intelligence", "activation_medium", "projectile", "spell", "Имена атрибутов не являются их итоговыми значениями",
+            "arithmetic_ready: false", "runtime_verified: false", "identity_verified: false", "import_complete: false",
+            "effective_level_unknown", "critical_pools_unresolved", "cast_pools_unresolved", "conversion_unverified",
+        )))
+
+    def test_modifier_rows_keep_each_family_scope_exact_value_source_and_exclusion(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_ledgerinputs import ledger, percent
+
+        value = record()
+        value["static_combat"] = ledger({},
+            {"family": "increased_damage", "scope": "any", "targets": ["damage"], "unit": "percent",
+             "values": percent("17.30", "0.1730")},
+            {"family": "flat_attribute", "scope": "any", "targets": ["intelligence"], "unit": "flat",
+             "values": [{"exact": "37.0", "source": "DynArgs[0]"}]},
+            {"family": "increased_speed", "scope": "any", "targets": ["cast_speed"], "unit": "percent",
+             "values": percent("23.70", "0.2370")},
+            {"scope": "attack", "appliesToPlayerSpell": False},
+            {"family": "increased_damage", "owner": "minion", "scope": "any", "targets": ["damage"],
+             "unit": "percent", "values": percent("13.70", "0.1370"), "appliesToPlayerSpell": False})
+        page = render(assemble(value, skill_alias="gem[1]"))
+        self.assertTrue(all(value in page for value in (
+            "Добавленный урон", "Increased damage", "Атрибуты", "Скорость: только инвентарь", "Исключённые строки",
+            "11.0", "21.0", "17.30", "0.1730", "37.0", "23.70", "0.2370", "13.70", "0.1370",
+            "source_path", "DynArgs[0]", "scope_not_skill_tag", "owner_not_player", "damage_scope", "unresolved",
+            "Строки не суммированы", "omitted_rows", "structural_gaps",
+        )))
+
+    def test_support_rolls_and_catalog_literals_have_separate_origins_without_activation_claims(self):
+        page = render(report())
+        self.assertTrue(all(value in page for value in (
+            "Нативные роллы", "Каталожные константы", "24.125", "0.24125", "native_prefix_row", "catalog_literal",
+            "Пропуски и неизвестные константы", "additional_group_identity", "unresolved", "observed_group_only",
+            "Совместное размещение не доказывает активацию или применимость поддержки",
+        )) and page.index("Нативные роллы") < page.index("native_prefix_row") < page.index("Каталожные константы"))
+
+    def test_unavailable_profile_modifiers_and_supports_remain_unknown_instead_of_zero(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+
+        value = record()
+        for key in ("installed_skill_profiles", "static_combat", "installed_support_effects", "installed_support_catalog"):
+            value.pop(key)
+        page = render(assemble(value, skill_alias="gem[1]"))
+        self.assertTrue(all(value in page for value in (
+            "unavailable", "Выбранный установленный камень неизвестен", "Типизированные модификаторы неизвестны",
+            "Состав группы неизвестен", "profile_catalog_unavailable", "static_ledger_unavailable",
+            "support_inventory_unavailable", "неизвестные значения не заменены нулями",
+        )) and "11 – 19" not in page and "24.125" not in page)
+
+    def test_an_unobserved_selection_cannot_display_the_first_gems_catalog_or_supports(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+
+        page = render(assemble(record(), skill_alias="gem[999]"))
+        self.assertTrue(all(value in page for value in ("gem[999]", "not_observed", "skill_not_observed"))
+                        and "90017" not in page and "24.125" not in page and "11 – 19" not in page)
+
+    def test_catalog_field_gaps_are_visible_without_numeric_fallbacks(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+
+        value = record()
+        profile = value["installed_skill_profiles"]["members"][0]["profile"]
+        profile["hit"] = {"status": "level_not_in_table"}
+        profile["effectivenessOfAddedDamage"] = {"status": "not_stated", "text": None, "value": None}
+        profile["castSpeedField"] = {"status": "invalid", "text": None, "seconds": None}
+        page = render(assemble(value, skill_alias="gem[1]"))
+        self.assertTrue(all(value in page for value in (
+            "Кандидат базового диапазона lookup: неизвестно", "level_not_in_table", "not_stated", "invalid",
+        )) and "11 – 19" not in page and "117.5%" not in page and "0.73 s" not in page)
+
+    def test_malformed_record_containers_are_refused_with_the_static_error(self):
+        value = report()
+        value["record"]["stats"] = []
+        with self.assertRaisesRegex(ValueError, "^Build input HTML requires an unchanged assembled report$"):
+            render(value)
+
+    def test_nonfinite_and_cyclic_extra_payloads_cannot_be_serialized_into_html(self):
+        for change in ("nonfinite", "cycle"):
+            with self.subTest(change=change):
+                value = report()
+                value["opaque"] = float("nan") if change == "nonfinite" else value
+                with self.assertRaises(ValueError):
+                    render(value)
+
+    def test_unused_record_text_and_inventory_trees_are_not_dumped_into_the_report(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+
+        value = record()
+        value["name"] = '<script>PRIVATE-UNUSED-INPUT-CANARY</script>'
+        value["inventory"]["gear"][0]["details"] = ['<img src=x onerror="PRIVATE-UNUSED-INPUT-CANARY">']
+        self.assertNotIn("PRIVATE-UNUSED-INPUT-CANARY", render(assemble(value, skill_alias="gem[1]")))

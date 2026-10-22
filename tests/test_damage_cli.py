@@ -16,6 +16,25 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_catalog_profiles_are_preserved_without_changing_the_calculated_damage(self):
+        from test_damage_archive import facts, observations, package
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            results = []
+            for name in ("before", "with-profiles"):
+                if name == "with-profiles":
+                    attached(path)
+                main(["--package", str(path), "--observations", str(observations(root)), "--facts", str(facts(root)),
+                      "--output", str(root / name), "--basis", "panel", "--active", "2", "--hits", "3",
+                      "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87"])
+                results.append(json.loads((root / name / "calculation.json").read_text(encoding="utf-8")))
+            self.assertEqual((results[1]["calculation"], results[1]["installed_skill_profiles"]["members"][0]["effective_level"],
+                              results[1]["installed_skill_profiles"]["arithmetic_ready"]),
+                             (results[0]["calculation"], None, False))
+
     def test_support_effect_diagnostics_are_preserved_without_reapplying_damage(self):
         from test_damage_archive import facts, observations, package
         from test_supportbundle import attached

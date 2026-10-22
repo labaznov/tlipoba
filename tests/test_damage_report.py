@@ -1,3 +1,4 @@
+import copy
 import unittest
 
 from damage_lab.report import render, render_import, scenarios, staticdetails
@@ -24,6 +25,144 @@ def supportevidence():
     raw["categories"]["Noble_Support"]["english"] = "present"
     return {"source_sha256": "a" * 64, "installed_support_effects": inventory(inventory_document(), "a" * 64),
             "installed_support_catalog": catalog(raw)}
+
+
+def profileevidence():
+    """Return fictional gem-level catalog lookups with unresolved effective levels."""
+    from damage_lab.installedprofiles import project
+    from test_installedprofiles import catalog, installation, records
+
+    return {"source_sha256": "a" * 64, "installed_skill_profiles": project(records(), installation(), catalog())}
+
+
+class InstalledProfileReportTests(unittest.TestCase):
+    """Keep observed-level catalog lookups distinct from effective skill damage."""
+
+    def test_both_reports_show_catalog_lookups_at_gem_level_without_claiming_effective_damage(self):
+        self.assertTrue(all(all(value in page for value in (
+            "Каталожные профили установленных камней", "Lookup на наблюдаемом уровне камня",
+            "Эффективный уровень неизвестен", "Это не raw hit на effective level", "Профили не применены к DPS",
+            "gem[1]", "group[1]", "90017", "Active", "sections.SkillLayout.data[0][0]",
+            "Профилей: 1", "Пробелов: 3", "Нормализованные теги", "activation_medium", "projectile",
+            "Главные характеристики", "intelligence", "117.5%", "1.175", "0.73 s", "catalog_render_consistent",
+            "Диапазон lookup: 11 – 19", "catalog_record_missing", "invalid_gem_level",
+        )) for page in pages(profileevidence())))
+
+    def test_profile_flags_and_declared_catalog_hash_scopes_are_shown_without_runtime_claims(self):
+        self.assertTrue(all(all(value in page for value in (
+            "arithmetic_ready: false", "runtime_verified: false", "identity_verified: false", "import_complete: false",
+            "network_bytes_verified: false", "current_patch_verified: false", "Активация неизвестна",
+            "Объявленное происхождение каталога профилей", "wrapper_sha256 — весь wrapper",
+            "member_sha256 — диапазон byte_range", "Документов каталога профилей: 3", "a" * 64, "b" * 64,
+            "Смысл интервала не подтверждён", "castSpeed", "Patch: unknown",
+        )) for page in pages(profileevidence())))
+
+    def test_unavailable_profile_members_and_counts_stay_unknown(self):
+        record = profileevidence()
+        data = record["installed_skill_profiles"]
+        data.update(client_layer="absent", members=None)
+        data["accounting"] = {field: None for field in data["accounting"]}
+        self.assertTrue(all(all(value in page for value in (
+            "Каталожные профили неизвестны; это не пустой список", "Записей профилей: неизвестно",
+            "Профилей: неизвестно", "Пробелов: неизвестно",
+        )) and "Записей профилей: 0" not in page for page in pages(record)))
+
+    def test_captured_empty_profiles_keep_known_zero_counts_separate_from_missing_evidence(self):
+        record = profileevidence()
+        data = record["installed_skill_profiles"]
+        data.update(members=[], accounting={"members": 0, "profiled": 0, "gaps": 0, "reconciles": True})
+        self.assertTrue(all(all(value in page for value in (
+            "Захваченный состав камней пуст", "Записей профилей: 0", "Профилей: 0", "Пробелов: 0",
+        )) and "Каталожные профили неизвестны" not in page for page in pages(record)))
+
+    def test_field_level_gaps_do_not_fabricate_a_hit_or_stated_numeric_values(self):
+        record = profileevidence()
+        profile = record["installed_skill_profiles"]["members"][0]["profile"]
+        profile["hit"] = {"status": "level_not_in_table"}
+        profile["effectivenessOfAddedDamage"] = {"status": "not_stated", "text": None, "value": None}
+        profile["castSpeedField"] = {"status": "invalid", "text": None, "seconds": None}
+        self.assertTrue(all(all(value in page for value in (
+            "Диапазон lookup неизвестен", "level_not_in_table", "not_stated", "invalid", "Профилей: 1",
+        )) and "Диапазон lookup: 11 – 19" not in page for page in pages(record)))
+
+    def test_exact_stated_decimal_text_and_large_lookup_ranges_are_not_rounded(self):
+        record = profileevidence()
+        profile = record["installed_skill_profiles"]["members"][0]["profile"]
+        profile["effectivenessOfAddedDamage"].update(text="117.5001%", value="1.175001")
+        profile["castSpeedField"].update(text="0.7312 s", seconds="0.7312")
+        profile["hit"].update(min="123456789012345678901234567890", max="123456789012345678901234567897")
+        self.assertTrue(all(all(value in page for value in (
+            "117.5001%", "1.175001", "0.7312 s",
+            "123456789012345678901234567890 – 123456789012345678901234567897",
+        )) for page in pages(record)))
+
+    def test_profile_sections_require_the_same_record_source_hash(self):
+        from damage_lab.report import profiledetails
+
+        for source in (None, "b" * 64):
+            with self.subTest(source=source):
+                record = profileevidence()
+                record["source_sha256"] = source
+                with self.assertRaises(ValueError):
+                    profiledetails(record)
+
+    def test_profile_sections_cannot_promote_flags_activation_or_effective_levels(self):
+        from damage_lab.report import profiledetails
+
+        for path, value in ((("arithmetic_ready",), True), (("runtime_verified",), 0),
+                            (("activation",), "active"), (("effective_level",), 7),
+                            (("members", 0, "effective_level"), 7),
+                            (("members", 0, "profile", "runtimeVerified"), True),
+                            (("catalog", "current_patch_verified"), True)):
+            with self.subTest(path=path):
+                record = profileevidence()
+                node = record["installed_skill_profiles"]
+                for field in path[:-1]:
+                    node = node[field]
+                node[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    profiledetails(record)
+
+    def test_raw_catalog_english_and_private_extras_are_not_included_in_either_html(self):
+        record = profileevidence()
+        data = record["installed_skill_profiles"]
+        profile = data["members"][0]["profile"]
+        for node in (data, data["source"], data["members"][0], profile, profile["tags"], profile["mainStat"],
+                     profile["identity"], profile["hit"], profile["effectivenessOfAddedDamage"],
+                     profile["castSpeedField"], data["catalog"], data["catalog"]["documents"][0]):
+            node["opaque"] = '<script>PRIVATE-PROFILE-REPORT-CANARY</script>'
+            node["english"] = "PRIVATE-PROFILE-REPORT-CANARY"
+        profile["tags"]["catalog"] = ["PRIVATE-PROFILE-REPORT-CANARY"]
+        self.assertTrue(all("PRIVATE-PROFILE-REPORT-CANARY" not in page and "<script>" not in page for page in pages(record)))
+
+    def test_malicious_known_profile_text_is_refused_before_html_is_returned(self):
+        from damage_lab.report import profiledetails
+
+        record = profileevidence()
+        record["installed_skill_profiles"]["members"][0]["profile"]["castSpeedField"]["text"] = '<img src=x onerror="private()">'
+        with self.assertRaises(ValueError):
+            profiledetails(record)
+
+    def test_legacy_and_producer_error_absence_do_not_invent_profile_sections(self):
+        from damage_lab.report import profiledetails
+
+        record = {"coverage": ["Installed skill catalog acquisition failed"]}
+        self.assertEqual((profiledetails({}), profiledetails(record),
+                          ["Каталожные профили установленных камней" in page for page in pages(record)]),
+                         ("", "", [False, False]))
+
+    def test_a_null_profile_document_is_invalid_instead_of_a_successful_empty_lookup(self):
+        from damage_lab.report import profiledetails
+
+        with self.assertRaises(ValueError):
+            profiledetails({"source_sha256": "a" * 64, "installed_skill_profiles": None})
+
+    def test_rendering_profiles_preserves_the_source_record_and_supplied_damage_total(self):
+        record = profileevidence()
+        original = copy.deepcopy(record)
+        before = pages({})[1].split("<h2>Математика сценария</h2>")[1].split("</section>")[0]
+        after = pages(record)[1].split("<h2>Математика сценария</h2>")[1].split("</section>")[0]
+        self.assertEqual((record, after), (original, before))
 
 
 class SupportEffectReportTests(unittest.TestCase):

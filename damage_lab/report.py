@@ -210,6 +210,69 @@ def supportdetails(record):
             + "</details></section>")
 
 
+def profiledetails(record):
+    """Show validated catalog lookups at observed gem levels without promoting effective damage."""
+    from .importer import profilesummary
+
+    projected = profilesummary(record)
+    if not projected:
+        return ""
+    data = projected["installed_skill_profiles"]
+
+    def known(value):
+        return "неизвестно" if value is None else text(value)
+
+    def exact(value):
+        return "<div class=scroll><pre>" + text(json.dumps(value, ensure_ascii=False, indent=2)) + "</pre></div>"
+
+    rows, details = [], []
+    if data["members"] is None:
+        members = "<p>Каталожные профили неизвестны; это не пустой список</p>"
+    else:
+        for member in data["members"]:
+            rows.append(f"<tr><td>{text(member['alias'])}<br>{text(member['group'])}</td>"
+                        f"<td>{known(member['skill_id'])}</td><td>{known(member['catalog_category'])}</td>"
+                        f"<td>{known(member['gem_level'])}</td><td>{known(member['effective_level'])}</td>"
+                        f"<td>{text(member['status'])}<br>{known(member['reason'])}</td>"
+                        f"<td>{known(member['slot'])}<br>{known(member['path'])}</td></tr>")
+            profile = member["profile"]
+            if profile is not None:
+                hit = profile["hit"]
+                interval = (f"<p>Диапазон lookup: {text(hit['min'])} – {text(hit['max'])} "
+                            f"({text(hit['type'])}), уровень {text(hit['level'])}</p>"
+                            if hit["status"] == "catalog_render_consistent" else "<p>Диапазон lookup неизвестен</p>")
+                details.append(f"<details><summary>{text(member['alias'])}: lookup на gem level {known(member['gem_level'])}</summary>"
+                               "<h3>Нормализованные теги</h3>" + exact(profile["tags"])
+                               + "<h3>Главные характеристики</h3>" + exact(profile["mainStat"])
+                               + "<h3>Заявленная эффективность добавленного урона</h3>" + exact(profile["effectivenessOfAddedDamage"])
+                               + "<h3>Поле castSpeed: заявленные секунды</h3><p>Смысл интервала не подтверждён</p>"
+                               + exact(profile["castSpeedField"]) + "<h3>Статус и binding каталожного hit</h3>"
+                               + interval + exact(hit) + "</details>")
+        members = ("<div class=scroll><table><thead><tr><th>Камень и группа</th><th>Публичный skill ID</th>"
+                   "<th>Категория каталога</th><th>Наблюдаемый уровень камня</th><th>Effective level</th>"
+                   "<th>Статус и причина</th><th>Слот и источник</th></tr></thead>"
+                   f"<tbody>{''.join(rows)}</tbody></table></div>" if rows else "<p>Захваченный состав камней пуст</p>")
+    flags = "; ".join(field + ": " + json.dumps(data[field]) for field in (
+        "arithmetic_ready", "runtime_verified", "identity_verified", "import_complete",
+    ))
+    counts, catalog = data["accounting"], data["catalog"]
+    return ("<section><h2>Каталожные профили установленных камней</h2>"
+            "<p>Lookup на наблюдаемом уровне камня<br>Эффективный уровень неизвестен<br>Активация неизвестна<br>"
+            "Это не raw hit на effective level<br>Профили не применены к DPS</p>"
+            "<p>Согласованность каталожного render не подтверждает текущую версию, post-20 рост или выбранный навык панели</p>"
+            f"<p>{text(flags)}<br>Patch: {text(data['patch'])}; слой клиента: {text(data['client_layer'])}<br>"
+            f"Записей профилей: {known(counts['members'])}; Профилей: {known(counts['profiled'])}; "
+            f"Пробелов: {known(counts['gaps'])}</p>" + members + "".join(details)
+            + f"<p>SHA-256 исходного снимка профилей: {text(data['source']['sha256'])}</p>"
+            "<h3>Объявленное происхождение каталога профилей</h3>"
+            "<p>network_bytes_verified: false; current_patch_verified: false<br>"
+            "wrapper_sha256 — весь wrapper; member_sha256 — диапазон byte_range<br>Хеши cache здесь повторно не вычисляются</p>"
+            f"<p>Документов каталога профилей: {len(catalog['documents'])}; строк каталога: {catalog['records']}; "
+            f"сохранённых записей: {catalog['skills']}; невалидных: {catalog['invalid_records']}; "
+            f"удержанных строк: {catalog['withheld_records']}</p>"
+            "<details><summary>Каталожные координаты и области SHA профилей</summary>" + exact(catalog) + "</details></section>")
+
+
 def staticdetails(record):
     """Show source-bound catalog interpretations separately from applied damage."""
     if "static_combat" not in record:
@@ -464,6 +527,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {staticdetails(record)}
 {installeddetails(record)}
 {supportdetails(record)}
+{profiledetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -633,6 +697,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {staticdetails(record)}
 {installeddetails(record)}
 {supportdetails(record)}
+{profiledetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

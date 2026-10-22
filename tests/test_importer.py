@@ -54,8 +54,128 @@ def supported():
     return data
 
 
+def profiled():
+    """Keep fictional catalog lookups at observed gem levels."""
+    from damage_lab.installedprofiles import project
+    from test_installedprofiles import records, installation, catalog
+
+    data = record()
+    data["installed_skill_profiles"] = project(records(), installation(), catalog())
+    return data
+
+
 class ImporterTests(unittest.TestCase):
     """User imports preserve partial data instead of inventing a damage total."""
+
+    def test_installed_profiles_keep_observed_levels_and_unknown_damage_gates_in_the_snapshot(self):
+        from damage_lab.importer import snapshot
+
+        result = snapshot(profiled())
+        profiles = result["installed_skill_profiles"]
+        self.assertEqual((profiles["members"][0]["gem_level"], profiles["members"][0]["profile"]["level"],
+                          profiles["members"][0]["effective_level"], profiles["arithmetic_ready"],
+                          profiles["activation"], profiles["patch"], result["stats"], result["benchmark"]),
+                         (7, 7, None, False, "unknown", "unknown", {"spell_dps": 84317}, {"survival": 9217}))
+
+    def test_profile_summary_requires_the_record_source_hash_to_match(self):
+        from damage_lab.importer import profilesummary
+
+        for source in (None, "b" * 64):
+            with self.subTest(source=source):
+                data = profiled()
+                data["source_sha256"] = source
+                with self.assertRaises(ValueError):
+                    profilesummary(data)
+
+    def test_profile_summary_distinguishes_absent_evidence_from_a_null_document(self):
+        from damage_lab.importer import profilesummary
+
+        self.assertEqual(profilesummary(record()), {})
+        for invalid in (None, {}, []):
+            with self.subTest(invalid=invalid):
+                data = record()
+                data["installed_skill_profiles"] = invalid
+                with self.assertRaises(ValueError):
+                    profilesummary(data)
+
+    def test_profile_summary_revalidates_levels_counts_and_unverified_claims(self):
+        from damage_lab.importer import profilesummary
+
+        for path, value in ((("arithmetic_ready",), True), (("runtime_verified",), True),
+                            (("identity_verified",), True), (("import_complete",), True),
+                            (("activation",), "active"), (("patch",), "SS14"), (("effective_level",), 7),
+                            (("accounting", "profiled"), 4), (("members", 0, "effective_level"), 7),
+                            (("members", 0, "profile", "runtimeVerified"), True)):
+            with self.subTest(path=path):
+                data = profiled()
+                node = data["installed_skill_profiles"]
+                for field in path[:-1]:
+                    node = node[field]
+                node[path[-1]] = value
+                with self.assertRaises(ValueError):
+                    profilesummary(data)
+
+    def test_profile_summary_drops_private_extras_and_detaches_nested_evidence(self):
+        from damage_lab.importer import profilesummary
+
+        data = profiled()
+        profiles = data["installed_skill_profiles"]
+        member = profiles["members"][0]
+        for node in (profiles, profiles["source"], profiles["catalog"], profiles["catalog"]["documents"][0],
+                     member, member["profile"], member["profile"]["identity"], member["profile"]["tags"],
+                     member["profile"]["hit"], member["profile"]["hit"]["binding"]):
+            node["opaque"] = "PRIVATE-PROFILE-IMPORT-MARKER"
+        result = profilesummary(data)
+        result["installed_skill_profiles"]["catalog"]["documents"][0]["byte_range"][0] = 1
+        result["installed_skill_profiles"]["members"][0]["profile"]["tags"]["skill"].clear()
+        self.assertEqual((set(result), "PRIVATE-PROFILE-IMPORT-MARKER" in json.dumps(result),
+                          profiles["catalog"]["documents"][0]["byte_range"],
+                          member["profile"]["tags"]["skill"]),
+                         ({"installed_skill_profiles"}, False, [19, 87],
+                          ["activation_medium", "projectile", "spell"]))
+
+    def test_automatic_import_keeps_catalog_profiles_without_manual_stats_or_damage_changes(self):
+        from test_damage_archive import package
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            main(["--package", str(path), "--output", str(root / "before")])
+            before = json.loads((root / "before/import.json").read_text(encoding="utf-8"))
+            attached(path)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            profiles = result["installed_skill_profiles"]
+            self.assertEqual((status, profiles["source"]["sha256"] == result["source_sha256"],
+                              profiles["members"][0]["gem_level"], profiles["members"][0]["effective_level"],
+                              profiles["arithmetic_ready"], profiles["activation"], result["import_status"],
+                              result["stats"] == before["stats"], result["benchmark"] == before["benchmark"]),
+                             (0, True, 7, None, False, "unknown", "partial", True, True))
+
+    def test_catalog_acquisition_error_does_not_invent_empty_imported_profiles(self):
+        from test_damage_archive import package
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            attached(path, error=True)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, "installed_skill_profiles" in result, result["import_status"]),
+                             (0, False, "partial"))
+
+    def test_legacy_import_keeps_installed_skill_profiles_unavailable(self):
+        from test_damage_archive import package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = package(root)
+            status = main(["--package", str(path), "--output", str(root / "result")])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, "installed_skill_profiles" in result, result["import_status"]),
+                             (0, False, "partial"))
 
     def test_support_candidates_and_catalog_remain_non_arithmetic_in_the_snapshot(self):
         from damage_lab.importer import snapshot

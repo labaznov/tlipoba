@@ -557,6 +557,18 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Installed skill inventory failed; support acquisition remains incomplete")
     else:
         coverage.append("Installed skill inventory is unavailable in this legacy package")
+    profile = None
+    profile_origin = None
+    if "installedSkillCatalog" in manifest:
+        from .skillcatalogbundle import read
+        profile, profile_origin = read(package, manifest["installedSkillCatalog"], hashes["source"][0], installation)
+        if profile is not None:
+            documents["installed_skill_profiles"] = profile
+            coverage.append("Installed skill catalog profiles were looked up at observed gem levels; effective levels and damage applicability remain unknown")
+        else:
+            coverage.append("Installed skill catalog acquisition failed; missing profiles are not empty or zero damage")
+    else:
+        coverage.append("Installed skill catalog profiles are unavailable in this legacy package")
     support = None
     catalog = None
     support_origin = None
@@ -727,6 +739,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["static_combat_provenance"] = provenance
     if installation is not None:
         result["installed_skills"] = installation
+    if profile is not None:
+        result["installed_skill_profiles"] = profile
     if support is not None:
         result["installed_support_effects"] = support
         result["installed_support_catalog"] = catalog
@@ -753,6 +767,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("static_combat", *modifier_origin))
     if attachment is not None:
         inputs.append(("installed_skills", *attachment))
+    if profile_origin is not None:
+        inputs.append(("installed_skill_profiles", *profile_origin))
     if support_origin is not None:
         inputs.append(("installed_support_effects", *support_origin))
 

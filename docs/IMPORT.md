@@ -129,3 +129,24 @@ candidate требует master и English своей категории; withhe
 claims отклоняются до создания базы. У старого пакета descriptor может отсутствовать.
 Активация, effective level, patch и grouping остаются неизвестными; наличие
 кандидата не меняет ранее рассчитанный DPS и не подтверждает полноту импорта.
+
+## Каталожные профили установленных камней
+
+`manifest.installedSkillCatalog` подхватывается обычными командами без отдельного
+cache flag. [Reader](SKILL_CATALOG_BUNDLE.md) проверяет точные artifact/source SHA,
+версии, false claims и counts. Requested IDs сверяются с source-bound installation;
+полученные records должны быть его точным subset и не превышать resolved каталог.
+Профиль повторно вычисляется здесь через `skillprofile.profile`, готовые числовые
+профили producer не принимаются.
+
+`installed_skill_profiles` сохраняется в SQLite, `import.json`, `calculation.json`
+и обоих HTML. Alias, публичный skill ID и наблюдаемый gem level связываются с
+main stats, разделёнными тегами, stated-полями и каталожным диапазоном, когда он
+согласован с reference render. Это lookup на gem level; effective level остаётся
+`null`, current patch и применимость к DPS не подтверждаются.
+
+Невалидный уровень или отсутствующий exact ID даёт отдельный gap. Отсутствующий
+client layer остаётся `null`, а захваченный пустой слой — известным пустым составом.
+Producer error и legacy package без descriptor не получают пустой успешный профиль.
+Каталожные описания и посторонние raw fields не копируются; числовой расчёт урона
+этот диагностический слой не меняет.

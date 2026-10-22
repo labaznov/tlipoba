@@ -97,6 +97,18 @@ def supportsummary(data):
     return {"installed_support_effects": inventory, "installed_support_catalog": catalog}
 
 
+def profilesummary(data):
+    """Keep diagnostic catalog lookups without promoting observed gem levels."""
+    if "installed_skill_profiles" not in data:
+        return {}
+    from .installedprofiles import summary
+
+    profiles = summary(data["installed_skill_profiles"])
+    if profiles["source"]["sha256"] != data.get("source_sha256"):
+        raise ValueError("Installed skill profiles differ from the record source hash")
+    return {"installed_skill_profiles": profiles}
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -145,6 +157,7 @@ def snapshot(data):
     result.update(staticsummary(data))
     result.update(installedsummary(data))
     result.update(supportsummary(data))
+    result.update(profilesummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

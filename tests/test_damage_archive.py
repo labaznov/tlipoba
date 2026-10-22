@@ -11,6 +11,69 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+class InstalledProfileBundleTests(unittest.TestCase):
+    """Archive catalog lookups at observed gem levels without deriving effective character damage."""
+
+    def test_lookup_profiles_are_preserved_in_record_sqlite_and_hashed_origin(self):
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attached(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='installed_skill_profiles'").fetchone()[0])
+                self.assertEqual((stored, connection.execute(
+                    "SELECT sha256,stored FROM sources WHERE role='installed_skill_profiles'").fetchone()),
+                                 (result["installed_skill_profiles"], (descriptor["sha256"], 1)))
+
+    def test_failed_catalog_acquisition_is_a_gap_without_empty_profiles(self):
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attached(directory, error=True)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(("installed_skill_profiles" in result, connection.execute(
+                    "SELECT stored FROM sources WHERE role='installed_skill_profiles'").fetchone()[0],
+                    any("Installed skill catalog acquisition failed" in row for row in result["coverage"])), (False, 0, True))
+
+    def test_legacy_packages_disclose_missing_installed_catalog_profiles(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertTrue(any("Installed skill catalog profiles are unavailable" in row for row in archive(
+                package(root), None, facts(root), root / "out.sqlite")["coverage"]))
+
+    def test_changed_catalog_artifact_is_refused_before_database_creation(self):
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attached(directory)
+            with (directory / "installed-skill-catalog.json").open("ab") as stream:
+                stream.write(b" ")
+            with self.assertRaises(ValueError):
+                archive(directory, None, facts(root), root / "out.sqlite")
+            self.assertFalse((root / "out.sqlite").exists())
+
+    def test_lookup_profiles_do_not_change_observed_stats_or_benchmark(self):
+        from test_skillcatalogbundle import attached
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            before = archive(directory, observations(root), facts(root), root / "before.sqlite")
+            attached(directory)
+            after = archive(directory, observations(root), facts(root), root / "after.sqlite")
+            self.assertEqual((after["stats"], after["benchmark"], after["installed_skill_profiles"]["arithmetic_ready"]),
+                             (before["stats"], before["benchmark"], False))
+
+
 class SupportEffectBundleTests(unittest.TestCase):
     """Archive support candidates and declared catalog metadata without changing character stats."""
 

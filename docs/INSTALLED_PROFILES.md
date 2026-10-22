@@ -44,6 +44,15 @@ catalog_category, status, reason, profile`, а также `effective_level=null`
 координат проверяется повторно. `status=gap` с profile=null имеет фиксированную
 причину invalid_skill_id, invalid_gem_level или catalog_record_missing.
 
+Формат 0.1.1 добавляет nullable `ordinary_support` в каждую строку. Для
+профилированной категории Support отдельно вызывается чистый
+[`ordinarysupport`](ORDINARY_SUPPORT.md); exact ID/GUID/category и наблюдаемый
+уровень повторно связываются со строкой установки. Другие категории и gap-строки
+сохраняют null. Legacy 0.1.0 читается без нового поля. Кандидаты видны в трёх
+HTML, но не применяются к панели, rawspell или суммам критического урона.
+Каталожный loader разбирает decimal через Decimal, сохраняя прежний запрет
+непредставимого float overflow/underflow; Decimal не выходит в canonical JSON.
+
 `status=profiled` означает только вызов `skillprofile.profile` для точного ID на
 наблюдаемом `gem_level`. Два экземпляра одного навыка на разных уровнях получают
 отдельные lookup. Неизвестный уровень не заменяется единицей, reference level или

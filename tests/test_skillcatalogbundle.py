@@ -71,6 +71,23 @@ def attached(directory, *, error=False):
 class SkillCatalogBundleTests(unittest.TestCase):
     """Bind saved installed-skill catalog evidence without filling missing effective levels."""
 
+    def test_exact_decimal_support_cells_reach_the_ordinary_candidate_without_a_float_round_trip(self):
+        from test_installedprofiles import ordinary
+
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            artifact, descriptor, source, _ = diagnostic(directory)
+            records, observed, metadata = ordinary(raw_catalog=True)
+            observed["source"]["sha256"] = source
+            artifact.update(records=json.loads(json.dumps(records, default=float)), catalog=metadata,
+                            requestedIds=[7420, 90029, 90041, 90053])
+            descriptor["catalogDocuments"] = len(metadata["documents"])
+            persisted(directory, artifact, descriptor)
+            result, _ = read(directory, descriptor, source, observed)
+            leaf = result["members"][0]["ordinary_support"]
+            self.assertEqual((leaf["status"], leaf["candidate"]["value"]["fraction"], leaf["effective_level"]),
+                             ("candidate", {"numerator": 37, "denominator": 400}, None))
+
     def test_a_hashed_producer_failure_remains_a_gap_without_installation_or_profiles(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)
@@ -230,3 +247,17 @@ class SkillCatalogBundleTests(unittest.TestCase):
             artifact["opaque"] = "PRIVATE-CATALOG-MARKER"
             persisted(directory, artifact, descriptor)
             self.assertNotIn("PRIVATE-CATALOG-MARKER", json.dumps(read(directory, descriptor, source, installation)[0]))
+
+    def test_an_unrepresentable_decimal_exponent_has_a_controlled_error_with_either_trap_policy(self):
+        from decimal import InvalidOperation, localcontext
+
+        for trap in (True, False):
+            with self.subTest(trap=trap), tempfile.TemporaryDirectory() as folder, localcontext() as context:
+                context.traps[InvalidOperation] = trap
+                directory = Path(folder)
+                artifact, descriptor, source = failure(directory)
+                raw = json.dumps(artifact).encode("utf-8")[:-1] + b',"extra":0e-999999999999999999999999999}'
+                (directory / descriptor["file"]).write_bytes(raw)
+                descriptor["sha256"] = hashlib.sha256(raw).hexdigest()
+                with self.assertRaisesRegex(ValueError, "^Installed skill catalog requires strict bounded UTF-8 JSON$"):
+                    read(directory, descriptor, source, None)

@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from decimal import Decimal
 
 from damage_lab.installedprofiles import project
 from damage_lab.installedskills import project as installation_project
@@ -26,8 +27,79 @@ def catalog():
     return catalog_project(catalog_document())
 
 
+def ordinary(*, raw_catalog=False):
+    """Bind fictional support values to a public skill definition and synthetic installation."""
+    template = ("Supports skills that hit enemies.\n"
+                "+#% additional damage for the supported skill when it lands a Critical Strike")
+    data = {"7420": {"tlidbId": 7420, "id": "synthetic-critical-support", "category": "Support",
+        "catalogPath": "skill/Support", "tags": ["Support"],
+        "descriptionBindings": {"template": "templateDescription", "level": 1, "bindings": ["value7"]},
+        "levelProgression": [{"level": 1, "value7": Decimal("13.5")}, {"level": 7, "value7": Decimal("9.25")}],
+        "english": {"templateDescription": template, "description": template.replace("#", "13.5")}}}
+    observed = installation()
+    observed["groups"][0]["members"][0]["skill_id"] = 7420
+    metadata = catalog_document()
+    metadata["categories"]["Support"] = {"master": "present", "english": "present"}
+    for role, span in (("master", [401, 491]), ("english", [501, 609])):
+        row = copy.deepcopy(metadata["documents"][0])
+        path = "skill/Support/" + ("master" if role == "master" else "i18n/en")
+        row.update(role=role, category="Support", logicalPath=path, address="/data/SS14/" + path + ".json",
+                   member=path, byteRange=span)
+        metadata["documents"].append(row)
+    return data, observed, metadata if raw_catalog else catalog_project(metadata)
+
+
 class InstalledProfileTests(unittest.TestCase):
     """Keep catalog lookups at observed gem levels separate from effective skill values."""
+
+    def test_an_ordinary_critical_support_retains_its_separate_catalog_hit_candidate(self):
+        data, observed, metadata = ordinary()
+        member = project(data, observed, metadata)["members"][0]
+        effect = member["ordinary_support"]
+        self.assertEqual((effect["status"], effect["identity"]["catalog_id"], effect["lookup"]["level"],
+                          effect["candidate"]["kind"], effect["candidate"]["value"]["fraction"],
+                          effect["effective_level"], effect["arithmetic_ready"]),
+                         ("candidate", 7420, 7, "critical_hit_additional_damage",
+                          {"numerator": 37, "denominator": 400}, None, False))
+
+    def test_legacy_profiles_do_not_invent_or_accept_new_ordinary_support_observations(self):
+        from damage_lab.installedprofiles import summary
+
+        data = project(records(), installation(), catalog())
+        data["version"] = "0.1.0"
+        for member in data["members"]:
+            member.pop("ordinary_support")
+        self.assertEqual(summary(data), data)
+
+    def test_ordinary_support_context_cannot_drift_from_its_installed_catalog_member(self):
+        from damage_lab.installedprofiles import summary
+
+        for field, value in (("catalog_id", 7421), ("guid", "different-public-support"), ("level", 11)):
+            with self.subTest(field=field):
+                data = project(*ordinary())
+                leaf = data["members"][0]["ordinary_support"]
+                leaf["lookup" if field == "level" else "identity"][field] = value
+                with self.assertRaises(ValueError):
+                    summary(data)
+
+    def test_new_profiles_require_the_ordinary_observation_field_even_when_it_is_unknown(self):
+        from damage_lab.installedprofiles import summary
+
+        data = project(records(), installation(), catalog())
+        data["members"][0].pop("ordinary_support")
+        with self.assertRaises(ValueError):
+            summary(data)
+
+    def test_two_ordinary_support_installs_keep_their_own_lookup_levels_and_coordinates(self):
+        data, observed, metadata = ordinary()
+        data["7420"]["levelProgression"].append({"level": 19, "value7": Decimal("12.75")})
+        observed["groups"][1]["members"][0]["skill_id"] = 7420
+        members = project(data, observed, metadata)["members"]
+        self.assertEqual([(row["alias"], row["ordinary_support"]["lookup"]["level"],
+                           row["ordinary_support"]["candidate"]["value"]["fraction"])
+                          for row in members if row["ordinary_support"] is not None],
+                         [("gem[1]", 7, {"numerator": 37, "denominator": 400}),
+                          ("gem[3]", 19, {"numerator": 51, "denominator": 400})])
 
     def test_installed_gems_receive_catalog_lookups_and_explicit_gaps_without_effective_levels(self):
         result = project(records(), installation(), catalog())
@@ -37,7 +109,7 @@ class InstalledProfileTests(unittest.TestCase):
                           result["import_complete"], result["activation"], result["patch"], result["effective_level"],
                           member["alias"], member["group"], member["path"], member["gem_level"],
                           member["effective_level"], member["lookup_level_meaning"], member["profile"]["hit"]),
-                         ("tli-installed-skill-profiles-v1", "0.1.0", "0.2.1",
+                         ("tli-installed-skill-profiles-v1", "0.1.1", "0.2.1",
                           {"members": 4, "profiled": 1, "gaps": 3, "reconciles": True},
                           False, False, False, False, "unknown", "unknown", None,
                           "gem[1]", "group[1]", "sections.SkillLayout.data[0][0]", 7, None,

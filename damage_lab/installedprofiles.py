@@ -8,7 +8,8 @@ from .supportcatalog import summary as catalog_summary
 
 
 FORMAT = "tli-installed-skill-profiles-v1"
-VERSION = "0.1.0"
+VERSION = "0.1.1"
+VERSIONS = ("0.1.0", VERSION)
 PROFILE_VERSION = "0.2.1"
 MEANING = "observed_gem_level_not_effective"
 
@@ -99,7 +100,12 @@ def project(records, installation, catalog):
             row.update(group=group["alias"], tab_position=group["tab_position"], effective_level=None,
                        lookup_level_meaning=MEANING,
                        catalog_category=record["category"] if record is not None else None,
-                       status="gap" if reason else "profiled", reason=reason, profile=result)
+                       status="gap" if reason else "profiled", reason=reason, profile=result,
+                       ordinary_support=None)
+            if result is not None and row["catalog_category"] == "Support":
+                from .ordinarysupport import effect
+
+                row["ordinary_support"] = effect(record, catalog_id=row["skill_id"], level=row["gem_level"])
             members.append(row)
     captured = installation["domains"]["client"]["status"] == "captured"
     return summary({"format": FORMAT, "version": VERSION, "profile_version": PROFILE_VERSION,
@@ -116,7 +122,8 @@ def summary(canonical):
     """Revalidate and detach already projected catalog lookups without source I/O."""
     result = _select(canonical, "format version profile_version source catalog arithmetic_ready runtime_verified "
                      "identity_verified import_complete activation patch effective_level client_layer members accounting")
-    _fixed(result, {"format": FORMAT, "version": VERSION, "profile_version": PROFILE_VERSION,
+    _enum(result["version"], VERSIONS)
+    _fixed(result, {"format": FORMAT, "profile_version": PROFILE_VERSION,
                     "arithmetic_ready": False, "runtime_verified": False, "identity_verified": False,
                     "import_complete": False, "activation": "unknown", "patch": "unknown", "effective_level": None})
     result["source"] = _select(result["source"], "sha256 binding")
@@ -127,7 +134,7 @@ def summary(canonical):
     if result["client_layer"] == "captured":
         if type(result["members"]) is not list:
             raise ValueError("Captured installed skill profiles require a member list")
-        result["members"] = [_member(row, result["catalog"]) for row in result["members"]]
+        result["members"] = [_member(row, result["catalog"], result["version"]) for row in result["members"]]
         _coordinates(result["members"])
         if len({row["skill_id"] for row in result["members"] if row["status"] == "profiled"}) > result["catalog"]["skills"]:
             raise ValueError("Installed profile identities cannot outnumber declared resolved catalog skills")
@@ -145,7 +152,7 @@ def summary(canonical):
     return result
 
 
-def _member(value, catalog):
+def _member(value, catalog, version):
     row = _select(value, "alias group tab_position slot path skill_id gem_level effective_level lookup_level_meaning "
                   "catalog_category status reason profile")
     _fixed(row, {"effective_level": None, "lookup_level_meaning": MEANING})
@@ -168,6 +175,24 @@ def _member(value, catalog):
         if (catalog["categories"][row["catalog_category"]]["english"] != "present"
                 and row["profile"]["hit"]["status"] != "no_binding"):
             raise ValueError("Installed catalog hit profiles require their declared English member")
+    if version == VERSION:
+        if "ordinary_support" not in value:
+            raise ValueError("Installed profiles require the ordinary support observation field")
+        candidate = value["ordinary_support"]
+        eligible = row["profile"] is not None and row["catalog_category"] == "Support"
+        if eligible:
+            from .ordinarysupport import summary
+
+            candidate = summary(candidate)
+            if (candidate["identity"]["catalog_id"] != row["skill_id"] or candidate["lookup"]["level"] != row["gem_level"]
+                    or candidate["identity"]["guid"] != row["profile"]["identity"]["guid"]
+                    or candidate["identity"]["category"] != "Support"):
+                raise ValueError("Ordinary support evidence must match its installed catalog identity and level")
+            if candidate["candidate"] is not None and catalog["categories"]["Support"]["english"] != "present":
+                raise ValueError("Ordinary support candidates require their declared English member")
+        elif candidate is not None:
+            raise ValueError("Only profiled ordinary supports can retain ordinary support observations")
+        row["ordinary_support"] = candidate
     return row
 
 

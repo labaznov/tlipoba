@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+from decimal import Decimal, DecimalException
 
 from .supportbundle import ERRORS, _pairs, _float, _constant
 
@@ -28,6 +29,18 @@ def _hash(value):
 def _flags(value):
     if any(value.get(field) is not False for field in FLAGS):
         raise ValueError("Installed skill catalog cannot verify arithmetic runtime identity or completeness")
+
+
+def _decimal(token):
+    """Retain exact catalog decimal values behind the existing finite-number acquisition limits."""
+    _float(token)
+    try:
+        value = Decimal(token)
+    except DecimalException:
+        raise ValueError("Installed skill catalog decimal exceeds its supported representation") from None
+    if not value.is_finite():
+        raise ValueError("Installed skill catalog decimal exceeds its supported representation")
+    return value
 
 
 def read(package, descriptor, source_sha256, installation, *, max_bytes=MAX_BYTES):
@@ -62,7 +75,7 @@ def read(package, descriptor, source_sha256, installation, *, max_bytes=MAX_BYTE
     if hashlib.sha256(raw).hexdigest() != descriptor["sha256"]:
         raise ValueError("Installed skill catalog bytes differ from the descriptor hash")
     try:
-        artifact = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs, parse_float=_float, parse_constant=_constant)
+        artifact = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs, parse_float=_decimal, parse_constant=_constant)
     except (ValueError, UnicodeError, RecursionError):
         raise ValueError("Installed skill catalog requires strict bounded UTF-8 JSON") from None
     _object(artifact, ("format", "version", "status", "source", *FLAGS))

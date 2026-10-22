@@ -44,3 +44,17 @@ SQLite, import/calculation JSON и вложенный record команды `inp
 без semantic документа; legacy пакет остаётся доступным с явным пробелом.
 Проверки выполняются до создания SQLite. Статы, benchmark и прежний условный
 расчёт не меняются.
+
+Обычный exporter `build_package(..., *, level_auxiliary=None)` включает этот
+артефакт автоматически. При явно переданном catalog используются только его
+собственные сохранённые bytes; другой cache не подставляется. Auxiliary
+передаются явно и при `None` остаются отсутствующими. Недоступность каталога
+сохраняет source-bound error вместо пустого успешного результата.
+
+Контракт проверен для helper task `20261022-0640-automatic-level-candidates`,
+`export_open.py` SHA-256
+`772af5411b78c9b69de5f85efdbddf888210a997fc861e9d092fe5053ac9e9e4`.
+Полный сохранённый пакет прошёл import, calculation и inputs без ручных
+показателей: 30 targets и 90 candidates совпали в трёх JSON/SQLite/HTML.
+Это проверка экспорта сохранённых данных, а не нового игрового снимка,
+effective-level policy или точности полного DPS.

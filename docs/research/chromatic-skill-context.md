@@ -1,6 +1,6 @@
 # Chromatic Shot: source-bound skill context
 
-Проверено 2026-10-22, только по сохранённым guide/source и локальному каталогу. Нового чтения игры, лога, сети или `.pak` не было. Это контракт будущего адаптера, не реализованный resolver и не профиль точного DPS.
+Проверено 2026-10-22, только по сохранённым guide/source и локальному каталогу. Нового чтения игры, лога, сети или `.pak` не было. Поля каталога уже извлекает чистый skillprofile; byte-level binder и resolver точного DPS ещё не реализованы.
 
 ## Источники и точная адресация
 
@@ -21,16 +21,18 @@
 
 | Поле | Возможная роль / единица | Сила свидетельства и граница |
 | --- | --- | --- |
-| `value1Min`, `value1Max` | Нижняя/верхняя база spell physical hit, damage | Имена Min/Max и диапазон в описании согласованы; автоматический binding каталога дефектен |
+| `value1Min`, `value1Max` | Нижняя/верхняя база spell physical hit, damage | Явный Min binding с парой Max воспроизводит полное reference description; только согласованность сохранённого каталога |
 | `value2` | Базовое число снарядов, count | Corroborated только постоянным числом в предложении; явного field-role binding нет |
 | `value3` | Внутренний бонус количества снарядов, count | Та же граница; не тождественен итоговому UI Projectile Quantity Bonus |
 | `value4` | Шанс взрыва при убийстве, percent points | Та же граница; это отдельное условное событие |
 | `value5` | Урон взрыва относительно Max Life жертвы, percent points | Та же граница; не база spell и не постоянный more основного hit |
 | `value6` | Радиус взрыва, metres | Та же граница; не множитель урона |
 
-**Машинного доказательства всей цепочки нет.** `descriptionBindings` у Chromatic указывает один binding `value1Min`, но `templateDescription` содержит два плейсхолдера. Подстановка не воспроизводит English. Поля `value2..6` вообще не перечислены в bindings; совпадения постоянных чисел не позволяют универсальному resolver назначить им роли.
+**Привязка базового диапазона подтверждена офлайн-аудитом 0342.** `descriptionBindings` у Chromatic указывает `value1Min`; один токен диапазона `#-#` использует его вместе с `value1Max`. Он содержит два символа `#`, но это не два независимых плейсхолдера. Полная подстановка на reference level 20 точно воспроизводит все восемь строк English description. Ранний вывод о повреждённом binding был ошибкой подсчёта символов. Поля `value2..6` не перечислены в bindings; совпадения постоянных чисел не позволяют resolver назначить им роли. Version/effective-level gates этим не закрываются.
 
-[Helper `skill_values.resolve`](C:/Repos/tli-build-exporter/skill_values.py:111) при совпадении description level с gem level возвращает `catalog_level` без проверки шаблона. Это допустимая характеристика показанного текста, но не сертификат field-role mapping. [Наш `skillvalues.parameters`](../../damage_lab/skillvalues.py:40) проверяет уровень, числа и исходные cells; он также не доказывает единицы или смысл параметров. Нужен отдельный явный registry, привязанный к identity, варианту и hashes; повреждённый binding остаётся gap.
+[Helper `skill_values.resolve`](C:/Repos/tli-build-exporter/skill_values.py:111) при совпадении description level с gem level возвращает `catalog_level` без проверки шаблона. Это характеристика показанного текста, не сертификат field-role mapping. [Наш `skillvalues.parameters`](../../damage_lab/skillvalues.py:40) проверяет уровень, числа и исходные cells. Новый [skillprofile](../SKILL_PROFILE.md) отдельно проверяет токены, Min/Max convention и полный reference render; исправлять сохранённый binding 7007 не требуется. Byte-level source/catalog binder, актуальная версия и effective level остаются отдельными prerequisites.
+
+Аудит 0342 проверил точные member slices сохранённых wrappers: master `skill/Active/master`, SHA256 `f6f3fc68063992a1e626dddd08292f50696b7b31cafff4b8d00fce561bb5f4b1`; English `skill/Active/i18n/en`, SHA256 `fb6f25319d2d9a9ecbf7b793315af67f69e45d96dd93c2195f36df51ea4e1b82`. Это хеши локальных member bytes, не HTTP/client bytes. Независимая повторная проверка подтвердила единственную запись, grammar, полный рендер и отказ при изменении одного символа reference.
 
 Metadata этого master: `castSpeed="0.65 s"`, `effectivenessOfAddedDamage="131%"`; `tags` перечисляет Spell, Projectile, Area, Physical, Horizontal и три элементальных тега; `mainStat` содержит Strength, Dexterity, Intelligence. Значение в секундах может быть нормализовано как заявленный каталогом интервал, но не как число casts/s; обратная величина требует отдельного правила cast speed. Процент effectiveness нормализуется делением на 100. Base critical rating/chance/multiplier в проверенных master/English отсутствуют: не подставлять стандартное число или ноль. Теги не доказывают три одновременно наносящихся элемента либо фактическую conversion.
 
@@ -54,7 +56,7 @@ Metadata этого master: `castSpeed="0.65 s"`, `effectivenessOfAddedDamage="1
 
 ## Контракт и gates будущего resolver
 
-Минимальный результат хранит раздельно:
+Минимальный результат будущего binder хранит раздельно. Ниже общий вымышленный пример с неизвестной привязкой поля; это не статус уже проверенного base binding 7007:
 
 ```json
 {
@@ -74,4 +76,4 @@ Metadata этого master: `castSpeed="0.65 s"`, `effectivenessOfAddedDamage="1
 4. Каталожная база 529–881, effectiveness 131% и shotgun 70% конфликтуют с [ранее проверенными SS14 фактами](carino-combat-formulas.md): 498–831, 123%, 80%. Это две версии свидетельств; ни одну нельзя выбирать по совпадению с панелью.
 5. Skill context описывает заявленную базу/поддержки. Он не подтверждает включённость, Tangle inheritance, Lucky, shotgun topology, цель или panel inclusion; не накладывать поддержку повторно поверх panel hit/DPS.
 
-Следующий безопасный шаг — диагностический registry/validator с exact-ID/hash fixtures, исправным двухполевым binding и отдельной signed Tangle-строкой. Числовой resolver для текущего персонажа остаётся заблокирован version/effective-level gates. Действующий DPS не изменён.
+Следующий безопасный шаг — byte-level binder каталожного профиля с exact-ID/hash fixtures и отдельное правило signed Tangle-строки. Числовой resolver для текущего персонажа остаётся заблокирован version/effective-level gates. Действующий DPS не изменён.

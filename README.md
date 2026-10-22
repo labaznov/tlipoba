@@ -128,6 +128,8 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 
 [Поля навыка из каталога](docs/SKILL_PROFILE.md) отделяют skill tags от типов урона, сохраняют main stats, stated effectiveness/seconds и проверяют полный reference render диапазона точного уровня. Это офлайн-разбор кандидатов; source binder, effective level и актуальность версии ещё нужны для автоматического DPS. [Привязки специальных поддержек](docs/research/special-support-bindings.md) отдельно описывают native rolls и каталожные константы, включая конверсию.
 
+[Разбор эффектов специальных поддержек](docs/SUPPORT_EFFECTS.md) проверяет полный native ID, собственный tier и точный roll, сохраняя литералы каталога отдельно. Он не выводит активацию, effective level или grouping констант; источник байтов и подключение к обычному импорту ещё требуют внешнего binder.
+
 [Боевой слой raw spell](docs/RAW_COMBAT.md) соединяет этот результат с явными Tangle/topology, Cold defence, бронёй, damage taken и uptime. Крит и скорость не считаются повторно; неизвестные inheritance/topology/target gates блокируют полный DPS. Полностью вымышленный пример: `python -m examples.calculate_raw_combat`.
 
 [Сравнение полных боевых замен](docs/COMBAT_UPGRADES.md) пересчитывает каждый rawcombat-сценарий при одной цели и uptime и ранжирует известный положительный прирост по явной цене. Неизвестные эффекты блокируют дельту и рейтинг; автоматического подбора вещей или рыночных цен здесь пока нет.

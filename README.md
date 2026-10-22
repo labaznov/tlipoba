@@ -142,6 +142,10 @@ python -m damage_lab --package local-data/example --observations local-data/exam
 
 [Аудит автоматических входов cast speed](docs/research/cast-input-coverage.md) сохраняет точные собственные привязки и оставшиеся пробелы composite rolls, условий, рангов и runtime interval. [Диагностические строки скорости](docs/CAST_EVIDENCE.md) теперь автоматически проходят в SQLite, JSON и три HTML без новых множителей DPS. Specs и собственные значения не сопоставляются; [соглашение стороннего редактора](docs/research/cast-field-role-witness.md) не заменяет native field-role contract. Полный cast-speed pool пока не получен.
 
+[Исследование памяти героя](docs/research/memory-cast-bindings.md) подтвердило три точные modifier-ID связи и отдельный непривязанный base stat. Own/catalog values остаются отдельными фактами. [Проверка сторонних расчётных путей](docs/research/planner-runtime-formula-crosscheck.md) также показала различие усреднения crit-only эффекта: код другого планировщика не становится оракулом игры.
+
+Автоматические [входы модели](docs/BUILD_INPUTS.md) теперь могут передать точный контекст выбранного Physical spell в настоящий rawspell evaluator. Неизвестные damage/crit/casting группы сохраняются как `null`; отчёт движка показывает blocked и конкретные причины. Известные полные сценарии рассчитываются по прежним формулам, а неизвестные группы не получают нулевых параметров или рейтинга апгрейдов.
+
 [Боевой слой raw spell](docs/RAW_COMBAT.md) соединяет этот результат с явными Tangle/topology, Cold defence, бронёй, damage taken и uptime. Крит и скорость не считаются повторно; неизвестные inheritance/topology/target gates блокируют полный DPS. Полностью вымышленный пример: `python -m examples.calculate_raw_combat`.
 
 [Сравнение полных боевых замен](docs/COMBAT_UPGRADES.md) пересчитывает каждый rawcombat-сценарий при одной цели и uptime и ранжирует известный положительный прирост по явной цене. Неизвестные эффекты блокируют дельту и рейтинг; автоматического подбора вещей или рыночных цен здесь пока нет.

@@ -569,6 +569,18 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Installed skill catalog acquisition failed; missing profiles are not empty or zero damage")
     else:
         coverage.append("Installed skill catalog profiles are unavailable in this legacy package")
+    levels = None
+    level_origin = None
+    if "installedLevelCandidates" in manifest:
+        from .levelbundle import read
+        levels, level_origin = read(package, manifest["installedLevelCandidates"], hashes["source"][0], installation)
+        if levels is not None:
+            documents["installed_level_candidates"] = levels
+            coverage.append("Installed level candidates were imported automatically; effective levels and eligibility remain unknown; candidates are not added or applied to DPS")
+        else:
+            coverage.append("Installed level candidate acquisition failed; missing candidates are not empty or zero level grants")
+    else:
+        coverage.append("Installed level candidates are unavailable in this legacy package")
     support = None
     catalog = None
     support_origin = None
@@ -741,6 +753,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["installed_skills"] = installation
     if profile is not None:
         result["installed_skill_profiles"] = profile
+    if levels is not None:
+        result["installed_level_candidates"] = levels
     if support is not None:
         result["installed_support_effects"] = support
         result["installed_support_catalog"] = catalog
@@ -769,6 +783,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("installed_skills", *attachment))
     if profile_origin is not None:
         inputs.append(("installed_skill_profiles", *profile_origin))
+    if level_origin is not None:
+        inputs.append(("installed_level_candidates", *level_origin))
     if support_origin is not None:
         inputs.append(("installed_support_effects", *support_origin))
 

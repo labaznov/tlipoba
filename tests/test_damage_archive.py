@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import hashlib
 import json
 import sqlite3
@@ -9,6 +10,141 @@ from unittest.mock import patch
 
 from damage_lab.archive import archive
 from examples.make_fixture import fixture
+
+
+def attachedlevels(directory, *, error=False):
+    """Attach fictional level candidates for every exactly observed installed skill."""
+    from damage_lab.installedskills import project
+    from test_levelbundle import diagnostic, failure, persisted
+    from test_skillbundle import attached
+
+    raw, _ = attached(directory)
+    if error:
+        artifact, descriptor, _ = failure(directory)
+    else:
+        artifact, descriptor, source, _ = diagnostic(directory)
+        installation = project(raw, source)
+        members = [member for group in installation["groups"] for member in group["members"]]
+        ledger = next(iter(artifact["targets"].values()))
+        targets = {}
+        for member in members:
+            target = copy.deepcopy(ledger)
+            target["source"]["sha256"] = source
+            target["target"].update(skillId=member["skill_id"], path=member["path"], gemLevel={
+                "value": member["gem_level"], "status": member["level_status"],
+                "meaning": "observed_gem_level_not_effective"})
+            target["domains"]["supports"]["observed"] = len(members)
+            targets[str(member["skill_id"])] = target
+        artifact.update(requestedIds=sorted(member["skill_id"] for member in members), targets=targets)
+        artifact["selection"].update(observedMembers=len(members), invalidSkillIds=0)
+        descriptor.update(requested=len(targets), targets=len(targets),
+                          candidates=sum(len(target["candidates"]) for target in targets.values()),
+                          gaps=sum(len(target["gaps"]) for target in targets.values()), ambiguousTargets=0)
+        persisted(directory, artifact, descriptor)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["installedLevelCandidates"] = descriptor
+    write(directory / "manifest.json", manifest)
+    return artifact, descriptor
+
+
+class InstalledLevelBundleTests(unittest.TestCase):
+    """Preserve source-bound candidate levels without deriving effective levels or damage."""
+
+    def test_level_candidates_are_preserved_in_record_sqlite_and_hashed_origin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attachedlevels(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='installed_level_candidates'").fetchone()[0])
+                self.assertEqual((stored, connection.execute(
+                    "SELECT path,sha256,bytes,stored FROM sources WHERE role='installed_level_candidates'").fetchone()),
+                    (json.loads(json.dumps(result["installed_level_candidates"])),
+                     (str((directory / descriptor["file"]).resolve()), descriptor["sha256"],
+                      (directory / descriptor["file"]).stat().st_size, 1)))
+
+    def test_observed_gem_levels_and_invalid_levels_never_become_effective_levels(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            attachedlevels(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")["installed_level_candidates"]
+            self.assertEqual((result["requested_ids"], result["targets"]["90017"]["target"]["gem_level"]["value"],
+                              result["targets"]["90053"]["target"]["gem_level"],
+                              [target["effective_level"] for target in result["targets"].values()],
+                              result["arithmetic_ready"], result["import_complete"]),
+                ([90017, 90029, 90041, 90053], 7,
+                 {"value": None, "status": "invalid_level", "meaning": "observed_gem_level_not_effective"},
+                 [None] * 4, False, False))
+
+    def test_a_hashed_level_acquisition_error_remains_a_gap_without_semantic_documents(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor = attachedlevels(directory, error=True)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(("installed_level_candidates" in result, connection.execute(
+                    "SELECT COUNT(*) FROM documents WHERE role='installed_level_candidates'").fetchone()[0],
+                    connection.execute("SELECT sha256,stored FROM sources WHERE role='installed_level_candidates'").fetchone(),
+                    any("Installed level candidate acquisition failed" in row for row in result["coverage"])),
+                    (False, 0, (descriptor["sha256"], 0), True))
+
+    def test_legacy_packages_have_a_level_acquisition_gap_without_an_invented_origin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            result = archive(package(root), None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual(("installed_level_candidates" in result, connection.execute(
+                    "SELECT COUNT(*) FROM sources WHERE role='installed_level_candidates'").fetchone()[0],
+                    any("Installed level candidates are unavailable" in row for row in result["coverage"])), (False, 0, True))
+
+    def test_tampered_level_bytes_source_counts_or_installation_are_refused_before_database_creation(self):
+        from test_levelbundle import persisted
+
+        outcomes = []
+        for change in ("bytes", "source", "count", "path", "level"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                directory = package(root)
+                artifact, descriptor = attachedlevels(directory)
+                if change == "bytes":
+                    with (directory / descriptor["file"]).open("ab") as stream:
+                        stream.write(b" ")
+                else:
+                    if change == "source":
+                        artifact["source"]["sha256"] = "f" * 64
+                    elif change == "count":
+                        descriptor["candidates"] += 1
+                    elif change == "path":
+                        artifact["targets"]["90017"]["target"]["path"] = "sections.SkillLayout.data[0][1]"
+                    else:
+                        artifact["targets"]["90017"]["target"]["gemLevel"]["value"] = 23
+                    persisted(directory, artifact, descriptor)
+                    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                    manifest["installedLevelCandidates"] = descriptor
+                    write(directory / "manifest.json", manifest)
+                try:
+                    archive(directory, None, facts(root), root / "out.sqlite")
+                except ValueError:
+                    outcomes.append(not (root / "out.sqlite").exists())
+        self.assertEqual(outcomes, [True] * 5)
+
+    def test_level_candidates_do_not_change_the_existing_conditional_calculation(self):
+        from damage_lab.engine import calculate
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            condition = {"basis": "panel", "active": 2, "hits": 3, "retention": 0.2,
+                         "resistance": 0.23, "taken": 0.11, "uptime": 0.87}
+            before = archive(directory, observations(root), facts(root), root / "before.sqlite")
+            attachedlevels(directory)
+            after = archive(directory, observations(root), facts(root), root / "after.sqlite")
+            self.assertEqual((after["stats"], after["benchmark"], calculate(after["stats"], condition)),
+                             (before["stats"], before["benchmark"], calculate(before["stats"], condition)))
 
 
 class InstalledProfileBundleTests(unittest.TestCase):

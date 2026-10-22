@@ -49,8 +49,27 @@ def ordinary(*, raw_catalog=False):
     return data, observed, metadata if raw_catalog else catalog_project(metadata)
 
 
+def projectile():
+    """Observe a fictional projectile support without enabling it or counting hits."""
+    from test_ordinarysupport import projectiles
+
+    _, observed, metadata = ordinary()
+    observed["groups"][0]["members"][0].update(skill_id=7401, gem_level=17)
+    return {"7401": {**projectiles(), "catalogPath": "skill/Support", "tags": ["Support"]}}, observed, metadata
+
+
 class InstalledProfileTests(unittest.TestCase):
     """Keep catalog lookups at observed gem levels separate from effective skill values."""
+
+    def test_projectile_scalars_and_literals_survive_the_existing_installed_member_binding(self):
+        from damage_lab.installedprofiles import summary
+
+        value = project(*projectile())
+        effect = summary(value)["members"][0]["ordinary_support"]
+        self.assertEqual((effect["identity"]["catalog_id"], effect["lookup"]["level"],
+                          effect["candidate"]["kind"], effect["candidate"]["projectile_quantity"]["value"],
+                          effect["candidate"]["value"]["fraction"], effect["effective_level"], effect["arithmetic_ready"]),
+                         (7401, 17, "additional_damage", 2, {"numerator": -113, "denominator": 700}, None, False))
 
     def test_an_ordinary_critical_support_retains_its_separate_catalog_hit_candidate(self):
         data, observed, metadata = ordinary()

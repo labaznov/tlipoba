@@ -221,24 +221,26 @@ def leveldetails(record):
 
 def _ordinaryrows(data):
     rows = []
-    critical = False
     for member in data["members"] or []:
         effect = member.get("ordinary_support")
         if effect is None:
             continue
         candidate = effect["candidate"]
-        critical |= candidate is not None
         value = "неизвестно" if candidate is None else candidate["value"]["cell"]["text"] + "%"
+        role = ("<p>Кандидат относится к критическому попаданию поддержанного навыка</p>"
+                if candidate is not None and candidate["kind"] == "critical_hit_additional_damage" else "")
+        if candidate is not None and candidate["kind"] == "additional_damage":
+            role = ("<p>Количество снарядов: " + text(candidate["projectile_quantity"]["text"])
+                    + " (catalog literal)<br>Попадания не рассчитаны</p>")
         rows.append("<details><summary>" + text(member["alias"]) + ": " + text(value) + "</summary>"
-                    + "<div class=scroll><pre>" + text(json.dumps({
+                    + role + "<div class=scroll><pre>" + text(json.dumps({
                         "catalog_id": member["skill_id"], "gem_level": member["gem_level"],
                         "group": member["group"], "path": member["path"], "effect": effect,
                     }, ensure_ascii=False, indent=2)) + "</pre></div></details>")
     if not rows:
         return ""
     return ("<section><h2>Обычные поддержки: кандидаты по таблице</h2>"
-            + ("<p>Кандидат относится к критическому попаданию поддержанного навыка</p>" if critical else "")
-            + "<p>"
+            "<p>"
             "Эффективный уровень, активация и принадлежность к additional pool неизвестны<br>"
             "Эффекты не применены к DPS</p>" + "".join(rows) + "</section>")
 

@@ -43,8 +43,22 @@ def ordinaryevidence():
     return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*ordinary())}
 
 
+def projectileevidence():
+    """Return unrelated signed damage and literal projectile count from one observed support."""
+    from damage_lab.installedprofiles import project
+    from test_installedprofiles import projectile
+
+    return {"source_sha256": "a" * 64, "installed_skill_profiles": project(*projectile())}
+
+
 class OrdinarySupportReportTests(unittest.TestCase):
     """Show separate critical-hit candidates without applying them to damage."""
+
+    def test_projectile_reports_keep_the_literal_and_damage_separate_without_a_critical_caption(self):
+        self.assertTrue(all(all(value in page for value in (
+            "-113/7%", "additional_damage", "projectile_quantity", "+2", "catalog_literal",
+            "Количество снарядов: +2", "Попадания не рассчитаны", "hit_semantics", "unknown",
+        )) and "Кандидат относится к критическому попаданию" not in page for page in pages(projectileevidence())))
 
     def test_both_reports_show_exact_support_values_with_their_unknown_runtime_context(self):
         self.assertTrue(all(all(value in page for value in (

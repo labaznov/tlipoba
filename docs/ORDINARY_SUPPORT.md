@@ -1,7 +1,8 @@
 # Обычная поддержка: точный scalar-кандидат
 
 `damage_lab.ordinarysupport.effect(record, *, catalog_id, level)` — чистый
-адаптер одной проверенной семьи обычной поддержки, public catalog ID `7420`.
+адаптер двух проверенных семей обычной поддержки, public catalog IDs `7420`
+и `7401`.
 Он не читает файлы и не применяет урон. `summary(canonical)` повторно
 проверяет безопасный proof-блок, удаляет неизвестные поля и возвращает
 отделённую структуру.
@@ -13,7 +14,7 @@ GUID, одном объявленном поле `value[0-9]{1,2}`, уникал
 Необязательный `catalogPath`, если передан, должен быть `skill/Support`.
 Имя поддержки, native Prefix и похожая строка текста не служат привязкой.
 
-Поддерживается только целый двухстрочный English template:
+Для `7420` поддерживается только целый двухстрочный English template:
 
 ```text
 Supports skills that hit enemies.
@@ -38,7 +39,8 @@ Supports skills that hit enemies.
 
 Целая часть ограничена 12 цифрами, дробная — 9. Рациональная строка допускает
 до 12 цифр в числителе и положительном знаменателе. Нет выражений, экспонент
-в строках, пробелов, знака минус и bool-coercion. Для `Decimal` проверяются
+в строках, пробелов и bool-coercion. Знак минус допускается только для `7401`.
+Для `Decimal` проверяются
 конечность, не более 21 цифры и exponent от −9 до 11 до форматирования; затем
 действует та же plain-number грамматика. Десятичный контекст вызывающего кода
 не меняет точные отношения.
@@ -51,14 +53,16 @@ Supports skills that hit enemies.
 
 ## Выход и границы доказательства
 
-Формат — `tli-ordinary-support-effect-v1`, версия `0.1.0`. Envelope содержит
+Формат — `tli-ordinary-support-effect-v1`, версия `0.1.1`. Legacy `0.1.0`
+повторно проверяется без изменения версии; новый projectile-кандидат нельзя
+передать под старой версией. Envelope содержит
 `status`, `reason`, `gaps`, `identity`, `lookup` и nullable `candidate`.
 При отсутствии доказательства `status=unresolved`, `candidate=null`, а `reason`
 совпадает с единственным фиксированным кодом в `gaps`. Структурно неверный
 вход или поддельный canonical-блок даёт `ValueError` с одним фиксированным
 сообщением без входного payload.
 
-Кандидат имеет `kind=critical_hit_additional_damage`,
+Кандидат `7420` имеет `kind=critical_hit_additional_damage`,
 `origin=catalog_level_table`, `owner=supported_skill`,
 `target=supported_skill_critical_hit`, `unit=percent`. Его binding сохраняет
 целый template, объявленное поле, reference level/cell/description и координаты
@@ -66,6 +70,35 @@ Supports skills that hit enemies.
 Это дополнительный урон критического попадания поддержанного навыка;
 он не является модификатором полного Critical Strike Damage multiplier,
 ordinary increased, Lucky или глобальным уроном персонажа.
+
+## Multiple Projectiles
+
+Для `7401` целый template строго равен:
+
+```text
+Supports Projectile Skills.
+Projectile Quantity of the supported skill
++2
+#% additional damage for the supported skill
+```
+
+Наблюдаемый уровень, reference level и все строки таблицы ограничены `1..40`;
+таблица содержит не более 40 строк. Нет extrapolation или fallback. Уровень
+41 даёт `observed_level_invalid`, неверный reference — `binding_level_invalid`,
+а неподдержанный ряд или размер таблицы — `level_table_invalid`.
+
+Только последний `#` связывается с единственным объявленным полем. Signed
+scalar сохраняется в обычном `value` с exact percent/fraction; `kind=additional_damage`,
+`target=supported_skill`, `scope=projectile`. Binding указывает `line=3` и хранит
+reference cell и полный reference-description. Отрицательные дроби рендерятся
+со знаком перед абсолютной величиной; результат не зависит от Decimal context.
+Если reference и observed level совпадают, их клетки обязаны совпадать.
+
+Отдельный `projectile_quantity` содержит `origin=catalog_literal`,
+`lines=[1,2]`, `text=+2`, `value=2`, literal `bound=false` и
+`hit_semantics=unknown`. Это каталожная прибавка количества, а не итоговое число
+снарядов или попаданий. Не вычисляются shotgun, hit topology или урон цели.
+Числовые координаты и literal values нельзя подменять float или bool.
 
 `lookup.meaning=observed_gem_level_not_effective`. Во всех состояниях
 `effective_level=null`, `activation=unknown`, `eligibility=unverified`,
@@ -82,8 +115,12 @@ alias, группу, путь и наблюдаемый уровень с уст
 поддержки, `criticalstats`, rawspell или панель.
 
 Защитные границы pure-входа: не более 20 000 посещённых узлов, глубина 32,
-4096 элементов контейнера, 4096 символов строки, 1000 строк progression и
-уровни `1..1000`; повторные ссылки на один контейнер отклоняются.
+4096 элементов контейнера, 4096 символов строки, до 1000 строк progression и
+уровни `1..1000` для `7420`; `7401` имеет более узкий предел 40.
+Повторные ссылки на один контейнер отклоняются.
+Исходные integer nodes ограничены 20 цифрами; canonical derived ratios
+допускают 21 цифру, чтобы сохранить всю разрешённую клетку с 12 целыми и
+9 дробными цифрами. Identity IDs остаются в собственном пределе 20 цифр.
 Неизвестные поля не копируются в результат.
 
 Проверка локально:

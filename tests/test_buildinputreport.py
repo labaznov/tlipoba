@@ -42,6 +42,19 @@ class Surface(HTMLParser):
 class OrdinarySupportInputReportTests(unittest.TestCase):
     """Retain ordinary support candidates independently of the selected gem."""
 
+    def test_projectile_evidence_reaches_inputs_html_without_filling_damage_or_topology(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import record
+        from test_damage_report import projectileevidence
+
+        data = record()
+        data.update(projectileevidence())
+        value = assemble(data, skill_alias="gem[999]")
+        page = render(value)
+        self.assertTrue(all(fragment in page for fragment in (
+            "-113/7%", "Количество снарядов: +2", "Попадания не рассчитаны", "hit_semantics", "Эффекты не применены к DPS",
+        )) and value["raw_spell"] is None and value["status"] == "blocked")
+
     def test_an_unobserved_selection_still_shows_source_bound_ordinary_candidates(self):
         from damage_lab.buildinputs import assemble
         from test_buildinputs import record

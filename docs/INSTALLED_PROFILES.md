@@ -50,6 +50,11 @@ catalog_category, status, reason, profile`, а также `effective_level=null`
 уровень повторно связываются со строкой установки. Другие категории и gap-строки
 сохраняют null. Legacy 0.1.0 читается без нового поля. Кандидаты видны в трёх
 HTML, но не применяются к панели, rawspell или суммам критического урона.
+Leaf 0.1.1 добавляет `7401`: signed damage и отдельный literal projectile
+quantity. Внешний формат профилей сохраняет 0.1.1; `ordinary_support` проверяется
+собственным versioned summary. У существующей 7420 leaf 0.1.0 сохраняется
+прежний canonical payload без повышения версии. Literal `+2` не назначает
+итоговое число снарядов или попаданий.
 Каталожный loader разбирает decimal через Decimal, сохраняя прежний запрет
 непредставимого float overflow/underflow; Decimal не выходит в canonical JSON.
 

@@ -18,6 +18,105 @@ def record():
                         "description": "Supports skills that hit enemies.\n+12.5% additional damage for the supported skill when it lands a Critical Strike"}}
 
 
+def projectiles():
+    """Keep a fictional signed table separate from a fixed projectile literal."""
+    template = ("Supports Projectile Skills.\nProjectile Quantity of the supported skill\n+2\n"
+                "#% additional damage for the supported skill")
+    return {"tlidbId": 7401, "id": "synthetic-projectile-support", "category": "Support",
+        "descriptionBindings": {"template": "templateDescription", "level": 3, "bindings": ["value9"]},
+        "levelProgression": [{"level": 3, "value9": Decimal("-12.125")}, {"level": 17, "value9": "-113/7"}],
+        "english": {"templateDescription": template, "description": template.replace("#", "-12.125")}}
+
+
+class ProjectileSupportTests(unittest.TestCase):
+    """Keep observed projectile support scalars distinct from hit topology and count totals."""
+
+    def test_signed_damage_and_the_unbound_projectile_literal_are_separate(self):
+        value = effect(projectiles(), catalog_id=7401, level=17)
+        self.assertEqual((value["status"], value["candidate"]["kind"], value["candidate"]["target"],
+                          value["candidate"]["scope"], value["candidate"]["value"]["fraction"],
+                          value["candidate"]["projectile_quantity"]),
+                         ("candidate", "additional_damage", "supported_skill", "projectile",
+                          {"numerator": -113, "denominator": 700},
+                          {"origin": "catalog_literal", "lines": [1, 2], "text": "+2", "value": 2,
+                           "bound": False, "hit_semantics": "unknown"}))
+
+    def test_a_signed_decimal_reference_is_rendered_exactly_under_any_caller_context(self):
+        with localcontext() as context:
+            context.prec = 1
+            for signal in context.traps:
+                context.traps[signal] = True
+            value = effect(projectiles(), catalog_id=7401, level=17)
+        self.assertEqual(value["candidate"]["binding"]["reference_description"], projectiles()["english"]["description"])
+
+    def test_the_whole_four_line_template_and_separate_literal_must_match(self):
+        for field, replacement in (("templateDescription", "+3"), ("description", "+3")):
+            with self.subTest(field=field):
+                data = projectiles()
+                data["english"][field] = data["english"][field].replace("+2", replacement)
+                self.assertIsNone(effect(data, catalog_id=7401, level=17)["candidate"])
+
+    def test_projectile_table_and_reference_levels_cannot_exceed_the_observed_catalog_domain(self):
+        for change, reason in (("selected", "observed_level_invalid"), ("reference", "binding_level_invalid"),
+                               ("row", "level_table_invalid"), ("length", "level_table_invalid")):
+            with self.subTest(change=change):
+                data = projectiles()
+                level = 41 if change == "selected" else 17
+                if change == "reference":
+                    data["descriptionBindings"]["level"] = 41
+                elif change == "row":
+                    data["levelProgression"][0]["level"] = 41
+                elif change == "length":
+                    data["levelProgression"] = [{"level": 1, "value9": 7} for _ in range(41)]
+                self.assertEqual(effect(data, catalog_id=7401, level=level)["reason"], reason)
+
+    def test_a_same_level_reference_cannot_disagree_with_the_observed_cell(self):
+        data = effect(projectiles(), catalog_id=7401, level=17)
+        data["candidate"]["binding"]["reference_level"] = 17
+        with self.assertRaises(ValueError):
+            summary(data)
+
+    def test_a_forged_same_level_repeating_reference_cannot_claim_an_exact_render(self):
+        data = effect(projectiles(), catalog_id=7401, level=17)
+        data["candidate"]["binding"].update(reference_level=17, reference_cell={"text": "-113/7", "kind": "rational"})
+        with self.assertRaises(ValueError):
+            summary(data)
+
+    def test_literal_values_and_line_coordinates_cannot_be_coerced_or_promoted(self):
+        for field, invalid in (("value", 2.0), ("value", True), ("lines", [True, 2]), ("bound", 0),
+                               ("bound", True), ("hit_semantics", "all_hit")):
+            with self.subTest(field=field):
+                data = effect(projectiles(), catalog_id=7401, level=17)
+                data["candidate"]["projectile_quantity"][field] = invalid
+                with self.assertRaises(ValueError):
+                    summary(data)
+
+    def test_the_new_candidate_cannot_be_smuggled_into_a_legacy_leaf_version(self):
+        data = effect(projectiles(), catalog_id=7401, level=17)
+        data["version"] = "0.1.0"
+        with self.assertRaises(ValueError):
+            summary(data)
+
+    def test_legacy_critical_candidates_remain_byte_equivalent_after_revalidation(self):
+        data = effect(record(), catalog_id=7420, level=17)
+        data["version"] = "0.1.0"
+        self.assertEqual(summary(data), data)
+
+    def test_projectile_candidates_drop_opaque_fields_without_aliasing_or_changing_inputs(self):
+        data = effect(projectiles(), catalog_id=7401, level=17)
+        original = copy.deepcopy(data)
+        data["candidate"]["projectile_quantity"]["opaque"] = "PRIVATE-PROJECTILE-CANARY"
+        result = summary(data)
+        self.assertEqual((result, original), (original, original))
+
+    def test_the_documented_decimal_boundary_survives_both_family_roundtrips(self):
+        for catalog, data, field in ((7401, projectiles(), "value9"), (7420, record(), "value7")):
+            with self.subTest(catalog=catalog):
+                data["levelProgression"][1][field] = Decimal("123456789012.123456789")
+                result = effect(data, catalog_id=catalog, level=17)
+                self.assertEqual(summary(result), result)
+
+
 class OrdinarySupportTests(unittest.TestCase):
     """Keep exact level-table critical-hit candidates separate from full critical stats and activation."""
 
@@ -77,7 +176,7 @@ class OrdinarySupportTests(unittest.TestCase):
                 value[field] = invalid
                 value["english"]["name"] = "Critical Strike Damage Increase"
                 self.assertIsNone(effect(value, catalog_id=7420, level=17)["candidate"])
-        self.assertEqual(effect(record(), catalog_id=7401, level=17)["reason"], "unsupported_catalog_id")
+        self.assertEqual(effect(record(), catalog_id=7421, level=17)["reason"], "unsupported_catalog_id")
 
     def test_only_the_whole_demonstrated_template_identifies_the_hit_only_role(self):
         for template in ("+#% Critical Strike Damage", "+#% additional Hit Damage for the supported skill",

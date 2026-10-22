@@ -454,6 +454,39 @@ def logged(data, path, native, *, raw=False):
     return observed, document, selection, coverage
 
 
+def discovery(source):
+    """Describe recorded scan coverage without retaining raw process data."""
+    if type(source) is not dict:
+        raise ValueError("Memory discovery source must be an object")
+    unknown = "Memory discovery completeness is unknown: scan pass evidence is unavailable"
+    if "discovery" not in source:
+        return [unknown]
+    evidence = source["discovery"]
+    if type(evidence) is not dict:
+        raise ValueError("Memory discovery must be an object")
+    if "scanPasses" not in evidence:
+        return [unknown]
+    passes = evidence["scanPasses"]
+    if type(passes) is not list or not passes:
+        raise ValueError("Memory discovery scanPasses must be a nonempty array")
+    issues = []
+    for index, stage in enumerate(passes, 1):
+        if (type(stage) is not dict or type(stage.get("complete")) is not bool
+                or type(stage.get("readFailures")) is not int or stage["readFailures"] < 0):
+            raise ValueError(f"Memory discovery pass {index} has invalid completion evidence")
+        if stage["readFailures"]:
+            issues.append(f"Memory discovery has read gaps: pass {index} reports {stage['readFailures']} "
+                          "read failures; candidate uniqueness is not proven")
+        elif not stage["complete"]:
+            issues.append(f"Memory discovery is incomplete: pass {index} did not finish; "
+                          "candidate uniqueness is not proven")
+    if len(passes) != 3:
+        issues.append("Memory discovery completeness is unknown: expected three recorded passes; "
+                      "candidate uniqueness is not proven")
+    return issues or ["Memory discovery completed three recorded chunk passes with zero reported chunk read failures; "
+                      "candidate validation coverage, cross-pass atomicity and selected build identity remain unverified"]
+
+
 def archive(package: Path, observations: Path | None, facts: Path, database: Path, *,
             native_stats: Path | None = None, panel_log: Path | None = None,
             game_log: Path | None = None) -> dict:
@@ -480,7 +513,7 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     developer = load(observations) if observations is not None else {"evidence": {}, "panel": [], "benchmark": {"values": []}}
     facts_data = load(facts)
     observed = developer
-    coverage = []
+    coverage = discovery(load(files["source"]))
     bundle = None
     if native_stats is None and "nativeStats" in manifest:
         bundle = manifest["nativeStats"]
@@ -501,7 +534,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         except (KeyError, TypeError, AttributeError):
             raise ValueError("Native stats manifest has invalid field structure") from None
     if native_stats is not None:
-        observed, documents["native_stats"], coverage = automatic(developer, native_stats, hashes["source"][0])
+        observed, documents["native_stats"], issues = automatic(developer, native_stats, hashes["source"][0])
+        coverage += issues
         if bundle is not None and (bundle.get("known") is True or bundle.get("known") is False
                                    or bundle.get("known") != len(documents["native_stats"]["known"])):
             raise ValueError("Native stats manifest known count differs from its input document")
@@ -683,7 +717,7 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         ]
     coverage += [
         "Таланты: только узлы с rank>0 и выбранные core; описания взяты из каталога Compendium и могут быть устаревшими.",
-        "source.json и sourceSections остаются локальными: в базе и результате только SHA256 source.json.",
+        "source.json и sourceSections остаются локальными: в базе и результате SHA256 и производные данные, без исходного содержимого.",
     ]
     truncated = [row["label"] for row in rows if row["label"].endswith(("...", "…"))]
     if truncated and observations is not None and not synthetic:

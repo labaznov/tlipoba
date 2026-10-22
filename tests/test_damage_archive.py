@@ -12,6 +12,91 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+class DiscoveryArchiveTests(unittest.TestCase):
+    """Preserve scan limitations without storing raw process data or proving identity."""
+
+    def test_legacy_packages_keep_memory_search_completeness_unknown(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            result = archive(package(root), None, facts(root), root / "out.sqlite")
+            self.assertIn("Memory discovery completeness is unknown: scan pass evidence is unavailable",
+                          result["coverage"])
+
+    def test_read_gaps_survive_native_import_in_json_sqlite_and_html(self):
+        from damage_lab.importer import snapshot
+        from damage_lab.report import render_import
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            write(directory / "source.json", {"discovery": {"scanPasses": [
+                {"complete": True, "readFailures": 0},
+                {"complete": True, "readFailures": 0},
+                {"complete": True, "readFailures": 7}]}})
+            result = archive(directory, None, facts(root), root / "out.sqlite",
+                             native_stats=native(root, directory))
+            warning = ("Memory discovery has read gaps: pass 3 reports 7 read failures; "
+                       "candidate uniqueness is not proven")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                self.assertEqual((warning in snapshot(result)["coverage"],
+                                  connection.execute("SELECT COUNT(*) FROM coverage WHERE text=?", (warning,)).fetchone()[0],
+                                  warning in render_import(snapshot(result))), (True, 1, True))
+
+    def test_unfinished_pass_cannot_become_complete_with_zero_read_failures(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            write(directory / "source.json", {"discovery": {"scanPasses": [
+                {"complete": True, "readFailures": 0},
+                {"complete": False, "readFailures": 0},
+                {"complete": True, "readFailures": 0}]}})
+            self.assertIn("Memory discovery is incomplete: pass 2 did not finish; candidate uniqueness is not proven",
+                          archive(directory, None, facts(root), root / "out.sqlite")["coverage"])
+
+    def test_completed_scoped_reads_do_not_verify_atomicity_or_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            write(directory / "source.json", {"discovery": {"scanPasses": [
+                {"complete": True, "readFailures": 0} for _ in range(3)]}})
+            self.assertIn("Memory discovery completed three recorded chunk passes with zero reported chunk read failures; "
+                          "candidate validation coverage, cross-pass atomicity and selected build identity remain unverified",
+                          archive(directory, None, facts(root), root / "out.sqlite")["coverage"])
+
+    def test_invalid_source_roots_are_refused(self):
+        for source in (None, [], "synthetic source", 37):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                directory = package(root)
+                write(directory / "source.json", source)
+                with self.assertRaisesRegex(ValueError, "Memory discovery source must be an object"):
+                    archive(directory, None, facts(root), root / "out.sqlite")
+
+    def test_an_unknown_pass_count_keeps_search_completeness_unknown(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            write(directory / "source.json", {"discovery": {"scanPasses": [
+                {"complete": True, "readFailures": 0}]}})
+            self.assertIn("Memory discovery completeness is unknown: expected three recorded passes; "
+                          "candidate uniqueness is not proven",
+                          archive(directory, None, facts(root), root / "out.sqlite")["coverage"])
+
+    def test_invalid_scan_evidence_is_refused(self):
+        for evidence in (None, [], {"scanPasses": None}, {"scanPasses": []},
+                         {"scanPasses": {}}, {"scanPasses": [None]},
+                         {"scanPasses": [{}]}, {"scanPasses": [{"complete": "true", "readFailures": 0}]},
+                         {"scanPasses": [{"complete": True, "readFailures": True}]},
+                         {"scanPasses": [{"complete": True, "readFailures": -1}]},
+                         {"scanPasses": [{"complete": True, "readFailures": 1.25}]}):
+            with self.subTest(evidence=evidence), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                directory = package(root)
+                write(directory / "source.json", {"discovery": evidence})
+                with self.assertRaisesRegex(ValueError, "Memory discovery"):
+                    archive(directory, None, facts(root), root / "out.sqlite")
+
+
 def attachedmemories(directory, *, error=False):
     """Attach synthetic memory definitions or a source-bound acquisition error."""
     from test_memorybundle import diagnostic, failure

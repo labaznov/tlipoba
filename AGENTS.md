@@ -29,7 +29,9 @@ The owner reported severe slowdown and rebooted after accumulated worker process
 ## Game experiment windows
 
 - Control the game UI only during a user-authorized window when the owner is not playing; input inactivity alone is not authorization
-- During the owner's play, use saved inputs or public-source research and do not take mouse or keyboard focus
+- The owner permits passive read-only memory acquisition while playing; keep it bounded within the shared resource budget and never take mouse or keyboard focus
+- Prefer saved inputs for development; a new passive scan must answer a concrete missing-data question rather than run continuously
+- Map character/build roots, field types, links and relocation/validation rules; do not treat a cached address or completed reads as proof of global uniqueness or an atomic live snapshot
 - Start with read-only navigation and stat acquisition; reversible build changes need a saved baseline, one changed variable and verified restoration
 - Pause on user return, focus loss, ambiguity or unexpected dialogs; record incomplete restoration instead of silently assuming success
 - Do not buy, sell, craft, spend currency or delete items as part of a routine experiment

@@ -28,8 +28,8 @@ belong to the caller; successful parsing does not establish a live game snapshot
 Sixteen synthetic tests cover the data contract and refusal cases. Independent
 review found excess-upvalue-name and caller-reported buffer-length admission
 gaps, each reproduced before its repair.
-Real inputs remain ignored: nineteen hash-verified saved candidates, totaling
-730,243 bytes, parsed to the end as 706 functions and 50,257 instructions.
+Real inputs remain ignored: twenty-two hash-verified saved candidates, totaling
+759,142 bytes, parsed to the end as 754 functions and 52,133 instructions.
 Those observations establish compatibility with the diagnostic framing for
 these files, rather than current-client VM semantics or SS14 applicability.
 
@@ -133,3 +133,10 @@ uninspected dependencies and runtime selection left open.
 This identifies a client request boundary. Wire types, transport framing,
 authentication and an independently callable endpoint are unverified. No server
 request was made. The ordinary player importer and exact DPS gates are unchanged.
+
+Three further modules close the normal source construction path for AttrUtils:
+`NewObject` returns a copied Lua table with a metatable chain. Its factory
+creates separate primary and mercenary contexts, so class-name agreement does
+not select a live role. The [object context trace](research/lua-object-context-source.md)
+records the exact helper bindings, functional field lookup and remaining
+runtime acquisition obligations.

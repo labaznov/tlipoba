@@ -134,6 +134,8 @@ without process-memory reads, UI input or server requests.
 
 A subsequent 37,305-byte file acquisition verified three more plain scripts,
 including `NetGameMgr`, with 36,918 payload bytes. Static inspection located
-protobuf request encoding and the `SendLua_A_2` boundary. Operation IDs,
-request descriptor bindings, flags and the lower transport remain unresolved;
-these source observations do not establish an external build-code API.
+protobuf request encoding and the `SendLua_A_2` boundary. A later bounded
+inspection binds the `GetBDContent` operation ID and schema names, then
+[projects installed field declarations](build-protocol-schema.md). Flags,
+the lower transport, runtime selection and an independently callable endpoint
+remain unresolved; these observations do not establish an external build-code API.

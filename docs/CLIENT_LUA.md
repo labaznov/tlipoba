@@ -93,7 +93,9 @@ numeric entry to `name="GetBDContent"`, `req="rpc.GetBDContentReq"` and
 operation constants were checked through the table assignment. A separate
 `GetBDContentV2` entry exists; these names must not be interchanged. This is
 an installed source declaration, not proof of the current runtime table or
-the server's accepted schema. The compressed descriptor contents remain unread.
+the server's accepted schema. A later
+[partial descriptor projection](research/build-protocol-schema.md) supplies
+field declarations, with dependency and runtime gaps preserved.
 
 The saved `ViewPlayerMgr` parsed as 39 functions and 1,030 instructions.
 Its `CreateViewPlayerData` constructor reads the supplied value's `baseInfo`

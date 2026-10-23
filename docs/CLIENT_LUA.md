@@ -33,6 +33,11 @@ Real inputs remain ignored: eighteen hash-verified saved candidates, totaling
 Those observations establish compatibility with the diagnostic framing for
 these files, rather than current-client VM semantics or SS14 applicability.
 
+Larger function trees can instead use the separate
+[outline inspector](CLIENT_OUTLINE.md). It preserves function spans and data
+while validating instruction opcodes, without expanding instruction dictionaries.
+Its independent budgets do not change `decode` or its defaults.
+
 ## Findings for further calculation work
 
 Static interpretation under the pinned decompiler's operand conventions found

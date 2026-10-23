@@ -115,9 +115,11 @@ library was installed. The [Zstandard API declaration](https://github.com/facebo
 guided the bounded call. The result remains binary: column meanings, types
 and game semantics have not been established.
 
-No formula, protobuf schema, skill level rule or stat aggregation operator has
-yet been recovered by this route. The public extractor's archived decompiler
-was inspected as class metadata without execution; its custom-version support
-is a parsing lead, not demonstrated compatibility with these payloads.
+The [bounded bytecode inspector](../CLIENT_LUA.md) subsequently parsed eight
+saved script candidates to the end. It preserves data and instruction fields;
+static interpretation located a presentation/delegation trace and a build
+request boundary. The complete damage formula, protobuf schema, skill level
+rule and stat aggregation operators remain unresolved. The public extractor's
+archived decompiler was inspected as metadata without execution.
 It complements the existing memory and log adapters; automatic build acquisition
 and exact Carino DPS remain incomplete.

@@ -40,6 +40,24 @@ TLI Builder код доступен под MIT, но его compiled game datase
 
 ## Что известно о самом игровом коде
 
+Дополнительная проверка `aclinia/torchlight-of-building` на commit
+`1da3826ab5539536a83378fd4aea20ffb3559f98` различает два входа.
+Импорт навыков предлагает скриншоты и вставку JSON; реализация задаёт уровень 20
+и явный `value: 0` для magnificent/noble supports. Поля activation medium
+берутся из отдельного, не проверенного здесь helper. Это не подходящий путь
+получения точных уровней и роллов. [Инструкция](https://github.com/aclinia/torchlight-of-building/blob/1da3826ab5539536a83378fd4aea20ffb3559f98/docs/public/import-skills.md),
+[реализация](https://github.com/aclinia/torchlight-of-building/blob/1da3826ab5539536a83378fd4aea20ffb3559f98/src/lib/skill-import.ts).
+
+Его маршрут `/import/$code` декодирует собственный envelope `{v: 1, d: SaveData}`:
+base64url, вызов `fflate.inflateSync`, UTF-8 и JSON, затем передаёт результат
+`parseVersionedSaveData` и `importBuild`. Кодер использует `fflate.deflateSync`.
+Любой совместимый источник может создать такой envelope. В проверенных прямых
+вызовах получение данных из игры не показано; реализации схем, хранилища и
+прочих импортированных helpers здесь не проверены. Это не доказательство
+отсутствия автоматического импорта во всём проекте.
+[Маршрут](https://github.com/aclinia/torchlight-of-building/blob/1da3826ab5539536a83378fd4aea20ffb3559f98/src/routes/import.%24code.tsx),
+[код формата](https://github.com/aclinia/torchlight-of-building/blob/1da3826ab5539536a83378fd4aea20ffb3559f98/src/lib/build-code.ts).
+
 Автор TLI Builder в обсуждении запуска описывал игровые коды как ссылку/ID серверных данных и сообщал, что рабочего декодирования или импорта у него нет. Это авторское наблюдение мая 2026, а не доказанный формат игрового протокола. [Первичное обсуждение автора](https://www.reddit.com/r/TorchlightInfinite/comments/1tmtkdd/tli_builder_a_tli_build_planner_with_calculations/).
 
 Поэтому недопустимы выводы «Base64 декодировался, значит весь билд внутри» и «planner share API примет игровой код». Нужна отдельная подтверждённая связь: входной игровой code → идентификатор запроса → ответ с build graph → правила доступа. Этой цепочки найденные публичные источники не дают.

@@ -54,6 +54,17 @@ passes `bdContent.bdData` to `ViewPlayerMgr.CreateViewPlayerData`.
 The neighboring `TransServerBDContentToClient` method concerns strategy
 descriptors; it must not be mistaken for the equipment/build-data decoder.
 
+Two further saved modules, `NetObject` and `NetMsgMgr`, totaled 11,127 payload
+bytes. Their complete SHA-1 values matched their own captured headers; the
+public inspector parsed them as 30 functions and 564 instructions without
+execution. In `NetObject`, `ReqGameMessageA2` obtains a result callback through
+`NetDispatchMgr.DispatchMsg`, then delegates to `NetGameMgr.ReqMessageA2`.
+The inspected `NetMsgMgr` coordinates child managers and does not supply that
+method's implementation. Separate HTTP wrappers also exist; their URL helpers
+do not establish the transport used by the build request.
+The lookup binding from the build manager's inherited method to this
+`NetObject` body also remains unverified.
+
 This identifies a client request boundary. Wire types, transport framing,
 authentication and an independently callable endpoint are unverified. No server
 request was made. The ordinary player importer and exact DPS gates are unchanged.

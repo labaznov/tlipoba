@@ -123,3 +123,11 @@ rule and stat aggregation operators remain unresolved. The public extractor's
 archived decompiler was inspected as metadata without execution.
 It complements the existing memory and log adapters; automatic build acquisition
 and exact Carino DPS remain incomplete.
+
+Two additional plain transport modules were acquired within an 11,460-byte
+game-file budget, including headers and a fresh footer. Their own-header hashes
+matched, and the public inspector parsed their 11,127 payload bytes without
+execution. The inspected [NetObject wrapper](../CLIENT_LUA.md#findings-for-automatic-import)
+forwards to `NetGameMgr.ReqMessageA2`; its lookup binding for the build manager,
+the lower transport implementation and endpoint remain unresolved. This was file inspection,
+without process-memory reads, UI input or server requests.

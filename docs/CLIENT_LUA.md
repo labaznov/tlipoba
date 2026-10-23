@@ -28,8 +28,8 @@ belong to the caller; successful parsing does not establish a live game snapshot
 Sixteen synthetic tests cover the data contract and refusal cases. Independent
 review found excess-upvalue-name and caller-reported buffer-length admission
 gaps, each reproduced before its repair.
-Real inputs remain ignored: fifteen hash-verified saved candidates, totaling
-583,965 bytes, parsed to the end as 423 functions and 41,144 instructions.
+Real inputs remain ignored: eighteen hash-verified saved candidates, totaling
+697,993 bytes, parsed to the end as 644 functions and 48,117 instructions.
 Those observations establish compatibility with the diagnostic framing for
 these files, rather than current-client VM semantics or SS14 applicability.
 
@@ -104,6 +104,13 @@ conversions to helpers, then assigns `result.ServerSource = RecvData`.
 The body does not decode protobuf bytes. This identifies a source-preserving
 page field, but does not establish `bdData`'s wire type, helper semantics,
 effective skill level, completeness or selected-player identity.
+
+Three further modules trace the item-level constructor, upgrade-state query
+and `table.readonly` proxy. The constructor assigns `PlayerItem.Level or 1`;
+the proxy retains its input as `_Raw_Data` rather than copying it. The
+[skill-level source trace](research/skill-level-source.md) distinguishes this
+observed item level from effective level and experience requirements, with
+uninspected dependencies and runtime selection left open.
 
 This identifies a client request boundary. Wire types, transport framing,
 authentication and an independently callable endpoint are unverified. No server

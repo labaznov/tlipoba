@@ -76,9 +76,12 @@ Missing fields must not become invented zero-valued character stats.
 The inspected `CreateSkills` body traverses `Skills.skills`, places each entire
 `PlayerItem` in a wrapper with a page type and index, calls
 `ItemMgr:CreateItem(wrapper, nil, true)`, and keys the result by `PlayerItem.Id`.
-It does not directly read `Level` or `SkillItemLevel`; whether the item
-constructor uses either field, and how, is unknown. The wrapper is reused across iterations;
-the item constructor's copy/alias behavior is also unverified.
+It does not directly read `Level` or `SkillItemLevel`. A subsequent
+[constructor and proxy trace](skill-level-source.md) finds an assignment from
+`PlayerItem.Level or 1`, a direct `ServerPlayerItem` alias and a proxy retaining
+its input as `_Raw_Data`. The reused outer wrapper and the retained inner item
+must be distinguished; these static declarations do not prove runtime identity,
+snapshot atomicity or effective-level semantics.
 
 The next import boundary is lower transport discovery or a verified saved
 response with a bounded decoder. These findings do not change ordinary import

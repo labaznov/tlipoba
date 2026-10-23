@@ -114,6 +114,9 @@ PCs below are zero-based private listing locations, not game addresses.
 
 Next, trace the five damage components and critical branches to their source
 queries, then compare a source-bound observation of the same skill/context.
+The subsequent [endpoint reconciliation](source-endpoint-reconciliation.md)
+documents concrete differences in those range queries and a conditional
+historical check; it does not confirm equality of the underlying query pools.
 Keep panel prediction separate from combat topology, target defenses and
 finite-window DPS. Complete automatic acquisition, effective level and exact
 Carino combat DPS remain open; this note changes no imported value or formula.

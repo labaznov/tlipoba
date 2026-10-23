@@ -16,13 +16,13 @@ PACKAGE = {"build": "build.json", "guide": "guide-data.json", "manifest": "manif
 STORED = ("build", "manifest", "transfer")
 REQUIRED_STATS = ("spell_dps", "hit_min", "hit_max", "cast_rate", "crit_chance", "crit_multiplier",
                   "max_tangles", "extra_attachments", "cold_penetration")
-OPTIONAL_STATS = ("armor_penetration",)
+OPTIONAL_STATS = ("armor_penetration", "max_spell_burst")
 BENCHMARK = ("average_dps", "duration", "highest_5s", "average_5s", "survival")
 EXPECTED_UNITS = {
     "spell_dps": "damage/s", "hit_min": "damage", "hit_max": "damage", "cast_rate": "casts/s",
     "crit_chance": "fraction", "crit_multiplier": "multiplier", "max_tangles": "count",
     "extra_attachments": "count", "cold_penetration": "fraction",
-    "armor_penetration": "fraction",
+    "armor_penetration": "fraction", "max_spell_burst": "count",
     "benchmark_average_dps": "damage/s", "benchmark_duration": "s",
     "benchmark_highest_5s": "damage/s", "benchmark_average_5s": "damage/s", "benchmark_survival": "survival",
 }
@@ -186,6 +186,8 @@ def observation(row, kind, evidence, prefix=""):
         numeric = Decimal(str(value))
     except (InvalidOperation, TypeError, OverflowError):
         raise ValueError(f"{key}: value must be a finite number") from None
+    if key == "max_spell_burst" and (numeric < 0 or numeric != numeric.to_integral_value()):
+        raise ValueError("max_spell_burst: value must be a nonnegative integer")
     try:
         number, half = displayed(display, unit)
     except (InvalidOperation, ValueError) as error:

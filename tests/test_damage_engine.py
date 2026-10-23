@@ -6,6 +6,18 @@ from damage_lab.engine import calculate, cold, critical, topology
 class DamageEngineTests(unittest.TestCase):
     """Check damage expectations against independently calculated examples."""
 
+    def test_observed_spell_burst_counts_do_not_change_conditional_arithmetic(self):
+        panel = {"spell_dps": 379, "hit_min": 119, "hit_max": 237, "cast_rate": 1.3,
+                 "crit_chance": .2, "crit_multiplier": 3, "max_tangles": 2,
+                 "extra_attachments": 1, "cold_penetration": .11}
+        for basis in ("panel", "hit"):
+            condition = {"basis": basis, "active": 2, "hits": 4, "retention": .3, "resistance": .17,
+                         "taken": .07, "uptime": .81, "lucky": False, "critical_more": 0}
+            for count in (0, 3):
+                with self.subTest(basis=basis, count=count):
+                    self.assertEqual(calculate({**panel, "max_spell_burst": count}, condition),
+                                     calculate(panel, condition))
+
     def test_positive_converted_hit_cannot_underflow_to_zero(self):
         with self.assertRaisesRegex(ValueError, "underflow"):
             cold(5e-324, 0, 0, 1, -.5, 0, 0, [])

@@ -204,6 +204,53 @@ class LogstatsTests(unittest.TestCase):
 
         self.assertNotIn("armor_penetration", [row["key"] for row in select(document(), 3217)["rows"]])
 
+    def test_optional_spell_burst_count_preserves_its_token_and_cohort_without_identity(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "21604", "name": "Max Spell Burst", "status": "resolved",
+            "values": [3], "raw_values": ["3.000"], "line_numbers": [53, 54],
+        })
+        result = select(payload, 3217)
+        row = next((row for row in result["rows"] if row["key"] == "max_spell_burst"), {})
+        self.assertEqual((row.get("value"), row.get("unit"), row.get("source"),
+                          result["summary"]["known"], result["summary"]["unknown_attributes"],
+                          result["summary"]["identity_verified"]),
+                         (3, "count", {"attr_id": "21604", "index": 1, "raw_value": "3.000",
+                                       "raw_values": ["3.000"], "line_numbers": [53, 54],
+                                       "timestamp": "2026-10-19T13:17:38.731Z", "frame": 731}, 10, 0, False))
+
+    def test_observed_spell_burst_zero_is_preserved(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "21604", "name": "Max Spell Burst", "status": "resolved",
+            "values": [0], "raw_values": ["0.00"], "line_numbers": [53, 54],
+        })
+        self.assertEqual([(row["value"], row["source"]["raw_value"]) for row in select(payload, 3217)["rows"]
+                          if row["key"] == "max_spell_burst"], [(0, "0.00")])
+
+    def test_absent_spell_burst_count_does_not_invent_zero(self):
+        from damage_lab.logstats import select
+
+        self.assertNotIn("max_spell_burst", [row["key"] for row in select(document(), 3217)["rows"]])
+
+    def test_optional_spell_burst_requires_its_exact_label_and_one_integral_nonnegative_value(self):
+        from damage_lab.logstats import select
+
+        for name, tokens in (("Spell Burst", ["3"]), ("Max Spell Burst", ["3", "7"]),
+                             ("Max Spell Burst", ["2.75"]), ("Max Spell Burst", ["-3"]),
+                             ("Max Spell Burst", ["nan"])):
+            payload = document()
+            payload["cohorts"][0]["attributes"].append({
+                "id": "21604", "name": name, "status": "resolved", "values": [float(token) for token in tokens],
+                "raw_values": tokens, "line_numbers": [53, 54],
+            })
+            with self.subTest(name=name, tokens=tokens), self.assertRaises(ValueError):
+                select(payload, 3217)
+
     def test_optional_known_armor_field_requires_its_exact_label_and_cardinality(self):
         from damage_lab.logstats import select
 

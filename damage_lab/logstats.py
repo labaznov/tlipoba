@@ -21,6 +21,7 @@ _BINDINGS = {
 }
 _OPTIONAL = {
     "11201": ("Armor DMG Mitigation Penetration", (("armor_penetration", "fraction", 100),)),
+    "21604": ("Max Spell Burst", (("max_spell_burst", "count", 1),)),
 }
 _KNOWN = _BINDINGS | _OPTIONAL
 _POLICY = {"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",

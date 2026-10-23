@@ -43,6 +43,18 @@ def record():
 class BuildInputsTests(unittest.TestCase):
     """Connect automatic observations without fabricating complete raw damage inputs."""
 
+    def test_observed_spell_burst_count_cannot_resolve_missing_raw_inputs(self):
+        baseline = assemble(record(), skill_alias="gem[1]")
+        for count in (0, 3):
+            data = record()
+            data["stats"]["max_spell_burst"] = count
+            report = assemble(data, skill_alias="gem[1]")
+            with self.subTest(count=count):
+                self.assertEqual((report["record"]["stats"].get("max_spell_burst"),
+                                  report["raw_spell"], report["raw_result"], report["status"],
+                                  report["arithmetic_ready"], report["runtime_verified"]),
+                                 (count, baseline["raw_spell"], baseline["raw_result"], "blocked", False, False))
+
     def test_the_observed_spell_context_reaches_the_real_evaluator_with_unavailable_groups(self):
         from damage_lab.rawspell import evaluate
 

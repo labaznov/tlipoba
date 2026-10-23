@@ -596,6 +596,30 @@ class ImporterTests(unittest.TestCase):
             self.assertEqual((result["stats"]["armor_penetration"], result["observations"][-1]["key"],
                               result["missing_stats"]), (0.1375, "armor_penetration", ["cast_rate"]))
 
+    def test_game_log_spell_burst_count_reaches_json_sqlite_and_html_without_manual_inputs(self):
+        from test_damage_archive import facts, game, native, package
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            directory = package(root)
+            path = game(root, "43721.25")
+            with path.open("a", encoding="utf-8") as stream:
+                prefix = "[2001.02.03-04.05.07:000][713]TLLua: Display: [Game] RoleAttrMgr@"
+                stream.write(prefix + "Attri.Id  Max Spell Burst  21604\n" + prefix + "[1] = 0.00\n")
+            status = main(["--package", str(directory), "--output", str(root / "result"),
+                           "--facts", str(facts(root)), "--native-stats", str(native(root, directory)),
+                           "--game-log", str(path)])
+            result = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            row = next((row for row in result["observations"] if row["key"] == "max_spell_burst"), {})
+            with contextlib.closing(sqlite3.connect(root / "result/database.sqlite")) as connection:
+                stored = connection.execute(
+                    "SELECT value, unit FROM observations WHERE key='max_spell_burst'").fetchone()
+            self.assertEqual((status, result["stats"].get("max_spell_burst"), stored,
+                              row.get("source", {}).get("raw_value"), "Max Spell Burst" in page,
+                              result["panel_log"]["identity_verified"], result["import_status"]),
+                             (0, 0, (0, "count"), "0.00", True, False, "partial"))
+
     def test_game_log_is_passed_directly_to_the_automatic_archive(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

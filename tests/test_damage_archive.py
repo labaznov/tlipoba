@@ -1919,6 +1919,17 @@ class ArchiveDatabaseTest(unittest.TestCase):
 class ArchivePrecisionTest(unittest.TestCase):
     """Check that displayed numbers survive with their units and rounding."""
 
+    def test_named_spell_burst_observations_cannot_use_negative_or_fractional_counts(self):
+        from damage_lab.archive import recorded
+
+        for value in (-3, 2.75):
+            data = {"evidence": {"panel": {"path": "synthetic-evidence"}},
+                    "panel": [{"key": "max_spell_burst", "label": "Max Spell Burst", "value": value,
+                               "display": str(value), "unit": "count", "evidence": "panel"}],
+                    "benchmark": {"values": [], "evidence": "panel"}}
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "max_spell_burst"):
+                recorded(data, partial=True)
+
     def test_rounded_display_keeps_unit_and_precision_without_inventing_digits(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

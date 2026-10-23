@@ -136,6 +136,18 @@ def levelsummary(data):
     return {"installed_level_candidates": bundle}
 
 
+def witnesssummary(data):
+    """Retain source-bound witness observations without promoting levels or build identity."""
+    if "selected_build_witness" not in data:
+        return {}
+    from .witnessbundle import summary
+
+    bundle = summary(data["selected_build_witness"])
+    if bundle["source_sha256"] != data.get("source_sha256"):
+        raise ValueError("Selected build witness differs from the record source hash")
+    return {"selected_build_witness": bundle}
+
+
 def snapshot(data):
     """Project the archive contract without native documents or account fields."""
     if data["import_status"] != "partial":
@@ -186,6 +198,7 @@ def snapshot(data):
     result.update(supportsummary(data))
     result.update(profilesummary(data))
     result.update(levelsummary(data))
+    result.update(witnesssummary(data))
     result.update(memorysummary(data))
     if "skill_values" in data:
         result["skill_values"] = []

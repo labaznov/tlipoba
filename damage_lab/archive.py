@@ -616,6 +616,19 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
             coverage.append("Installed level candidate acquisition failed; missing candidates are not empty or zero level grants")
     else:
         coverage.append("Installed level candidates are unavailable in this legacy package")
+    witness = None
+    witness_origin = None
+    if "selectedBuildWitness" in manifest:
+        from .witnessbundle import BundleError, read, rejected
+        try:
+            witness, witness_origin = read(package, manifest["selectedBuildWitness"], hashes["source"][0])
+        except BundleError as error:
+            witness = rejected(error.code, hashes["source"][0])
+        documents["selected_build_witness"] = witness
+        coverage.append("Selected build witness: " + witness["status"]
+                        + "; byte references do not verify producer joins, selected build identity or effective levels")
+    else:
+        coverage.append("Selected build witness is unavailable in this legacy package")
     support = None
     catalog = None
     support_origin = None
@@ -802,6 +815,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         result["installed_skill_profiles"] = profile
     if levels is not None:
         result["installed_level_candidates"] = levels
+    if witness is not None:
+        result["selected_build_witness"] = witness
     if support is not None:
         result["installed_support_effects"] = support
         result["installed_support_catalog"] = catalog
@@ -834,6 +849,8 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         inputs.append(("installed_skill_profiles", *profile_origin))
     if level_origin is not None:
         inputs.append(("installed_level_candidates", *level_origin))
+    if witness_origin is not None:
+        inputs.append(("selected_build_witness", *witness_origin))
     if support_origin is not None:
         inputs.append(("installed_support_effects", *support_origin))
     if memory_origin is not None:

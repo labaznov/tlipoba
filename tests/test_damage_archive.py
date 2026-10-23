@@ -1771,6 +1771,104 @@ class ArchivePanelLogTest(unittest.TestCase):
                         native_stats=native(root, directory), panel_log=panel(root, "43721.25"))
 
 
+class ArchiveWitnessTest(unittest.TestCase):
+    """Keep verified companion references in ordinary imports without storing private log text."""
+
+    def test_witness_survives_archive_snapshot_sqlite_and_import_html(self):
+        from damage_lab.buildinputs import assemble
+        from damage_lab.buildinputreport import render
+        from damage_lab.importer import snapshot
+        from damage_lab.report import render_import
+        from test_damage_report import pages
+        from test_witnessbundle import persisted
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor, _ = persisted(directory)
+            manifest = json.loads((directory / 'manifest.json').read_text())
+            manifest['selectedBuildWitness'] = descriptor
+            write(directory / 'manifest.json', manifest)
+            result = archive(directory, None, facts(root), root / 'build.sqlite')
+            with contextlib.closing(sqlite3.connect(root / 'build.sqlite')) as connection:
+                document = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='selected_build_witness'").fetchone()[0])
+                origin = connection.execute(
+                    "SELECT stored FROM sources WHERE role='selected_build_witness'").fetchone()[0]
+            html = render_import(snapshot(result)) + render(assemble(result, skill_alias='gem[999]'))
+            html += ''.join(pages(result))
+            self.assertEqual((document, snapshot(result)['selected_build_witness'], origin,
+                              html.count('Сверка уровней с журналом'),
+                              'SYNTHETIC-CANARY' in html + json.dumps(snapshot(result)) + dump(root / 'build.sqlite')),
+                             (result['selected_build_witness'], document, 1, 4, False))
+
+    def test_invalid_companion_becomes_visible_rejection_without_aborting_import(self):
+        from damage_lab.importer import snapshot
+        from test_witnessbundle import persisted
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor, _ = persisted(directory)
+            descriptor['eventIndex'] = 1
+            manifest = json.loads((directory / 'manifest.json').read_text())
+            manifest['selectedBuildWitness'] = descriptor
+            write(directory / 'manifest.json', manifest)
+            result = snapshot(archive(directory, None, facts(root), root / 'build.sqlite'))
+            self.assertEqual((result['import_status'], result['selected_build_witness']['status'],
+                              result['selected_build_witness']['reason'], result['selected_build_witness']['artifact']),
+                             ('partial', 'rejected', 'binding_failed', None))
+
+    def test_explicit_not_requested_survives_without_new_files(self):
+        from test_witnessbundle import descriptor
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            manifest = json.loads((directory / 'manifest.json').read_text())
+            manifest['selectedBuildWitness'] = descriptor('not_requested')
+            write(directory / 'manifest.json', manifest)
+            self.assertEqual(archive(directory, None, facts(root), root / 'build.sqlite')[
+                'selected_build_witness']['status'], 'not_requested')
+
+    def test_legacy_imports_keep_witness_unavailable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.assertNotIn('selected_build_witness', archive(package(root), None, facts(root), root / 'build.sqlite'))
+
+    def test_source_bound_error_survives_without_packet_copy(self):
+        from damage_lab.importer import snapshot
+        from test_witnessbundle import failed
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor, _ = failed(directory)
+            (directory / 'state-log-packet.json').unlink()
+            manifest = json.loads((directory / 'manifest.json').read_text())
+            manifest['selectedBuildWitness'] = descriptor
+            write(directory / 'manifest.json', manifest)
+            self.assertEqual(snapshot(archive(directory, None, facts(root), root / 'build.sqlite'))[
+                'selected_build_witness']['integrity']['references'], 'artifact_verified')
+
+    def test_witness_does_not_change_stats_or_the_blocked_raw_model(self):
+        from damage_lab.buildinputs import assemble
+        from test_witnessbundle import persisted
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            before = archive(directory, observations(root), facts(root), root / 'before.sqlite')
+            _, descriptor, _ = persisted(directory)
+            manifest = json.loads((directory / 'manifest.json').read_text())
+            manifest['selectedBuildWitness'] = descriptor
+            write(directory / 'manifest.json', manifest)
+            after = archive(directory, observations(root), facts(root), root / 'after.sqlite')
+            diagnostic = assemble(after, skill_alias='gem[999]')
+            self.assertEqual((after['stats'], after['benchmark'], diagnostic['status'], diagnostic['arithmetic_ready']),
+                             (before['stats'], before['benchmark'], 'blocked', False))
+
+
 class ArchiveSkillValuesTest(unittest.TestCase):
     """Preserve catalog skill parameters without applying them as damage modifiers."""
 

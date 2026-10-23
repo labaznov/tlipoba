@@ -225,6 +225,37 @@ def leveldetails(record):
     return "" if not projected else section(projected["installed_level_candidates"], record["installed_skills"])
 
 
+def witnessdetails(record):
+    """Display safe level comparison diagnostics without embedding private event records."""
+    from .importer import witnesssummary
+
+    projected = witnesssummary(record)
+    if not projected:
+        return ""
+    bundle = projected["selected_build_witness"]
+    artifact = bundle["artifact"]
+    detail = ""
+    if bundle["status"] == "diagnostic":
+        rows = []
+        for target in artifact["targets"]:
+            fields = target["fields"]
+            rows.append("<tr>" + "".join("<td>" + text(value) + "</td>" for value in (
+                target["skillId"], target["native"]["join"], target["log"]["join"],
+                fields["Level"]["comparison"], fields["SkillItemLevel"]["comparison"])) + "</tr>")
+        detail = ("<p>Целей: " + text(artifact["counts"]["targets"])
+                  + "; event: " + text(artifact["event"]["index"]) + "</p>"
+                  + "<div class='scroll'><table><tr><th>Skill ID</th><th>Native join</th><th>Log join</th>"
+                  + "<th>Level</th><th>SkillItemLevel</th></tr>" + "".join(rows) + "</table></div>")
+    elif bundle["status"] in ("error", "rejected"):
+        detail = "<p>Причина: " + text(bundle["reason"] if artifact is None else artifact["error"]) + "</p>"
+    return ("<section><h2>Сверка уровней с журналом</h2><p>Статус: " + text(bundle["status"])
+            + "; ссылки на байты: " + text(bundle["integrity"]["references"])
+            + "; соединения: " + text(bundle["integrity"]["joins"]) + "</p>"
+            + "<p>Соединения и сравнения сообщил экспортёр; проверка ссылок не доказывает его исполнение. "
+            + "Текущий билд, личность, атомарность и effective level неизвестны; DPS не изменён</p>"
+            + detail + "</section>")
+
+
 def _ordinaryrows(data):
     rows = []
     for member in data["members"] or []:
@@ -679,6 +710,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {supportdetails(record)}
 {profiledetails(record)}
 {leveldetails(record)}
+{witnessdetails(record)}
 {memorydetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
@@ -851,6 +883,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {supportdetails(record)}
 {profiledetails(record)}
 {leveldetails(record)}
+{witnessdetails(record)}
 {memorydetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>

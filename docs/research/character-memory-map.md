@@ -31,7 +31,10 @@
 строками журнала](log-native-level-witness.md). Два сохранённых события
 подтвердили наличие `Id`, `Level` и `SkillItemLevel` в видимой части
 `skills.skills`; соответствие записей не устанавливает текущего персонажа
-или effective level. Новый companion ещё не подключён к импорту tlipoba.
+или effective level. [Companion подключён к обычному импорту tlipoba](../BUILD_WITNESS.md):
+consumer проверяет ссылки на байты и безопасную схему, а соединения сохраняет
+как `producer_reported`. Диагностика проходит через JSON, SQLite и пассивные
+отчёты; effective level и DPS из этих сравнений не выводятся.
 
 Resolver `0.4.0` сохраняет эти нативные поля для каждого однозначно установленного
 skill ID, а bundle `0.2.0` переносит их в обычный импорт. `native_level_fields`

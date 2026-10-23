@@ -81,3 +81,33 @@ active helper or raw DPS gate is established by these source bodies.
 
 This extends the [attribute source trace](attribute-calculation-source.md).
 The ordinary import contract and all exact-calculation gates remain unchanged.
+
+## A conservative acquisition profile
+
+Follow-up constructor and reset-path checks support a presence-only predicate
+over six raw keys: `SkillStoneId`, `CurrentAttrShowId`, `MercenaryContext`,
+`RealCacheList`, `VirtualCacheList` and `CacheAttrSource`. Constructor values
+are non-nil; inspected ordinary resets preserve these root fields. `Destroy`
+removes five of them, so this is a construction-state profile, without a
+universal lifetime guarantee. Both normal contexts can match it. Matching
+presence is not initialized helper state, player selection or correct scalar
+types; a missing key means failure of this conservative shape query.
+
+Helper and player fields remain optional typed observations. In particular,
+raw `PlayerId == -1` does not establish no player: the source getter delegates
+to `PlayerData:GetPlayerId()` in that case, without storing its result.
+The memory reader must not execute that getter.
+
+The cache bank path is `bank[SkillStoneId][FromType][Id][CacheKey]`.
+`_EndCache` resets counters without clearing the banks, but the cached payload
+is an original helper/native result, not the final scalar getter value.
+The key encodes tag iteration order, an EValue-versus-other distinction,
+less-tag state and minion index. It does not separately retain the full mode,
+filter, player or helper identity. `CacheAttrSource` holds incomplete metadata
+for the first matching query slot, without its numeric return.
+
+A later passive path check can establish whether a particular leaf is a Lua
+table with accessible data or an opaque native value. Opaque values must stop
+that path; field offsets cannot be inferred from nominal native type names.
+Retained entries and matching headers do not prove a current frame, complete
+query history or an atomic snapshot. No such path check has been run here.

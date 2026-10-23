@@ -43,6 +43,11 @@ more branch multiplies `(entry + 100) / 100` over the returned collection.
 These literal operations do not establish which modifier belongs to a given
 pool or which critical operator applies to an imported item.
 
+The later [enum binding check](client-enum-query-modes.md) ties the literal
+modes to `EBase=B`, `EIncrease=X`, `EMore=E` and `EValue=V` under the inspected
+constructor/environment bindings. Its no-filter declaration is integer zero;
+an empty-string argument must not be substituted for it by name alone.
+
 `_GetSkillDamageValue` and `_GetSkillMultiplierValue` select `result[Id]`,
 then X, Y or absolute X and `tonumber`. An absent entry falls back to zero in
 this source path; that fallback is not permission to fill missing imported

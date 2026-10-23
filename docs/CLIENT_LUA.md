@@ -140,3 +140,10 @@ creates separate primary and mercenary contexts, so class-name agreement does
 not select a live role. The [object context trace](research/lua-object-context-source.md)
 records the exact helper bindings, functional field lookup and remaining
 runtime acquisition obligations.
+
+A further [enum source check](research/client-enum-query-modes.md) binds the
+four query-mode literals and five filter declarations through the normal
+proxy constructor. Three small modules parsed at defaults; the 185839-byte
+GameEnum used the existing explicit 512 KiB / 32768-record profile. This
+closes a source naming ambiguity while leaving shared live environments,
+native query values, season applicability and exact DPS unverified.

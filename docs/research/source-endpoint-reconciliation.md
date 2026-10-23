@@ -105,7 +105,8 @@ and its family-specific callees. Shared coefficient queries are unchanged.
 This is a source-template comparison, not evidence of equal runtime values.
 
 Write `R(s)` for the first returned value of family `104`, `114` or `124` with
-suffix s. The checked recurrences are:
+suffix s. The checked recurrences describe the calculation branch or coherent
+memo contents, not an arbitrary stale cached result:
 
 ```text
 R(050) = R(000) * g(21810) / 100
@@ -133,12 +134,91 @@ and `330`; their mean identities are not independent assumptions. This is real
 algebra, without a bound on floating-point differences. The inspected bodies
 do not establish coefficient ranges, active effects or native pool semantics.
 
-The `370` branch still needs lower identities for `060`, `180` and `190`.
-The full cold sum also contains `400`, `460`, `630` and `690`, outside this
-check. Moreover, equal native query arguments do not prove equal results across
-outer `GetValue(10103)` and `GetValue(11800)` calls: calculation flags, helper,
-stone, frame and cache context can differ. The historical equality of B with
-the inverted mean remains an explicit hypothesis.
+Further exact template comparisons close the remaining cold-tail recurrences.
+Set `p10=g(21810)/100`, `p20=g(21820)/100`, `p50=g(21850)/100`,
+`p80=g(21880)/100`, `p90=g(21890)/100`. In real algebra:
+
+```text
+R(060) = R(000)*p20
+R(180) = R(000)*p20*p80
+R(190) = R(000)*p20*p90
+R(090) = R(010)*p50
+R(150) = R(000)*p10*p50
+R(210) = R(010)*p50*p80
+R(220) = R(010)*p50*p90
+R(250) = R(000)*p10*p50*p80
+R(260) = R(000)*p10*p50*p90
+```
+
+These bodies call their base directly, rather than necessarily evaluating the
+intermediate recurrence. Source multiplication/division order is retained in
+the private inspection; these factored expressions do not guarantee identical
+floating-point rounding. With V using the same query arguments above but mode V:
+
+```text
+C_gc  = (X(5108)+X(5109)+X(5719)+X(5727)-3)
+        * E(5108)*E(5109)*E(5719)*E(5727)
+C_pgc = (X(5002)+X(5108)+X(5109)+X(5719)+X(5727)-4)
+        * E(5002)*E(5108)*E(5109)*E(5719)*E(5727)
+d = 1-p80-p90
+v31 = V(5131)/100
+v15 = V(5415)/100
+
+R(330) = R(020)*d*C_c
+R(370) = R(000)*p20*d*C_pc
+R(400) = R(010)*p50*d*C_gc
+R(460) = R(000)*p10*p50*d*C_pgc
+R(630) = R(000)*v31*C_pc
+R(690) = R(010)*v15*C_gc
+```
+
+For family f, let T_f be the source sum of those six terms and define
+`delta(s)=R_104(s)-(R_114(s)+R_124(s))/2`. Shared numeric coefficients and
+coherent calculation state then give:
+
+```text
+a0 = (p20*d+v31)*C_pc + p10*p50*d*C_pgc
+a1 = (p50*d+v15)*C_gc
+a2 = d*C_c
+T_f = a0*R_f(000) + a1*R_f(010) + a2*R_f(020)
+delta(T) = a0*delta(000) + a1*delta(010) + a2*delta(020)
+```
+
+Thus three base mean identities are sufficient for the internal cold-sum
+identity. They are not necessary individually: defects could cancel or a
+coefficient could vanish. No such cancellation, zero, coefficient range or
+actual native value is established here.
+
+## The scalar cold wrapper has an additional condition
+
+Getter `105020` first queries label `3001160` with mine tags `{6001100}`,
+empty other tags and mode L. If the value equals 1 it returns zero, without
+evaluating the later factor or six terms. Otherwise it computes
+`alpha=1+0.01*(V(5106)-30)` and multiplies the scalar cold sum by it.
+The corresponding endpoint getters `115020` and `125020` multiply their
+six-term sums by literal 1, without that label query or factor.
+
+Let J be zero for the suppressed branch and one otherwise. For finite, defined
+comparison quantities, the compact real-algebra notation is:
+
+```text
+g(105020) = J*alpha*T_104
+g(115020) = T_114
+g(125020) = T_124
+M = (T_114+T_124)/2
+g(105020)-M = J*alpha*delta(T) + (J*alpha-1)*M
+```
+
+This product notation does not mean the suppressed source branch evaluates
+alpha or T. Even with the internal mean identity and nonzero M, equality needs
+J*alpha=1. Actual label and V values remain unknown. No branch selection is
+inferred solely from a historical observed zero or nonzero.
+
+Equal native query arguments also do not prove equal results across outer
+`GetValue(10103)` and `GetValue(11800)` calls: calculation flags, helper,
+stone, frame and cache context can differ. The endpoint wrappers, U(0), 12400
+and scoped-query obligations above remain open. The historical equality of B
+with the inverted mean remains an explicit hypothesis; no raw DPS gate changes.
 
 ## Static check locations
 
@@ -152,6 +232,12 @@ the inverted mean remains an explicit hypothesis.
 | `ExportAttrShow` | `main.513`–`main.514`, `main.744`–`main.745`, `main.975`–`main.976` | `120` and `130` conversion-family recurrences |
 | `ExportAttrShow` | `main.534`, `main.765`, `main.996` | `330` family and coefficient queries |
 | `ExportAttrShow` | `main.538`, `main.769`, `main.1000` | `370` family and coefficient queries |
+| `ExportAttrShow` | `main.507`, `main.738`, `main.969`; `main.519`–`main.520`, `main.750`–`main.751`, `main.981`–`main.982` | `060`, `180`, `190` scaled base terms |
+| `ExportAttrShow` | `main.510`, `main.741`, `main.972`; `main.516`, `main.747`, `main.978` | `090` and `150` scaled base terms |
+| `ExportAttrShow` | `main.522`–`main.523`, `main.753`–`main.754`, `main.984`–`main.985`; `main.526`–`main.527`, `main.757`–`main.758`, `main.988`–`main.989` | `210`, `220`, `250`, `260` scaled base terms |
+| `ExportAttrShow` | `main.541`, `main.772`, `main.1003`; `main.547`, `main.778`, `main.1009` | `400` and `460` coefficient branches |
+| `ExportAttrShow` | `main.564`, `main.795`, `main.1026`; `main.570`, `main.801`, `main.1032` | `630` and `690` V-query branches |
+| `ExportAttrShow` | `main.575`, `main.806`, `main.1037` | `105020` PC 6–57 label/factor/sum; endpoint sums PC 6–29 |
 
 The function bodies were projected from an already validated complete outline.
 Selected child-free bodies were additionally framed as standalone diagnostic

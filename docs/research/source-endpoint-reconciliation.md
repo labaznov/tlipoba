@@ -220,6 +220,77 @@ stone, frame and cache context can differ. The endpoint wrappers, U(0), 12400
 and scoped-query obligations above remain open. The historical equality of B
 with the inverted mean remains an explicit hypothesis; no raw DPS gate changes.
 
+## The three base identities have different obligations
+
+An additional check of all nine base bodies distinguishes direct query terms
+from the complete endpoint getters. For suffix i, write L_i and H_i for:
+
+```text
+AttrValue(id, [6001100,6001100], [], 'B', edge, 'A') * Userdefine(8)
+    + SkillDamageValue(id, 0, edge)
+```
+
+Here edge is the literal `[min]` or `[max]` filter. The duplicated mine tag is
+present in both the scalar and endpoint bodies; it must not be deduplicated.
+The supplied zero argument and operation names do not establish native units,
+pool composition or effective skill level. L_i and H_i denote direct query
+subexpressions, without assuming their numeric order.
+
+The scalar bases use the real expression below under coherent query/memo values:
+
+```text
+W_i = ((1+wL_i)*L_i + (1+wH_i)*H_i) / (2+wL_i+wH_i)
+```
+
+| Suffix i | Direct query id | wL_i getter | wH_i getter |
+|---|---|---|---|
+| `000` | `5002` | `82005` | `82000` |
+| `010` | `5108` | `82006` | `82001` |
+| `020` | `5109` | `82008` | `82003` |
+
+The corresponding endpoint getters differ:
+
+```text
+R_104(i) = W_i
+R_114(000) = L_000
+R_124(000) = H_000
+R_114(010) = L_010 + c32*R_114(000)
+R_124(010) = H_010 + c32*R_124(000)
+R_114(020) = L_020 + c31*R_114(000)
+R_124(020) = H_020 + c31*R_124(000)
+c32 = V(5132)/100
+c31 = V(5131)/100
+```
+
+These V queries use a single mine tag `{6001100}`, empty other tags, mode V,
+empty filter and flag A. The scalar `104010` and `104020` have no matching
+additions. The `5131` query also occurs in the cold tail; matching arguments
+do not by themselves prove equal values across evaluations.
+
+For nonzero denominators, finite values and coherent common query state, define:
+
+```text
+bias_i = (wL_i-wH_i)*(L_i-H_i) / (2*(2+wL_i+wH_i))
+M0 = (L_000+H_000)/2
+delta(000) = bias_000
+delta(010) = bias_010 - c32*M0
+delta(020) = bias_020 - c31*M0
+delta(T) = a0*bias_000 + a1*bias_010 + a2*bias_020
+           - (a1*c32+a2*c31)*M0
+```
+
+The a0/a1/a2 are the earlier cold-sum coefficients. With the stated nonzero
+denominator, a base's bias vanishes
+exactly when its two weights agree or its direct endpoints agree. Negative
+weights are not excluded by these bodies, so the normalized expression is
+affine rather than necessarily convex. No floating-point error bound follows.
+
+Even zero weights in all three bases do not alone imply a zero cold-sum
+defect: the endpoint additions remain unless their weighted contribution
+vanishes. Actual zero values or cancellation are not established. This closes
+the static base dependency distinction while preserving the separate scalar
+wrapper, outer displayed-range factors and cross-context/runtime obligations.
+
 ## Static check locations
 
 | Script | Function | Checked source |
@@ -238,6 +309,8 @@ with the inverted mean remains an explicit hypothesis; no raw DPS gate changes.
 | `ExportAttrShow` | `main.541`, `main.772`, `main.1003`; `main.547`, `main.778`, `main.1009` | `400` and `460` coefficient branches |
 | `ExportAttrShow` | `main.564`, `main.795`, `main.1026`; `main.570`, `main.801`, `main.1032` | `630` and `690` V-query branches |
 | `ExportAttrShow` | `main.575`, `main.806`, `main.1037` | `105020` PC 6–57 label/factor/sum; endpoint sums PC 6–29 |
+| `ExportAttrShow` | `main.502`–`main.503` | `104010`/`104020`: PC 6–73 weighted direct-query terms |
+| `ExportAttrShow` | `main.733`–`main.734`, `main.964`–`main.965` | `114010`/`114020` and `124010`/`124020`: PC 6–29 direct terms; PC 30–46 additions from base `000` |
 
 The function bodies were projected from an already validated complete outline.
 Selected child-free bodies were additionally framed as standalone diagnostic

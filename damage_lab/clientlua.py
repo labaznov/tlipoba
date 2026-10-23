@@ -17,12 +17,20 @@ LABELS = ('LOADNIL', 'MUL', 'SETTABLE', 'LE', 'NEWTABLE', 'LOADKX', 'LOADK', 'PO
           'TFORCALL', 'TEST', 'LEN', 'SUB', 'SHL', 'EXTRAARG')
 
 
+def _budget(value, maximum, label):
+    if type(value) is not int or not 1 <= value <= maximum:
+        raise ValueError(f'XLUA {label} budget must be an integer from 1 to {maximum}')
+    return value
+
+
 class Cursor:
     """A byte cursor enforces finite framing and aggregate diagnostic work limits."""
 
-    def __init__(self, data):
+    def __init__(self, data, maximum, limit):
+        maximum = _budget(maximum, 524288, 'byte')
+        self.limit = _budget(limit, 32768, 'record')
         self.data = memoryview(data).cast('B')
-        if self.data.nbytes > 65536:
+        if self.data.nbytes > maximum:
             raise ValueError('XLUA payload exceeds the diagnostic byte cap')
         self.position = 0
         self.functions = 0
@@ -47,7 +55,7 @@ class Cursor:
 
     def count(self):
         value = self.integer()
-        if not 0 <= value <= 16384:
+        if not 0 <= value <= self.limit:
             raise ValueError('XLUA list count exceeds the diagnostic range')
         return value
 
@@ -83,7 +91,7 @@ class Cursor:
     def code(self):
         count = self.count()
         self.instructions += count
-        if self.instructions > 16384:
+        if self.instructions > self.limit:
             raise ValueError('XLUA aggregate instructions exceed the diagnostic cap')
         values = []
         for index in range(count):
@@ -119,8 +127,8 @@ class Cursor:
         return result
 
 
-def decode(data):
-    cursor = Cursor(data)
+def decode(data, *, maximum=65536, limit=16384):
+    cursor = Cursor(data, maximum, limit)
     if cursor.span(9) != b'\1XDI\x11\r\n\x1a\n':
         raise ValueError('XLUA fixed signature differs from the source-derived grammar')
     upvalues = cursor.byte()

@@ -11,20 +11,25 @@ custom signature/version, little-endian counts, string lengths, constant tags,
 function lists, upvalues and locals. Our implementation uses Python's standard
 library. The archived program was inspected as data without running Java.
 
-The diagnostic subset accepts contiguous byte buffers with at most 64 KiB of
-actual storage per input, depth 16, 256 functions,
-16,384 elements per list and 16,384 aggregate instructions. A two-second
+By default, the diagnostic subset accepts contiguous byte buffers with at most
+64 KiB of actual storage per input, depth 16, 256 functions, 16,384 elements per
+list and 16,384 aggregate instructions. Callers inspecting larger saved tables
+can explicitly pass `maximum` (1–524,288 bytes) and `limit` (1–32,768 records).
+The record budget applies to every list and aggregate instructions; raising
+the byte budget alone does not raise it. Both budgets require exact integers,
+excluding booleans. The 64 KiB individual-string cap, tree limits and framing
+checks stay fixed. A two-second
 processing checkpoint is a soft limit. Negative counts, invalid reduced string
 sizes, unknown tags/opcodes, nonfinite float constants, excess upvalue names,
 main-upvalue disagreement and trailing bytes are refused. Debug line count is
 not required to equal instruction count. Source provenance and input stability
 belong to the caller; successful parsing does not establish a live game snapshot.
 
-Ten synthetic tests cover the data contract and refusal cases. Independent
+Sixteen synthetic tests cover the data contract and refusal cases. Independent
 review found excess-upvalue-name and caller-reported buffer-length admission
 gaps, each reproduced before its repair.
-Real inputs remain ignored: eight hash-verified saved candidates, totaling
-124,209 bytes, parsed to the end as 275 functions and 7,563 instructions.
+Real inputs remain ignored: fifteen hash-verified saved candidates, totaling
+583,965 bytes, parsed to the end as 423 functions and 41,144 instructions.
 Those observations establish compatibility with the diagnostic framing for
 these files, rather than current-client VM semantics or SS14 applicability.
 
@@ -76,8 +81,27 @@ flag, protocol ID and callbacks, and retains the returned sequence ID.
 The saved registration declarations name `MgrObject` as the build manager's
 base and `NetObject` as `MgrObject`'s base. This narrows the static lookup lead;
 registry semantics and actual runtime method selection remain unverified.
-The numeric ID and request-schema name for `GetBDContent`, its descriptor,
-flag meanings and the implementation below `SendLua_A_2` are still missing.
+The descriptor, flag meanings and the implementation below `SendLua_A_2`
+are still missing.
+
+The larger saved `ProtoEnum` table used explicit 512 KiB / 32,768-record
+budgets. Its 392,928 bytes parsed to the end as one function with 29,802
+instructions and 8,850 constants. Static inspection of its straight-line
+initializer binds `ProtoEnum.ProtoId["GetBDContent"]` to `30001`, and that
+numeric entry to `name="GetBDContent"`, `req="rpc.GetBDContentReq"` and
+`ack="rpc.GetBDContentAck"`. Register lifetimes and all uses of the two
+operation constants were checked through the table assignment. A separate
+`GetBDContentV2` entry exists; these names must not be interchanged. This is
+an installed source declaration, not proof of the current runtime table or
+the server's accepted schema. The compressed descriptor contents remain unread.
+
+The saved `ViewPlayerMgr` parsed as 39 functions and 1,030 instructions.
+Its `CreateViewPlayerData` constructor reads the supplied value's `baseInfo`
+and `featuresInfo`, delegates equipment, skills, layout, hero and talent
+conversions to helpers, then assigns `result.ServerSource = RecvData`.
+The body does not decode protobuf bytes. This identifies a source-preserving
+page field, but does not establish `bdData`'s wire type, helper semantics,
+effective skill level, completeness or selected-player identity.
 
 This identifies a client request boundary. Wire types, transport framing,
 authentication and an independently callable endpoint are unverified. No server

@@ -19,6 +19,13 @@ def chunk(name, constants, upvalues, children):
             + struct.pack('<i', len(upvalues)) + b''.join(text(b'capture') for row in upvalues))
 
 
+def program(count, children):
+    body = chunk(b'large', [], [], children)
+    offset = len(text(b'large')) + 11
+    return (body[:offset] + struct.pack('<i', count)
+            + struct.pack('<I', (21 << 26) | (1 << 17)) * count + body[offset + 8:])
+
+
 class HiddenLength(bytearray):
     """A buffer advertises a length smaller than its actual byte storage."""
 
@@ -82,3 +89,43 @@ class ClientLuaTest(unittest.TestCase):
         body = chunk(b'root', [b'\4\xff' + struct.pack('<i', 65546) + b'x' * 65536], [], [])
         with self.assertRaisesRegex(ValueError, 'byte cap'):
             decode(HiddenLength(b'\1XDI\x11\r\n\x1a\n\0' + body))
+
+    def test_an_explicit_larger_byte_budget_preserves_large_saved_data(self):
+        value = b'irregular' * 7193
+        body = chunk(b'root', [b'\4\xff' + struct.pack('<i', len(value) + 10) + value] * 6, [], [])
+        result = decode(b'\1XDI\x11\r\n\x1a\n\0' + body, maximum=524288)
+        self.assertEqual([row['value'] for row in result['function']['constants']], [value] * 6)
+
+    def test_an_explicit_larger_record_budget_preserves_instruction_fields(self):
+        result = decode(b'\1XDI\x11\r\n\x1a\n\0' + program(16993, []),
+                        maximum=131072, limit=32768)
+        self.assertEqual((result['instructions'], result['function']['code'][-1]['pc']), (16993, 16992))
+
+    def test_a_larger_byte_budget_does_not_implicitly_raise_the_record_budget(self):
+        with self.assertRaisesRegex(ValueError, 'list count'):
+            decode(b'\1XDI\x11\r\n\x1a\n\0' + program(16993, []), maximum=131072)
+
+    def test_the_explicit_record_budget_still_bounds_aggregate_instructions(self):
+        body = program(1, [program(17001, []), program(17003, [])])
+        with self.assertRaisesRegex(ValueError, 'aggregate instructions'):
+            decode(b'\1XDI\x11\r\n\x1a\n\0' + body, maximum=262144, limit=32768)
+
+    def test_cannot_request_an_unadmitted_byte_budget(self):
+        refused = []
+        for value in (0, 524289, True, 1.5, '524288'):
+            try:
+                decode(b'', maximum=value)
+            except ValueError as error:
+                if str(error).startswith('XLUA byte budget'):
+                    refused.append(value)
+        self.assertEqual(refused, [0, 524289, True, 1.5, '524288'])
+
+    def test_cannot_request_an_unadmitted_record_budget(self):
+        refused = []
+        for value in (0, 32769, True, 2.5, '32768'):
+            try:
+                decode(b'', limit=value)
+            except ValueError as error:
+                if str(error).startswith('XLUA record budget'):
+                    refused.append(value)
+        self.assertEqual(refused, [0, 32769, True, 2.5, '32768'])

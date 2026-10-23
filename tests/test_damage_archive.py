@@ -1074,6 +1074,42 @@ def dump(database):
 class ArchiveContractTest(unittest.TestCase):
     """Check the dictionary that the damage report consumes."""
 
+    def test_empty_talent_slots_do_not_require_a_guide_tree_or_hide_selected_trees(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = package(root)
+            document = json.loads((directory / "build.json").read_text(encoding="utf-8"))
+            slots = document["loadouts"]["loadouts"][0]["skillTree"]["slots"]
+            slots.insert(0, {"treeId": None, "nodePoints": {}, "selectedNotable12": None,
+                             "selectedNotable24": None, "prismId": None, "equippedPrism": None,
+                             "prismCoreTalentOverride": None, "inverseImageState": None})
+            slots.append({"treeId": None, "nodePoints": {}})
+            write(directory / "build.json", document)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["buildSha256"] = hashlib.sha256((directory / "build.json").read_bytes()).hexdigest()
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, None, facts(root), root / "empty-slots.sqlite")
+            self.assertEqual([tree["name"] for tree in result["inventory"]["talents"]], ["Prophet (3 points)"])
+
+    def test_unselected_talent_slots_cannot_hide_allocations_or_other_state(self):
+        from damage_lab.archive import talents
+
+        for field, value in (("nodePoints", {"fictional-node": 2}), ("nodePoints", None),
+                             ("nodePoints", []), ("selectedNotable12", "fictional-core"),
+                             ("selectedNotable24", "fictional-core"), ("equippedPrism", {}),
+                             ("prismId", "fictional-prism"), ("prismCoreTalentOverride", {}),
+                             ("inverseImageState", False), ("unrecognizedState", 0)):
+            with self.subTest(field=field):
+                slot = {"treeId": None, "nodePoints": {}, field: value}
+                with self.assertRaises(ValueError):
+                    talents({"talentTrees": []}, {"skillTree": {"slots": [slot]}}, [])
+
+    def test_a_selected_unknown_talent_tree_is_still_refused(self):
+        from damage_lab.archive import talents
+
+        with self.assertRaises(ValueError):
+            talents({"talentTrees": []}, {"skillTree": {"slots": [{"treeId": "fictional-unknown", "nodePoints": {}}]}}, [])
+
     def test_returns_agreed_contract_from_package_and_observations(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

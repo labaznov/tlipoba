@@ -253,6 +253,11 @@ def talents(guide, loadout, coverage):
     trees = {tree["id"]: tree for tree in guide["talentTrees"]}
     entries = []
     for slot in loadout["skillTree"]["slots"]:
+        if slot["treeId"] is None:
+            if (type(slot.get("nodePoints")) is not dict or slot["nodePoints"]
+                    or any(value is not None for key, value in slot.items() if key not in ("treeId", "nodePoints"))):
+                raise ValueError("Unselected talent slot cannot contain allocations or other state")
+            continue
         tree = trees.get(slot["treeId"])
         if tree is None:
             raise ValueError(f"Talent tree {slot['treeId']} is missing from guide-data.json")

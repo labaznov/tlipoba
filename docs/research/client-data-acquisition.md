@@ -65,6 +65,27 @@ embedded contents of the inspected assets were not examined.
 The primary-index analysis also disclosed an extra diagnostic process without
 a recorded PID; its entire process ledger cannot be independently confirmed.
 
+A subsequent, separately bounded observation selected one declared base
+container. Its 636,176-byte primary index and 1,774,272-byte directory index
+both passed their complete plaintext SHA-1 checks. The two acquisitions,
+including fresh matching footers, consumed 2,410,898 game-file bytes.
+They opened no game process and made no UI calls.
+
+The verified directory produced 39,705 unique names in 3,859 directories.
+Relative-name matches included 3,659 `Script/Luac/*.out` files, 27,594
+`Script/Data/*.bin` files and 79 files with the `.pb` extension. Eight trailing
+directory bytes remain unclassified. These are names, not decoded contents.
+Examples worth inspecting are `RoleCalculateMgr.out`,
+`config_attributes_show_cal.out`, `config_attributes_ChunkA0.bin`, and
+`proto/bd.pb`, `proto/bd_data.pb` and `proto/api.pb`. The last three are schema
+candidates; filenames alone do not establish protobuf descriptors, an endpoint
+contract, access rights or a working build-code import.
+
+Some filenames refer to later seasons. Neither their presence nor the installed
+container proves that a particular table or formula applies to SS14. A selected
+entry still needs verified byte ranges, encryption/compression handling and
+content interpretation before it can become a calculation source.
+
 No formula, protobuf schema, skill level rule or stat aggregation operator has
 yet been recovered by this route.
 It complements the existing memory and log adapters; automatic build acquisition

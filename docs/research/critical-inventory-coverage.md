@@ -34,9 +34,20 @@ The text itself does not establish spell scope or an attack-speed unit.
 The weapon's rating must not be substituted for a spell's base rating merely
 because both catalog descriptions happen to mention 500.
 
-Ten omitted rows still have unknown wording. Ring implicits `680004`/`680005`
-are a possible next English-twin lookup. Legendary base attributes and enchants
-also require a lookup contract beyond the compiler's current fields.
+An English-twin follow-up resolved two more rows. The historical artifact did
+not declare that ring member, so a separately budgeted pass inspected one
+1,525,554-byte public catalog wrapper and recorded new member coordinates and
+hashes. Its span pass transiently decoded all top-level values; subsequent
+field inspection selected only the ring member. Independent verification read
+the exact 46,937-byte English and 82,272-byte master slices and checked their
+complete hashes before binding both item identities and native IDs.
+
+Ring implicit `680004` renders as `+11% Fire Resistance`, and `680005` as
+`+12% Fire Resistance`. Their fixed catalog specs agree with that text; character
+rolls were not read. Neither text explicitly mentions critical stats, which
+does not prove the absence of an indirect interaction. Eight omitted rows
+still have unknown wording. Legendary base attributes and enchants also
+require a lookup contract beyond the compiler's current fields.
 Talents, hero traits, supports and temporary buffs remain separate coverage
 dependencies. No row was promoted into the damage model by this research;
 exact critical stats and total Carino DPS remain unresolved.

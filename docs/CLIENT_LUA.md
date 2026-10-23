@@ -28,8 +28,8 @@ belong to the caller; successful parsing does not establish a live game snapshot
 Sixteen synthetic tests cover the data contract and refusal cases. Independent
 review found excess-upvalue-name and caller-reported buffer-length admission
 gaps, each reproduced before its repair.
-Real inputs remain ignored: eighteen hash-verified saved candidates, totaling
-697,993 bytes, parsed to the end as 644 functions and 48,117 instructions.
+Real inputs remain ignored: nineteen hash-verified saved candidates, totaling
+730,243 bytes, parsed to the end as 706 functions and 50,257 instructions.
 Those observations establish compatibility with the diagnostic framing for
 these files, rather than current-client VM semantics or SS14 applicability.
 
@@ -60,11 +60,13 @@ callback without arguments. The normal return path calls `:_EndCache()` and
 If the callback is absent, the source returns `{0}`; that fallback does not
 establish an observed zero-valued character stat.
 
-The selected callbacks, `AttrUtils` implementations, applicable attribute
-records and their relation to Carino's panel remain open. Names and source
-declarations do not establish native implementation or runtime method selection.
-These findings do not supply base damage, critical aggregation, effective skill
-level or exact combat DPS.
+A subsequent [attribute calculation trace](research/attribute-calculation-source.md)
+checks helper selection, cache effects and six callback bindings. The installed
+`10103` getter sums five component queries and applies a rate and critical
+expectation. Substitution of displayed damage and chance values for those
+queries remains unverified. Native helper implementations, selected runtime
+context, base-damage aggregation and effective level remain open; exact combat
+DPS is not established.
 
 ## Findings for automatic import
 

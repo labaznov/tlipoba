@@ -43,10 +43,18 @@ the exact 46,937-byte English and 82,272-byte master slices and checked their
 complete hashes before binding both item identities and native IDs.
 
 Ring implicit `680004` renders as `+11% Fire Resistance`, and `680005` as
-`+12% Fire Resistance`. Their fixed catalog specs agree with that text; character
-rolls were not read. Neither text explicitly mentions critical stats, which
-does not prove the absence of an indirect interaction. Eight omitted rows
-still have unknown wording. Legendary base attributes and enchants also
+`+12% Fire Resistance`. Their fixed catalog specs agree with that text; the
+target rows' own roll fields were not inspected. Neither text explicitly
+mentions critical stats, which does not prove the absence of an indirect interaction.
+
+A similarly bounded follow-up resolved belt `660002` as `+35 Max Life` and
+boots `600011` as `+146 gear Energy Shield`. Exact master/English identities
+and fixed catalog bounds matched; one native implicit per member was observed
+in that run. The whole typed artifact was decoded, but the two target rows'
+own roll/DynArgs fields were not inspected or output and their rolls remain
+unknown. These descriptions contain no explicit critical wording; indirect
+effects and mechanical scope remain unresolved. Six omitted rows still have
+unknown wording. Legendary base attributes and enchants also
 require a lookup contract beyond the compiler's current fields.
 Talents, hero traits, supports and temporary buffs remain separate coverage
 dependencies. No row was promoted into the damage model by this research;

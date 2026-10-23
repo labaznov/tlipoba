@@ -131,3 +131,9 @@ execution. The inspected [NetObject wrapper](../CLIENT_LUA.md#findings-for-autom
 forwards to `NetGameMgr.ReqMessageA2`; its lookup binding for the build manager,
 the lower transport implementation and endpoint remain unresolved. This was file inspection,
 without process-memory reads, UI input or server requests.
+
+A subsequent 37,305-byte file acquisition verified three more plain scripts,
+including `NetGameMgr`, with 36,918 payload bytes. Static inspection located
+protobuf request encoding and the `SendLua_A_2` boundary. Operation IDs,
+request descriptor bindings, flags and the lower transport remain unresolved;
+these source observations do not establish an external build-code API.

@@ -65,6 +65,20 @@ do not establish the transport used by the build request.
 The lookup binding from the build manager's inherited method to this
 `NetObject` body also remains unverified.
 
+Three further scripts, `NetGameMgr`, `NetDispatchMgr` and `MgrObject`, supplied
+36,918 hash-verified payload bytes. They parsed separately as 78 functions and
+2,185 instructions. The inspected `NetGameMgr.ReqMessageA2` resolves an operation
+name through `ProtoEnum.ProtoId`, then calls `protobuf.encode` with the selected
+record's `req` schema name and the original parameters. It places those bytes
+and their length in a `game.ProtoMsg`, calls `self.NetGame:SendLua_A_2` with a
+flag, protocol ID and callbacks, and retains the returned sequence ID.
+
+The saved registration declarations name `MgrObject` as the build manager's
+base and `NetObject` as `MgrObject`'s base. This narrows the static lookup lead;
+registry semantics and actual runtime method selection remain unverified.
+The numeric ID and request-schema name for `GetBDContent`, its descriptor,
+flag meanings and the implementation below `SendLua_A_2` are still missing.
+
 This identifies a client request boundary. Wire types, transport framing,
 authentication and an independently callable endpoint are unverified. No server
 request was made. The ordinary player importer and exact DPS gates are unchanged.

@@ -87,8 +87,109 @@ def fixed():
     return data
 
 
+def lucky():
+    """Bind a fictional corroded glove row without activating either critical effect."""
+    data = critical("critical_damage_modifier", "any")
+    data["version"] = "0.4.3"
+    path = "legendaries/gloves/dex_gloves/master"
+    data["catalog"]["documents"][path] = data["catalog"]["documents"].pop("gear/one_handed/wand/master")
+    data["items"][0]["identity"].update(kind="legendary", catalog=path, definition="synthetic-glove", tlidbId="9347")
+    data["modifiers"][0].update(
+        nativeId=51434430, family="lucky_critical_damage_modifier", templateSign=None,
+        values=[{"exact": "23.75", "fraction": "0.2375", "source": "DynArgs[0]"}],
+        definition={"catalog": path, "id": "synthetic-critical", "variant": "corroded",
+                    "templateSource": "corrodedDescriptionTemplate"},
+        pool={"id": None, "status": "unresolved", "basis": "variant_template_differs"},
+        semantics={"operation": "unresolved", "valueRole": "non_additional_percent",
+                   "luckyCriticalStrike": True, "arithmeticReady": False})
+    return data
+
+
 class StaticCombatTest(unittest.TestCase):
     """Validate inventory evidence without applying it to a character or damage model."""
+
+    def test_a_corroded_critical_row_preserves_one_scalar_and_a_separate_lucky_literal(self):
+        result = summary(project(lucky(), "a" * 64))
+        self.assertEqual((result["accounting"]["compiled"], result["modifiers"][0]["values"],
+                          result["modifiers"][0]["semantics"]),
+                         (1, [{"exact": "23.75", "fraction": "0.2375", "source": "DynArgs[0]"}],
+                          {"operation": "unresolved", "value_role": "non_additional_percent",
+                           "lucky_critical_strike": True, "arithmetic_ready": False}))
+
+    def test_the_compound_requires_its_pinned_corroded_native_catalog_list_and_pool(self):
+        for change in ("native", "catalog", "list", "variant", "pool", "version"):
+            with self.subTest(change=change):
+                data = lucky()
+                row = data["modifiers"][0]
+                if change == "native":
+                    row["nativeId"] = 51434431
+                elif change == "catalog":
+                    path = "legendaries/gloves/str_gloves/master"
+                    data["catalog"]["documents"][path] = data["catalog"]["documents"].pop(row["definition"]["catalog"])
+                    data["items"][0]["identity"]["catalog"] = row["definition"]["catalog"] = path
+                elif change == "list":
+                    row.update(list="BAffixInfoList", path="sections.WearItems.data[0].sourceData.AffixList.BAffixInfoList[0]")
+                elif change == "variant":
+                    row["definition"].update(variant="normal", templateSource="descriptionTemplate")
+                    row["pool"].update(id="synthetic-critical", status="exact", basis="legendary_mod")
+                elif change == "pool":
+                    row["pool"].update(id="synthetic-critical", status="exact", basis="legendary_mod_same_template")
+                else:
+                    data["version"] = "0.4.2"
+                with self.assertRaises(ValueError):
+                    project(data, "a" * 64)
+
+    def test_the_lucky_literal_cannot_be_silently_dropped_from_an_ordinary_critical_row(self):
+        for canonical in (False, True):
+            for key in ("luckyCriticalStrike", "lucky_critical_strike"):
+                with self.subTest(canonical=canonical, key=key):
+                    data = critical("critical_damage_modifier", "any")
+                    if canonical:
+                        data = project(data, "a" * 64)
+                    data["modifiers"][0]["semantics"][key] = True
+                    with self.assertRaises(ValueError):
+                        summary(data) if canonical else project(data, "a" * 64)
+
+    def test_compiler_043_preserves_ordinary_critical_cast_and_fixed_implicit_evidence(self):
+        for data in (document(), critical("critical_damage_modifier", "spell"), casted(), fixed()):
+            with self.subTest(version=data["version"]):
+                expected = summary(project(data, "a" * 64))
+                data["version"] = expected["version"] = "0.4.3"
+                self.assertEqual(summary(project(data, "a" * 64)), expected)
+
+    def test_the_compound_requires_a_literal_true_lucky_flag_in_both_representations(self):
+        for canonical in (False, True):
+            for invalid in (None, False, 1, "true", "missing"):
+                with self.subTest(canonical=canonical, invalid=invalid):
+                    data = project(lucky(), "a" * 64) if canonical else lucky()
+                    semantics = data["modifiers"][0]["semantics"]
+                    key = "lucky_critical_strike" if canonical else "luckyCriticalStrike"
+                    if invalid == "missing":
+                        del semantics[key]
+                    else:
+                        semantics[key] = invalid
+                    with self.assertRaises(ValueError):
+                        summary(data) if canonical else project(data, "a" * 64)
+
+    def test_canonical_compound_bindings_cannot_move_to_a_different_native_source(self):
+        for key, invalid in (("native_id", 51434431), ("template_sign", "+"), ("scope", "spell"),
+                             ("unit", "flat"), ("targets", ["critical_rating"]), ("owner", "minion")):
+            with self.subTest(key=key):
+                data = project(lucky(), "a" * 64)
+                data["modifiers"][0][key] = invalid
+                with self.assertRaises(ValueError):
+                    summary(data)
+
+    def test_malformed_ordinary_critical_semantics_keep_a_controlled_contract_error(self):
+        for canonical in (False, True):
+            for invalid in (None, 17, []):
+                with self.subTest(canonical=canonical, invalid=invalid):
+                    data = critical("critical_damage_modifier", "any")
+                    if canonical:
+                        data = project(data, "a" * 64)
+                    data["modifiers"][0]["semantics"] = invalid
+                    with self.assertRaises(ValueError):
+                        summary(data) if canonical else project(data, "a" * 64)
 
     def test_a_fixed_wand_implicit_retains_its_exact_proof_and_unresolved_pool(self):
         result = summary(project(fixed(), "a" * 64))

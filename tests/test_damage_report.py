@@ -568,6 +568,15 @@ def static():
 class StaticReportTests(unittest.TestCase):
     """Expose static inventory evidence without treating it as applied damage."""
 
+    def test_both_reports_show_the_compound_literal_without_claiming_applied_damage(self):
+        from damage_lab.staticcombat import project
+        from test_staticcombat import lucky
+
+        self.assertTrue(all(all(fragment in page for fragment in (
+            "lucky_critical_damage_modifier", "lucky_critical_strike", "23.75", "unresolved",
+            "arithmetic_ready", "false", "Аффиксы не применены к DPS"))
+            for page in pages({"static_combat": project(lucky(), "a" * 64)})))
+
     def test_both_reports_show_own_cast_values_separately_from_specs_and_unresolved_application(self):
         from damage_lab.staticcombat import project
         from test_staticcombat import casted

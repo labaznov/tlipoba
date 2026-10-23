@@ -7,8 +7,9 @@ from .fixedimplicit import ENGLISH, MASTER
 
 
 FORMAT = "tli-static-combat-modifiers-v1"
-VERSIONS = ("0.3.2", "0.4.0", "0.4.1", "0.4.2")
-CRITICAL = {"critical_rating_increased": "rating_increase", "critical_damage_modifier": "unresolved"}
+VERSIONS = ("0.3.2", "0.4.0", "0.4.1", "0.4.2", "0.4.3")
+CRITICAL = {"critical_rating_increased": "rating_increase", "critical_damage_modifier": "unresolved",
+            "lucky_critical_damage_modifier": "unresolved"}
 EVIDENCE_ISSUES = ("evidence_definition_shape", "evidence_spec_invalid", "evidence_value_invalid")
 AFFIXES = ("BaseAttrInfoList", "BAffixInfoList", "PrefixInfoList", "SuffixInfoList", "EnchantAffixList",
            "ChipAffixList", "FixedBaseAffix")
@@ -30,7 +31,8 @@ COMBINATIONS = {
     "increased_speed": {(("cast_speed",), "any", "player"), (("attack_speed", "cast_speed"), "any", "player"),
                         (("attack_speed", "cast_speed"), "any", "minion")},
     "critical_rating_increased": {(("critical_rating",), "any", "player")},
-    "critical_damage_modifier": {(("critical_damage",), scope, "player") for scope in ("any", "spell")}}
+    "critical_damage_modifier": {(("critical_damage",), scope, "player") for scope in ("any", "spell")},
+    "lucky_critical_damage_modifier": {(("critical_damage",), "any", "player")}}
 
 
 def _name(value):
@@ -76,7 +78,7 @@ def _catalog(catalog, version):
             raise ValueError("Static combat logical catalog paths exceed the producer limit")
         _pattern(row["sha256"], "[0-9a-f]{64}")
         if "role" in row or path.endswith("/i18n/en"):
-            if version != "0.4.2" or path != ENGLISH or row.get("role") != "english":
+            if version not in ("0.4.2", "0.4.3") or path != ENGLISH or row.get("role") != "english":
                 raise ValueError("Static combat English roles require the supported paired wand member and compiler version")
         _enum(row["status"], ("ok", "invalid"))
         if row["status"] == "ok":
@@ -159,21 +161,33 @@ def _modifier(row, canonical, version):
     result["pool"] = _select(result["pool"], ("id", "status", "basis"), canonical)
     _enum(result["family"], tuple(COMBINATIONS))
     if result["family"] in CRITICAL:
-        if version not in ("0.4.0", "0.4.1", "0.4.2"):
+        compound = result["family"] == "lucky_critical_damage_modifier"
+        if version not in ("0.4.0", "0.4.1", "0.4.2", "0.4.3"):
             raise ValueError("Static critical inventory requires a supported critical compiler version")
-        if result["template_sign"] != "+":
-            raise ValueError("Static critical inventory requires an exact positive template sign")
+        if result["template_sign"] != (None if compound else "+"):
+            raise ValueError("Static critical inventory requires its family's exact template sign")
         _object(row, ("semantics",))
-        result["semantics"] = _select(row["semantics"], ("operation", "valueRole", "arithmeticReady"), canonical)
+        fields = ("operation", "valueRole", "arithmeticReady") + (("luckyCriticalStrike",) if compound else ())
+        result["semantics"] = _select(row["semantics"], fields, canonical)
+        if not compound and any(key in row["semantics"] for key in ("luckyCriticalStrike", "lucky_critical_strike")):
+            raise ValueError("Static Lucky critical literals require their compound modifier family")
         semantics = result["semantics"]
         if (semantics["operation"] != CRITICAL[result["family"]] or semantics["value_role"] != "non_additional_percent"
-                or semantics["arithmetic_ready"] is not False):
+                or semantics["arithmetic_ready"] is not False
+                or (compound and semantics["lucky_critical_strike"] is not True)):
             raise ValueError("Static critical inventory cannot choose an operator or enable arithmetic")
+        if compound and (version != "0.4.3" or result["native_id"] != 51434430
+                or result["list"] != "PrefixInfoList"
+                or result["definition"]["catalog"] != "legendaries/gloves/dex_gloves/master"
+                or result["definition"].get("variant") != "corroded"
+                or result["definition"].get("template_source") != "corrodedDescriptionTemplate"
+                or result["pool"] != {"id": None, "status": "unresolved", "basis": "variant_template_differs"}):
+            raise ValueError("Static Lucky critical inventory requires its pinned corroded source and unresolved pool")
     elif "semantics" in row:
         raise ValueError("Static critical semantics cannot be attached to another modifier family")
     if fixed in row:
-        if version != "0.4.2":
-            raise ValueError("Static fixed implicit proofs require compiler version 0.4.2")
+        if version not in ("0.4.2", "0.4.3"):
+            raise ValueError("Static fixed implicit proofs require a supported fixed implicit compiler version")
         from .fixedimplicit import project, summary
 
         result["fixed_implicit"] = summary(row[fixed]) if canonical else project(row[fixed])
@@ -262,7 +276,7 @@ def _omission(row, canonical, version):
         raise ValueError("Static fixed implicit proofs cannot be attached to omitted rows")
     issue = "evidence_issue" if canonical else "evidenceIssue"
     if "evidence" in row or issue in row:
-        if version not in ("0.4.1", "0.4.2"):
+        if version not in ("0.4.1", "0.4.2", "0.4.3"):
             raise ValueError("Static cast evidence requires a supported cast compiler version")
         if "evidence" in row and issue in row:
             raise ValueError("Static cast evidence cannot also contain an evidence issue")

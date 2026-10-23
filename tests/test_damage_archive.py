@@ -497,6 +497,22 @@ class InstalledBundleTests(unittest.TestCase):
 class StaticBundleTests(unittest.TestCase):
     """Retain typed gear evidence without changing already observed character values."""
 
+    def test_automatic_compound_import_keeps_the_same_source_literal_in_sqlite(self):
+        from test_staticbundle import lucky_bundle
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            lucky_bundle(directory)
+            result = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                stored = json.loads(connection.execute("SELECT json FROM documents WHERE role='static_combat'").fetchone()[0])
+            self.assertEqual([(row["modifiers"][0]["family"], row["modifiers"][0]["semantics"],
+                               row["modifiers"][0]["values"][0]["exact"]) for row in (result["static_combat"], stored)],
+                             [("lucky_critical_damage_modifier", {"operation": "unresolved",
+                               "value_role": "non_additional_percent", "lucky_critical_strike": True,
+                               "arithmetic_ready": False}, "23.75")] * 2)
+
     def test_new_critical_arithmetic_gate_is_preserved_in_record_and_sqlite(self):
         from test_staticbundle import critical_bundle
 

@@ -72,6 +72,20 @@ def mediumrecord():
 class BuildInputsTests(unittest.TestCase):
     """Connect automatic observations without fabricating complete raw damage inputs."""
 
+    def test_a_source_lucky_literal_cannot_fill_complete_critical_inputs_or_unblock_dps(self):
+        from damage_lab.staticcombat import project
+        from test_staticcombat import lucky
+
+        data = record()
+        raw = lucky()
+        raw["source"]["sha256"] = data["source_sha256"]
+        data["static_combat"] = project(raw, data["source_sha256"])
+        report = assemble(data, skill_alias="gem[1]")
+        self.assertEqual((report["status"], report["skill"]["effective_level"],
+                          [report["raw_spell"][key] for key in ("damage", "critical", "casting")],
+                          report["raw_result"]["pre_defence_dps"], report["arithmetic_ready"]),
+                         ("blocked", None, [None, None, None], None, False))
+
     def test_medium_creation_metadata_does_not_fill_any_damage_pool(self):
         baseline = assemble(record(), skill_alias="gem[1]")
         result = assemble(mediumrecord(), skill_alias="gem[1]")

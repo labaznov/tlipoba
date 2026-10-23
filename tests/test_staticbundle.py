@@ -99,8 +99,56 @@ def fixed_bundle(directory):
     return artifact, bundle
 
 
+def lucky_bundle(directory):
+    """Bind a fictional corroded critical compound to one declared glove catalog slice."""
+    from test_staticcombat import lucky
+
+    artifact, bundle = fixture(directory)
+    artifact["ledger"] = lucky()
+    artifact["ledger"]["source"]["sha256"] = bundle["sourceSha256"]
+    artifact["version"] = bundle["version"] = "0.1.3"
+    bundle["compilerVersion"] = "0.4.3"
+    path = "legendaries/gloves/dex_gloves/master"
+    artifact["catalog"]["documents"][0].update(logicalPath=path, member=path, address="/data/SS14/" + path + ".json")
+    saved(directory, artifact, bundle)
+    return artifact, bundle
+
+
 class StaticBundleTests(unittest.TestCase):
     """Verify saved diagnostic metadata without accepting it as applied damage."""
+
+    def test_a_corroded_compound_round_trip_keeps_its_literal_and_own_scalar_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            _, bundle = lucky_bundle(directory)
+            ledger, provenance, origin = read(directory, bundle, bundle["sourceSha256"])
+            row = ledger["modifiers"][0]
+            self.assertEqual((row["semantics"]["lucky_critical_strike"], row["values"][0],
+                              row["pool"]["status"], provenance["network_bytes_verified"], origin[-1]),
+                             (True, {"exact": "23.75", "fraction": "0.2375", "source": "DynArgs[0]"},
+                              "unresolved", False, 1))
+
+    def test_bundle_013_preserves_the_paired_fixed_implicit_english_provenance(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            artifact, bundle = fixed_bundle(directory)
+            expected = read(directory, bundle, bundle["sourceSha256"])[:2]
+            artifact["version"] = bundle["version"] = "0.1.3"
+            artifact["ledger"]["version"] = bundle["compilerVersion"] = "0.4.3"
+            expected[0]["version"] = "0.4.3"
+            saved(directory, artifact, bundle)
+            self.assertEqual(read(directory, bundle, bundle["sourceSha256"])[:2], expected)
+
+    def test_compound_bundle_and_compiler_versions_cannot_be_mixed_with_older_contracts(self):
+        for version, compiler in (("0.1.3", "0.4.2"), ("0.1.2", "0.4.3"), ("0.1.1", "0.4.3")):
+            with self.subTest(version=version, compiler=compiler), tempfile.TemporaryDirectory() as folder:
+                directory = package(Path(folder))
+                artifact, bundle = fixture(directory, error=True)
+                artifact["version"] = bundle["version"] = version
+                bundle["compilerVersion"] = compiler
+                saved(directory, artifact, bundle)
+                with self.assertRaises(ValueError):
+                    read(directory, bundle, bundle["sourceSha256"])
 
     def test_fixed_implicit_retains_exact_native_text_and_both_declared_catalog_members(self):
         with tempfile.TemporaryDirectory() as folder:

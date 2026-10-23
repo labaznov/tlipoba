@@ -92,6 +92,26 @@ class OrdinarySupportInputReportTests(unittest.TestCase):
             render(report())
 
 
+class LuckyInputReportTests(unittest.TestCase):
+    """Show the compound critical source without completing critical arithmetic."""
+
+    def test_spell_inputs_show_the_separate_lucky_literal_and_blocked_critical_pool(self):
+        from damage_lab.buildinputs import assemble
+        from damage_lab.staticcombat import project
+        from test_buildinputs import record
+        from test_staticcombat import lucky
+
+        data = record()
+        raw = lucky()
+        raw["source"]["sha256"] = data["source_sha256"]
+        data["static_combat"] = project(raw, data["source_sha256"])
+        value = assemble(data, skill_alias="gem[1]")
+        page = render(value)
+        self.assertTrue(all(fragment in page for fragment in (
+            "lucky_critical_damage_modifier", "lucky_critical_strike", "23.75", "unresolved", "critical: unavailable"
+        )) and value["raw_result"]["pre_defence_dps"] is None)
+
+
 class FixedImplicitInputReportTests(unittest.TestCase):
     """Keep fixed implicit provenance visible in the automatic spell input report."""
 

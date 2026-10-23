@@ -28,6 +28,15 @@ def percent(exact, fraction):
 class LedgerInputsTests(unittest.TestCase):
     """Keep candidate rolls separate from effective character arithmetic."""
 
+    def test_the_compound_stays_whole_in_excluded_without_entering_any_numeric_pool(self):
+        from test_staticcombat import lucky
+
+        result = inputs(project(lucky(), "a" * 64), skill_tags=["spell"])
+        self.assertEqual((result["added"], result["increased"], result["attributes"], result["speed"],
+                          [(row["family"], row["reason"], row["semantics"]["lucky_critical_strike"],
+                            row["values"][0]["exact"]) for row in result["excluded"]], result["arithmetic_ready"]),
+                         ([], [], [], [], [("lucky_critical_damage_modifier", "family_not_mapped", True, "23.75")], False))
+
     def test_fixed_implicit_enters_spell_increased_inventory_with_proof_and_an_unresolved_pool(self):
         from test_staticcombat import fixed
 

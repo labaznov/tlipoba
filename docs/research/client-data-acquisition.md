@@ -86,7 +86,38 @@ container proves that a particular table or formula applies to SS14. A selected
 entry still needs verified byte ranges, encryption/compression handling and
 content interpretation before it can become a calculation source.
 
+Nine selected compact entries were subsequently decoded against the pinned
+directory query and primary-index hash. Five declared no compression or
+encryption. A bounded read acquired their 22,031 payload bytes plus headers and
+a fresh footer, consuming 22,526 game-file bytes. Each complete payload SHA-1
+occurred at offset 29 in its own captured header. This is an observation of
+these entries, not a general proof of header semantics or an atomic capture.
+
+The three `.out` payloads were transformed using the XOR operation in the
+pinned [extractor source](https://github.com/Sembiance/tli-extract/blob/f88a6e9e7a26a3da380a6fed77b1c243c200d42e/outToLua.py), without executing that tool or the resulting
+bytes. They share a custom `01 XDI 11` prefix rather than a standard Lua
+signature. Readable fragments include `RoleCalculateMgr`, `SkillCalculateMgr`
+and `GetSkillDPS`. Fragments locate promising code; they do not establish a
+function's behavior or its calculation formula.
+
+Two further exact entries, `AttributeMgr.out` and `SkillCalculateMgr.out`,
+were then read separately. Their combined payload size was 62,680 bytes;
+headers and the fresh footer brought this acquisition to 63,013 game-file
+bytes. Both complete payload SHA-1 values matched their own captured headers.
+The same candidate transform produced the custom prefix and fragments
+including `GetDpsEx`, `GetSkillDamageAttr` and `FSkillDamageData`. These remain
+interpretation leads, with no game-code execution or recovered formula.
+
+One saved 88-byte table payload contained a Zstandard frame beginning at
+offset 16. The existing Git distribution's Zstandard library decompressed
+that 72-byte frame into 148 bytes, matching the observed size field. No
+library was installed. The [Zstandard API declaration](https://github.com/facebook/zstd/blob/v1.5.7/lib/zstd.h)
+guided the bounded call. The result remains binary: column meanings, types
+and game semantics have not been established.
+
 No formula, protobuf schema, skill level rule or stat aggregation operator has
-yet been recovered by this route.
+yet been recovered by this route. The public extractor's archived decompiler
+was inspected as class metadata without execution; its custom-version support
+is a parsing lead, not demonstrated compatibility with these payloads.
 It complements the existing memory and log adapters; automatic build acquisition
 and exact Carino DPS remain incomplete.

@@ -26,6 +26,7 @@ REASONS = ("source_coordinates_invalid", "installation_identity_ambiguous", "raw
            "prefix_invalid", "catalog_schema_invalid")
 OMISSIONS = ("invalid_row", "no_exact_definition", "ambiguous_definition", "line_not_declared", "value_count_mismatch",
              "invalid_value", "unsupported_template", "sign_convention_unresolved", "invalid_range", "value_out_of_range", "duplicate_line")
+MEDIUM_OMISSIONS = OMISSIONS + ("pinned_template_drift", "unresolved_prefix_peer")
 
 
 def _name(value):
@@ -203,7 +204,8 @@ def _roll(row):
 
 def _prefixpaths(result):
     positions, identities, natives = [], set(), set()
-    for rows in (result["rolled_lines"], result["omissions"]):
+    medium = result["medium_trigger"].get("line")
+    for rows in (result["rolled_lines"], result["omissions"], [medium] if medium is not None else []):
         offsets = []
         for row in rows:
             _fixed(row, {"origin": "native_prefix_row"})
@@ -216,9 +218,10 @@ def _prefixpaths(result):
                 raise ValueError("Support inventory prefix coordinates exceed the supplied row count")
             offsets.append(index)
             if "reason" in row:
-                _enum(row["reason"], OMISSIONS)
+                _enum(row["reason"], MEDIUM_OMISSIONS if result["version"] == "0.3.0" else OMISSIONS)
             else:
-                _roll(row)
+                if row is not medium:
+                    _roll(row)
                 if row["line_id"] in identities or row["native_id"] in natives:
                     raise ValueError("Support inventory attributed line identities must be unique")
                 identities.add(row["line_id"])
@@ -252,10 +255,10 @@ def _catalogsources(result):
         raise ValueError("Support inventory catalog evidence cannot reuse a text line")
 
 
-def _effects(document, canonical):
+def _effects(document, canonical, version):
     result = _select(document, "format version identity arithmeticReady activation effectiveLevel patch runtimeVerified "
                      "additionalGroupIdentity prefix catalogSchema rolledLines omissions constants constantIssues", canonical)
-    _fixed(result, {"format": EFFECT_FORMAT if canonical else RAW_EFFECT_FORMAT, "version": "0.2.0",
+    _fixed(result, {"format": EFFECT_FORMAT if canonical else RAW_EFFECT_FORMAT, "version": version,
                     "arithmetic_ready": False, "runtime_verified": False, "activation": "unknown",
                     "effective_level": "unknown", "patch": "unknown", "additional_group_identity": "unresolved",
                     "catalog_schema": "ok"})
@@ -296,13 +299,32 @@ def _effects(document, canonical):
         result["constant_issues"] = issues
     prefix = result["prefix"]
     _enum(prefix["status"], ("absent", "supplied"))
+    field = "medium_trigger" if canonical else "mediumTrigger"
+    if version == "0.2.0":
+        if field in document:
+            marker = document[field]
+            if (not canonical or type(marker) is not dict or len(marker) != 1
+                    or any(type(key) is not str for key in marker) or set(marker) != {"status"}
+                    or type(marker["status"]) is not str or marker["status"] != "legacy_absent"):
+                raise ValueError("Legacy support effects cannot carry medium trigger semantics")
+        result["medium_trigger"] = {"status": "legacy_absent"}
+    else:
+        from .supportmedium import project as medium_projection
+
+        if field not in document:
+            raise ValueError("Support effects require a medium trigger projection")
+        result["medium_trigger"] = medium_projection(
+            document[field], base_id=result["identity"]["native_base_id"],
+            category=result["identity"]["category"], prefix=prefix,
+            omissions=result["omissions"], canonical=canonical)
     if prefix["status"] == "absent":
         if any(value is not None for value in (prefix["rows"], prefix["null_rows"], result["rolled_lines"], result["omissions"])):
             raise ValueError("Support inventory absent prefixes require null counts and rows")
     else:
         _integer(prefix["rows"], 0)
         _integer(prefix["null_rows"], 0)
-        if len(_list(result["rolled_lines"])) + len(_list(result["omissions"])) + prefix["null_rows"] != prefix["rows"]:
+        bound = int(result["medium_trigger"].get("line") is not None)
+        if len(_list(result["rolled_lines"])) + len(_list(result["omissions"])) + prefix["null_rows"] + bound != prefix["rows"]:
             raise ValueError("Support inventory prefix rows and null padding must reconcile")
         _prefixpaths(result)
     if (result["constants"] is None) != (result["constant_issues"] is None):
@@ -313,13 +335,13 @@ def _effects(document, canonical):
     return result
 
 
-def _members(value, canonical):
+def _members(value, canonical, version):
     members = []
     for raw in _list(value):
         row = _select(raw, "alias group tabPosition groupStatus slot path baseId gemLevel category status reason effects", canonical)
         row["gem_level"] = _select(row["gem_level"], "value meaning", canonical)
         if row["effects"] is not None:
-            row["effects"] = _effects(row["effects"], canonical)
+            row["effects"] = _effects(row["effects"], canonical, version)
         members.append(row)
     return members
 
@@ -329,7 +351,8 @@ def _projection(document, source_sha256, canonical):
                      "identityVerified importComplete activation patch effectiveLevel clientLayer serverLayer members "
                      "accounting limitations", canonical)
     _fixed(result, {"format": FORMAT if canonical else RAW_FORMAT, "version": VERSION, "inventory_version": "0.1.2",
-                    "effects_version": "0.2.0", **FLAGS})
+                    **FLAGS})
+    _enum(result["effects_version"], ("0.2.0", "0.3.0"))
     result["source"] = _select(result["source"], "sha256 binding", canonical)
     _hash(source_sha256)
     _hash(result["source"]["sha256"])
@@ -343,7 +366,7 @@ def _projection(document, source_sha256, canonical):
         raise ValueError("Support inventory requires the fixed diagnostic limitations")
     result["limitations"] = list(LIMITATIONS)
     if result["members"] is not None:
-        result["members"] = _members(result["members"], canonical)
+        result["members"] = _members(result["members"], canonical, result["effects_version"])
         _groups(result["members"])
     _accounting(result)
     result["format"] = FORMAT

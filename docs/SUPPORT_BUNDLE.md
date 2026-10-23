@@ -4,6 +4,8 @@
 читает фиксированный `installed-support-effects.json`. Поддерживаются wrapper и
 inventory producer версии `0.2.0`; старые экспериментальные версии не подменяются
 текущими. Descriptor находится в `manifest.installedSupportEffects`.
+Внутренний adapter допускает `effectsVersion=0.2.0` либо `0.3.0` при точном
+совпадении с версиями всех leaf effects; wrapper/inventory остаются `0.2.0`.
 
 Результат — `(inventory, catalog, origin)`: безопасные канонические проекции и
 `origin=(absolute_path, artifact_sha256, bytes, stored)`. Нормальный diagnostic
@@ -43,5 +45,11 @@ BOM, duplicate keys, nonfinite/overflow numbers и ненулевого float un
 `catalog_bytes_unavailable` обозначает отказ обычного exporter получить собственный
 сохранённый cache каталога; он также сохраняется как явный пробел.
 
-Это слой будущего обычного импорта, без вызова модели урона. Полнота acquisition
+Bound medium требует объявленные `Activation_Medium` master и English documents,
+даже когда процентные rolls и constants пусты. Проверка catalog coordinates и
+ссылок на bytes не повторяет producer join с modifier ID; его утверждения остаются
+`producer_reported`. Сохранение использует существующие SQLite documents/sources,
+без отдельной таблицы или применения интервала к расчёту.
+
+Это слой обычного частичного импорта, без вызова модели урона. Полнота acquisition
 и совпадение hashes не подтверждают активацию поддержки или текущего персонажа.

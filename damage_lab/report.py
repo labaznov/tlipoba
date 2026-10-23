@@ -147,6 +147,24 @@ def installeddetails(record):
             f"</details><p>SHA-256 исходного снимка: {text(data['source']['sha256'])}</p></section>")
 
 
+def mediumdetails(medium):
+    """Display a validated creation candidate without deriving an emission or damage rate."""
+    if medium["status"] == "not_applicable":
+        return ""
+    if medium["status"] == "legacy_absent":
+        return "<p>Данные создания Tangle отсутствуют в адаптере 0.2.0</p>"
+    title = "<h3>Создание Tangle: каталожный кандидат</h3>"
+    if medium["status"] == "gap":
+        return title + "<p>Интервал создания неизвестен; причина: " + text(medium["reason"]) + "</p>"
+    line = medium["line"]
+    radius, interval = line["slots"]
+    return (title + "<p>Интервал создания: " + text(interval["exact"]) + " с<br>Радиус подсчёта: "
+            + text(radius["exact"]) + " м<br>Tier строки каталога: " + text(line["tier"])
+            + "<br>Активация и частота атак Tangle неизвестны; интервал не применён к DPS</p>"
+            "<details><summary>Источник каталожного кандидата и нативной строки</summary><pre>"
+            + text(json.dumps(medium, ensure_ascii=False, indent=2, allow_nan=False)) + "</pre></details>")
+
+
 def supportdetails(record):
     """Display validated installed candidates and declared catalog slices without applying damage."""
     from .importer import supportsummary
@@ -184,7 +202,7 @@ def supportdetails(record):
                                + "<h3>Каталожные константы</h3>" + exact(effect["constants"])
                                + "<h3>Пропуски строк и пробелы констант</h3>" + exact(effect["omissions"])
                                + exact(effect["constant_issues"]) + "<h3>Статусы интерпретации</h3>"
-                               + exact(metadata) + "</details>")
+                               + exact(metadata) + mediumdetails(effect["medium_trigger"]) + "</details>")
         members = ("<div class=scroll><table><thead><tr><th>Камень и группа</th><th>Слот и источник</th>"
                    "<th>Наблюдаемый уровень камня</th><th>Категория</th><th>Статус и причина</th></tr></thead>"
                    f"<tbody>{''.join(rows)}</tbody></table></div>"

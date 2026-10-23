@@ -60,8 +60,50 @@ def attached(directory, *, error=False):
     return artifact, descriptor
 
 
+def medium(directory):
+    """Persist a fictional medium artifact with both declared catalog document slices."""
+    from test_supportinventory import medium_document
+
+    artifact, descriptor, source = diagnostic(directory)
+    artifact["inventory"] = medium_document()
+    artifact["inventory"]["source"]["sha256"] = source
+    catalog = artifact["catalog"]
+    catalog["categories"]["Activation_Medium"] = {"master": "present", "english": "present"}
+    for number, role in enumerate(("master", "english")):
+        path = "skill/Activation_Medium/" + ("master" if role == "master" else "i18n/en")
+        catalog["documents"].append({**catalog["documents"][number], "category": "Activation_Medium",
+            "logicalPath": path, "member": path, "address": f"/data/SS14/{path}.json",
+            "byteRange": [711 + number * 200, 811 + number * 200]})
+    descriptor["catalogDocuments"] = len(catalog["documents"])
+    persisted(directory, artifact, descriptor)
+    return artifact, descriptor, source
+
+
 class SupportBundleTests(unittest.TestCase):
     """Bind producer failures to actual artifact bytes without inventing an empty effect inventory."""
+
+    def test_a_medium_only_candidate_requires_both_declared_catalog_members(self):
+        for role in ("master", "english"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as folder:
+                directory = Path(folder)
+                artifact, descriptor, source = medium(directory)
+                catalog = artifact["catalog"]
+                catalog["categories"]["Activation_Medium"][role] = "missing"
+                catalog["documents"] = [row for row in catalog["documents"]
+                                        if (row["category"], row["role"]) != ("Activation_Medium", role)]
+                descriptor["catalogDocuments"] = len(catalog["documents"])
+                persisted(directory, artifact, descriptor)
+                with self.assertRaises(ValueError):
+                    read(directory, descriptor, source)
+
+    def test_actual_artifact_bytes_bind_the_medium_candidate_and_catalog_coordinates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            _, descriptor, source = medium(directory)
+            inventory, catalog, origin = read(directory, descriptor, source)
+            self.assertEqual((inventory["members"][1]["effects"]["medium_trigger"]["line"]["slots"][1]["exact"],
+                              len(catalog["documents"]), origin[1], origin[3]),
+                             ("0.4", 6, hashlib.sha256((directory / "installed-support-effects.json").read_bytes()).hexdigest(), 1))
 
     def test_a_hashed_producer_error_is_an_explicit_gap_with_a_stored_false_origin(self):
         with tempfile.TemporaryDirectory() as folder:

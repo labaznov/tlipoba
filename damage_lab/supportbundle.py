@@ -67,7 +67,7 @@ def _join(inventory, catalog):
         if member["base_id"] in catalog["withheld_record_ids"]:
             raise ValueError("Support effect candidates cannot resolve a withheld catalog identity")
         effect = member["effects"]
-        if (effect["rolled_lines"] or effect["constants"]) and catalog["categories"].get(
+        if (effect["rolled_lines"] or effect["constants"] or effect["medium_trigger"].get("line")) and catalog["categories"].get(
                 CATEGORY_NAMES[member["category"]]) != {"master": "present", "english": "present"}:
             raise ValueError("Typed support candidates require their category master and English catalog members")
     return inventory, catalog

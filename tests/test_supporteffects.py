@@ -311,4 +311,4 @@ class SupportEffectsTests(unittest.TestCase):
         self.assertEqual((result["format"], result["version"], result["arithmeticReady"], result["activation"],
                           result["effectiveLevel"], result["patch"], result["runtimeVerified"],
                           result["additionalGroupIdentity"], "dps" in result),
-                         ("tli-support-effects-v0", "0.2.0", False, "unknown", "unknown", "unknown", False, "unresolved", False))
+                         ("tli-support-effects-v0", "0.3.0", False, "unknown", "unknown", "unknown", False, "unresolved", False))

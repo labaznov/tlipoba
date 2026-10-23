@@ -40,8 +40,44 @@ def record():
     return data
 
 
+def mediumrecord():
+    """Connect a fictional medium to its observed co-member and declared catalog slices."""
+    import tempfile
+    from pathlib import Path
+    from damage_lab.installedprofiles import project
+    from damage_lab.supportbundle import read
+    from test_supportbundle import medium
+    from test_installedprofiles import records, catalog
+
+    data = record()
+    with tempfile.TemporaryDirectory() as folder:
+        directory = Path(folder)
+        _, descriptor, source = medium(directory)
+        inventory, metadata, _ = read(directory, descriptor, source)
+    data["installed_support_catalog"] = metadata
+    support = data["installed_support_effects"]
+    support["effects_version"] = "0.3.0"
+    candidate = support["members"][1]
+    candidate.update(base_id=8030, category="activation_medium", effects=inventory["members"][1]["effects"])
+    observed = data["installed_skills"]
+    observed["groups"][0]["members"][1]["skill_id"] = 8030
+    definitions = records()
+    definitions["90017"]["tags"] = ["Physical" if tag == "Cold" else tag for tag in definitions["90017"]["tags"]]
+    definitions["90017"]["english"] = {key: value.replace("Cold", "Physical")
+                                         for key, value in definitions["90017"]["english"].items()}
+    data["installed_skill_profiles"] = project(definitions, observed, catalog())
+    return data
+
+
 class BuildInputsTests(unittest.TestCase):
     """Connect automatic observations without fabricating complete raw damage inputs."""
+
+    def test_medium_creation_metadata_does_not_fill_any_damage_pool(self):
+        baseline = assemble(record(), skill_alias="gem[1]")
+        result = assemble(mediumrecord(), skill_alias="gem[1]")
+        self.assertEqual((result["raw_spell"], result["raw_result"], result["gaps"],
+                          result["installation"]["members"][1]["effects"]["medium_trigger"]["line"]["slots"][1]["exact"]),
+                         (baseline["raw_spell"], baseline["raw_result"], baseline["gaps"], "0.4"))
 
     def test_observed_spell_burst_count_cannot_resolve_missing_raw_inputs(self):
         baseline = assemble(record(), skill_alias="gem[1]")

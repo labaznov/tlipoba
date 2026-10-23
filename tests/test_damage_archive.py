@@ -364,6 +364,22 @@ class InstalledProfileBundleTests(unittest.TestCase):
 class SupportEffectBundleTests(unittest.TestCase):
     """Archive support candidates and declared catalog metadata without changing character stats."""
 
+    def test_medium_creation_candidates_are_preserved_in_validated_sqlite_documents(self):
+        from test_supportbundle import medium
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            _, descriptor, _ = medium(directory)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["installedSupportEffects"] = descriptor
+            write(directory / "manifest.json", manifest)
+            result = archive(directory, None, facts(root), root / "medium.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "medium.sqlite")) as connection:
+                stored = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='installed_support_effects'").fetchone()[0])
+            self.assertEqual((stored, result["stats"]), (result["installed_support_effects"], {}))
+
     def test_effect_candidates_and_catalog_are_preserved_in_record_sqlite_and_hashed_origin(self):
         from test_supportbundle import attached
 

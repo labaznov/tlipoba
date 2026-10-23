@@ -168,6 +168,15 @@ class MemoryDefinitionInputReportTests(unittest.TestCase):
 class BuildInputReportTests(unittest.TestCase):
     """Show automatic candidate inputs without resolving unknown effects or computing damage."""
 
+    def test_the_observed_group_shows_creation_seconds_without_an_attack_rate(self):
+        from damage_lab.buildinputs import assemble
+        from test_buildinputs import mediumrecord
+
+        page = render(assemble(mediumrecord(), skill_alias="gem[1]"))
+        self.assertTrue(all(fragment in page for fragment in (
+            "Создание Tangle: каталожный кандидат", "Интервал создания: 0.4 с", "Радиус подсчёта: 10 м",
+            "Tier строки каталога: 1", "Активация и частота атак Tangle неизвестны", "producer_reported")))
+
     def test_a_standalone_russian_report_keeps_blocked_inputs_separate_from_damage(self):
         page = render(report())
         self.assertTrue(all(value in page for value in (

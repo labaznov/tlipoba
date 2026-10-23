@@ -2,7 +2,7 @@
 
 import json
 
-from .report import items, text
+from .report import items, mediumdetails, text
 
 
 def _known(value):
@@ -87,7 +87,7 @@ def _installation(data):
                            + _exact(effects["constant_issues"]) + "<h3>Неподтверждённая интерпретация</h3>"
                            + _exact({key: effects[key] for key in ("prefix", "activation", "effective_level", "patch",
                                                                    "additional_group_identity", "arithmetic_ready", "runtime_verified")})
-                           + "</details>")
+                           + mediumdetails(effects["medium_trigger"]) + "</details>")
     return ((_table(rows, ("Alias", "Слот", "Публичный base ID", "Уровень камня", "Категория", "Статус", "Источник"))
              if rows else "<p>В наблюдаемой группе нет строк</p>") + "".join(details))
 

@@ -9,8 +9,11 @@ binds only when record.tlidbId equals the native base id; otherwise the result i
 - Constants: exact catalog literals of english.templateDescription (a text line index, not a JSON index),
   among them the Physical -> Cold 100 % conversion; text of unknown lines is never copied.
 Constants and rolls keep separate origins; additional-group identity across supports stays unresolved.
+- Medium trigger (0.3.0): one pinned non-percent line, Activation Medium: Tangle 8030 line 77103277 with its exact
+  English literal, binds as typed metres/seconds in mediumTrigger (never in rolledLines, never a fraction or a
+  rate). Any unresolved non-null prefix peer holds the row back as an explicit gap.
 Everything is diagnostic: arithmeticReady false, activation/effective level/patch unknown. No DPS.
-See docs/SUPPORT_EFFECTS.md.
+See docs/SUPPORT_EFFECTS.md and docs/research/tangle-medium-creation.md.
 """
 from __future__ import annotations
 
@@ -19,7 +22,7 @@ import re
 from decimal import Context, Decimal
 
 FORMAT = 'tli-support-effects-v0'
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 DECIMAL = re.compile(r'-?\d{1,12}(?:\.\d{1,9})?')
 NATIVE_ID = re.compile(r'[A-Za-z0-9]{1,32}')
 TEMPLATES = {'+#% additional Hit Damage for the supported skill': ('additional_hit_damage', '+'),
@@ -39,6 +42,14 @@ CONSTANTS = {
     'This skill can only be installed in the fifth Support Skill Slot of each Active Skill': ('slot_restriction', {}),
     'This skill can only be installed in the third Support Skill Slot of each Active Skill.': ('slot_restriction', {}),
 }
+# The one pinned non-percent line (task 1025): exact base, master category, line id and full English literal.
+MEDIUM = {'tlidbId': 8030, 'category': 'Activation_Medium', 'lineId': '77103277',
+          'template': 'When the number of Tangles within # m is below the upper limit, triggers the supported skill, '
+                      'creating it in the form of a Tangle. Interval: # s\nCreates 1 additional Tangle'}
+MEDIUM_SLOTS = (('tangle_count_radius', 'metre'), ('creation_trigger_interval', 'second'))
+MEDIUM_ROLE = 'medium_tangle_creation_trigger'
+MEDIUM_PIN = {'tlidbId': 8030, 'category': 'Activation_Medium', 'lineId': '77103277', 'templateSource': 'english.lineTemplates'}
+UNRESOLVED = ('invalid_row', 'no_exact_definition', 'ambiguous_definition')
 UNKNOWN = {'arithmeticReady': False, 'activation': 'unknown', 'effectiveLevel': 'unknown', 'patch': 'unknown',
            'runtimeVerified': False, 'additionalGroupIdentity': 'unresolved'}
 
@@ -99,8 +110,53 @@ def _schema_ok(record):
     return True
 
 
-def _rolled(index, row, declared, lookup, templates):
-    """(line dict, None) or (None, reason) for one native prefix row."""
+def _medium(index, native, tier, specs, rolls, template, row):
+    """(medium line, None) or (None, reason) for a row exactly bound to the pinned line (row counts already checked)."""
+    if not isinstance(template, str):
+        return None, 'unsupported_template'
+    if template != MEDIUM['template']:
+        return None, 'pinned_template_drift'
+    if len(specs) != len(MEDIUM_SLOTS):
+        return None, 'value_count_mismatch'
+    slots = []
+    for number, (roll, spec, (quantity, unit)) in enumerate(zip(rolls, specs, MEDIUM_SLOTS), 1):
+        low, high = (_exact(spec.get(key)) if isinstance(spec, dict) else None for key in ('min', 'max'))
+        if low is None or high is None or Decimal(low) > Decimal(high):
+            return None, 'invalid_range'
+        if Decimal(low) < 0 or Decimal(roll) < 0:
+            return None, 'sign_convention_unresolved'
+        if not Decimal(low) <= Decimal(roll) <= Decimal(high):
+            return None, 'value_out_of_range'
+        slots.append({'slot': number, 'quantity': quantity, 'unit': unit, 'exact': roll, 'range': {'min': low, 'max': high}})
+    version = row.get('Version')
+    return {'origin': 'native_prefix_row', 'path': f'prefix[{index}]', 'lineId': MEDIUM['lineId'], 'nativeId': str(native),
+            'tier': tier, 'tierSource': 'exact_native_modifier_id', 'tierMeaning': 'catalog_line_tier', 'role': MEDIUM_ROLE,
+            'template': template, 'templateSource': 'english.lineTemplates', 'slots': slots,
+            'nativeVersion': {'value': version, 'meaning': 'unverified'} if type(version) is int else None,
+            'status': 'native_roll_exact', 'semantics': 'catalog_creation_interval', 'runtime': 'unverified',
+            'rateDerived': False}, None
+
+
+def _pin_state(record, catalog_id, templates):
+    """None for any other base, 'ok' for a usable pin, else the fixed catalog-side gap reason (schema already ok)."""
+    if catalog_id != MEDIUM['tlidbId']:
+        return None
+    if record.get('category') != MEDIUM['category']:
+        return 'category_mismatch'
+    declared = [line for line in record.get('lines') or [] if line['id'] == MEDIUM['lineId']]
+    carried = [sum(1 for line in tier['lines'] if line['id'] == MEDIUM['lineId']) for tier in record.get('tierProgression') or []]
+    if not declared or not any(carried):
+        return 'pinned_line_not_declared'
+    if len(declared) > 1 or any(count > 1 for count in carried):
+        return 'pinned_line_ambiguous'
+    template = templates.get(MEDIUM['lineId'])
+    if not isinstance(template, str):
+        return 'pinned_template_missing'
+    return 'ok' if template == MEDIUM['template'] else 'pinned_template_drift'
+
+
+def _rolled(index, row, declared, lookup, templates, medium=False):
+    """(line dict, None) or (None, reason) for one native prefix row; medium enables the pinned line's branch."""
     native = row.get('Id') if isinstance(row, dict) else None
     if isinstance(native, bool) or not (type(native) is int or (isinstance(native, str) and NATIVE_ID.fullmatch(native))) \
             or not isinstance(row.get('DynArgs'), list):
@@ -120,6 +176,8 @@ def _rolled(index, row, declared, lookup, templates):
     if any(roll is None for roll in rolls):
         return None, 'invalid_value'
     template = templates.get(line['id'])
+    if medium and line['id'] == MEDIUM['lineId']:
+        return _medium(index, native, tier, specs, rolls, template, row)
     if not isinstance(template, str):
         return None, 'unsupported_template'
     if template.startswith('-') and any(Decimal(roll) < 0 for roll in rolls):
@@ -178,7 +236,8 @@ def effects(record, *, native_base_id, prefix_rows):
     prefix = ({'status': 'absent', 'rows': None, 'nullRows': None} if prefix_rows is None else
               {'status': 'supplied', 'rows': len(prefix_rows), 'nullRows': sum(1 for row in prefix_rows if row is None)})
     result = {'format': FORMAT, 'version': VERSION, 'identity': identity, **UNKNOWN, 'prefix': prefix,
-              'catalogSchema': None, 'rolledLines': None, 'omissions': None, 'constants': None, 'constantIssues': None}
+              'catalogSchema': None, 'rolledLines': None, 'omissions': None, 'constants': None, 'constantIssues': None,
+              'mediumTrigger': None}
     if identity['status'] != 'supplied_data_exact':
         return result                                    # binding gap: nothing from this record is attributed
     result['catalogSchema'] = 'ok' if _schema_ok(record) else 'invalid'
@@ -188,7 +247,12 @@ def effects(record, *, native_base_id, prefix_rows):
     templates = english.get('lineTemplates') if isinstance(english.get('lineTemplates'), dict) else {}
     if isinstance(english.get('templateDescription'), str):
         result['constants'], result['constantIssues'] = _constants(english['templateDescription'], templates)
+    state = _pin_state(record, catalog_id, templates)
+    if state is None:
+        result['mediumTrigger'] = {'status': 'not_applicable'}
     if prefix_rows is None:
+        if state is not None:
+            result['mediumTrigger'] = _trigger('prefix_absent' if state == 'ok' else state, [])
         return result
     declared = {line.get('id') for line in record.get('lines') or [] if isinstance(line, dict)}
     lookup = {}
@@ -210,16 +274,43 @@ def effects(record, *, native_base_id, prefix_rows):
     for line_id in line_of.values():
         counts[line_id] = counts.get(line_id, 0) + 1
     rolled, omissions = [], []
+    held, unresolved, target = None, [], []              # held: (omission position, index, bound medium line)
     for index, row in enumerate(prefix_rows):
         if row is None:
             continue
+        if state is not None and line_of.get(index) == MEDIUM['lineId']:
+            target.append(index)
         if counts.get(line_of.get(index), 0) > 1:
             omissions.append({'origin': 'native_prefix_row', 'path': f'prefix[{index}]', 'reason': 'duplicate_line'})
             continue
-        line, reason = _rolled(index, row, declared, lookup, templates)
+        line, reason = _rolled(index, row, declared, lookup, templates, state in ('ok', 'pinned_template_drift'))
         if line is None:
             omissions.append({'origin': 'native_prefix_row', 'path': f'prefix[{index}]', 'reason': reason})
+            if reason in UNRESOLVED:
+                unresolved.append(index)
+        elif line['role'] == MEDIUM_ROLE:
+            held = (len(omissions), index, line)
         else:
             rolled.append(line)
+    if state is not None:
+        if state != 'ok':
+            result['mediumTrigger'] = _trigger(state, target)
+        elif held is not None and unresolved:
+            # An unresolved peer might be another copy of the pinned line: the row is held back, never bound.
+            omissions.insert(held[0], {'origin': 'native_prefix_row', 'path': f'prefix[{held[1]}]',
+                                       'reason': 'unresolved_prefix_peer'})
+            result['mediumTrigger'] = _trigger('line_unresolved_rows_present', unresolved + [held[1]])
+        elif held is not None:
+            result['mediumTrigger'] = _trigger(None, [held[1]], held[2])
+        elif target:
+            result['mediumTrigger'] = _trigger('row_omitted', target)
+        else:
+            result['mediumTrigger'] = _trigger('line_unresolved_rows_present' if unresolved else 'line_not_observed', unresolved)
     result.update(rolledLines=rolled, omissions=omissions)
     return result
+
+
+def _trigger(reason, indices, line=None):
+    """The 8030 mediumTrigger object: bound with its one line, or a fixed-reason gap with sorted relative paths."""
+    return {'status': 'gap' if line is None else 'bound', 'reason': reason,
+            'paths': [f'prefix[{index}]' for index in sorted(set(indices))], 'pin': dict(MEDIUM_PIN), 'line': line}

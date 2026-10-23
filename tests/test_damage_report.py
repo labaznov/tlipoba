@@ -27,6 +27,22 @@ def supportevidence():
             "installed_support_catalog": catalog(raw)}
 
 
+class MediumReportTests(unittest.TestCase):
+    """Expose creation-time metadata in passive reports without turning it into damage."""
+
+    def test_both_reports_show_declared_creation_units_and_runtime_uncertainty(self):
+        from test_buildinputs import mediumrecord
+
+        self.assertTrue(all(all(fragment in page for fragment in (
+            "Создание Tangle: каталожный кандидат", "Интервал создания: 0.4 с", "Радиус подсчёта: 10 м",
+            "Tier строки каталога: 1", "771032771", "producer_reported", "Активация и частота атак Tangle неизвестны",
+        )) for page in pages(mediumrecord())))
+
+    def test_legacy_medium_absence_is_visible_in_both_reports(self):
+        self.assertTrue(all("Данные создания Tangle отсутствуют в адаптере 0.2.0" in page
+                            for page in pages(supportevidence())))
+
+
 def profileevidence():
     """Return fictional gem-level catalog lookups with unresolved effective levels."""
     from damage_lab.installedprofiles import project
@@ -432,6 +448,7 @@ class SupportEffectReportTests(unittest.TestCase):
         record = supportevidence()
         raw = document()
         raw["members"][1]["effects"] = effects(catalog(), native_base_id=90017, prefix_rows=[row("Unmapped99", ["24.125"])])
+        raw["effectsVersion"] = "0.3.0"
         record["installed_support_effects"] = project(raw, "a" * 64)
         self.assertTrue(all(all(value in page for value in (
             "no_exact_definition", "prefix[0]", "Пропуски строк и пробелы констант", "catalog_literal",

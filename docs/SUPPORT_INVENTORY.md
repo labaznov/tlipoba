@@ -2,7 +2,7 @@
 
 `supportinventory.project(raw, source_sha256)` принимает только вложенный результат
 helper `support_effect_inventory` 0.2.0 (`tli-installed-support-effects-v0`),
-`inventoryVersion=0.1.2`, `effectsVersion=0.2.0`. Функция не читает source,
+`inventoryVersion=0.1.2`, `effectsVersion=0.2.0` либо `0.3.0`. Функция не читает source,
 каталоги, manifest, файлы или игру. Она проверяет утверждения артефакта и строит
 отделённую проекцию; исходный matcher повторно не запускается.
 
@@ -31,11 +31,37 @@ Accounting проверяет `members = effect_candidates + excluded + gaps` и
 `status=effect_candidates`. У gap/excluded `effects=null`; неизвестные или
 неподдержанные эффекты не превращаются в полный пустой набор.
 
-Вложенный формат — `tli-support-effects-canonical-v1`, версия 0.2.0. Сохраняются
+Вложенный формат — `tli-support-effects-canonical-v1`, версия совпадает с
+`effects_version` всего inventory. Смешанные и неизвестные версии отклоняются. Сохраняются
 known identity, prefix accounting, rolled_lines, omissions, catalog constants и
 constant_issues. Identity/base/category должны совпадать с member, catalog_schema
 должен быть ok. Все runtime/arithmetic утверждения остаются false/unknown, а
 additional_group_identity unresolved. Catalog literals и native rolls не смешиваются.
+
+### Отдельная ветка создания Tangle
+
+Для адаптера `0.3.0` обязательна `mediumTrigger` / canonical `medium_trigger`.
+`damage_lab.supportmedium.project` проверяет закрытую схему `bound`, `gap` либо
+`not_applicable`, фиксированные base/category/line/template, два слота с разными
+единицами, decimal text, собственные диапазоны и prefix coordinates. Вложенные
+неизвестные поля и новые единицы отклоняются. Bound-строка учитывается ровно один
+раз вместе с процентными rolls, omissions и null padding; повтор path, native ID
+или line ID между типизированными строками запрещён.
+
+Bound сохраняет полный `native_id`, `tier`, `tier_source`,
+`tier_meaning=catalog_line_tier`, `native_version`, `slots`,
+`semantics=catalog_creation_interval`, `runtime=unverified`, `rate_derived=false`.
+`catalog_claims=producer_reported` явно обозначает границу: consumer не повторяет
+исходный join с tier definition и не доказывает соответствие шаблона сохранённым
+catalog bytes. Tier/native version сохраняются как exact non-bool integers без
+догадки по ID; это не валидация их значения в игре. Число prefix rows ограничено
+инженерным пределом меньше `10**12`, path index — девятью цифрами.
+
+Старый адаптер `0.2.0` не может содержать новую raw-ветку; consumer добавляет
+`medium_trigger={status: legacy_absent}`. Это явная невозможность старого адаптера
+сообщить поле, а не отсутствие medium в билде. Повторная canonical-валидация
+сохраняет этот маркер. JSON, SQLite и три HTML-представления показывают кандидат
+без вычисления частоты атак или DPS; поле не заполняет неизвестные raw pools.
 
 Вложенные known поля: `identity {status, catalog_tlidb_id, native_base_id, category,
 guid}`, `prefix {status, rows, null_rows}`, `rolled_lines`, `omissions`, `constants`,

@@ -17,6 +17,9 @@ LIMITATIONS = [
 
 
 def document():
+    legacy = effects(catalog(), native_base_id=90017, prefix_rows=[None, row("X91", ["24.125"])])
+    legacy["version"] = "0.2.0"
+    legacy.pop("mediumTrigger", None)
     return {
         "format": "tli-installed-support-effects-v0", "version": "0.2.0", "inventoryVersion": "0.1.2",
         "effectsVersion": "0.2.0", "source": {"sha256": SHA, "binding": "caller_supplied_document_only"},
@@ -32,7 +35,7 @@ def document():
              "slot": 5, "path": "sections.SkillLayout.data[0][1]", "baseId": 90017,
              "gemLevel": {"value": 7, "meaning": "observed_gem_level_not_effective"},
              "category": "noble_support", "status": "effect_candidates", "reason": None,
-             "effects": effects(catalog(), native_base_id=90017, prefix_rows=[None, row("X91", ["24.125"])])},
+             "effects": legacy},
             {"alias": "gem[3]", "group": "group[1]", "tabPosition": 0, "groupStatus": "ok",
              "slot": 6, "path": "sections.SkillLayout.data[0][2]", "baseId": 90033,
              "gemLevel": {"value": 2, "meaning": "observed_gem_level_not_effective"},
@@ -41,8 +44,133 @@ def document():
     }
 
 
+def medium_document():
+    """A fictional installed medium with a declared creation line and exact native slot values."""
+    raw = document()
+    raw["effectsVersion"] = "0.3.0"
+    member = raw["members"][1]
+    member.update(baseId=8030, category="activation_medium")
+    effect = member["effects"]
+    effect.update(version="0.3.0", prefix={"status": "supplied", "rows": 1, "nullRows": 0},
+                  rolledLines=[], omissions=[], constants=[], constantIssues=[])
+    effect["identity"].update(catalogTlidbId=8030, nativeBaseId=8030, category="Activation_Medium")
+    effect["mediumTrigger"] = {
+        "status": "bound", "reason": None, "paths": ["prefix[0]"],
+        "pin": {"tlidbId": 8030, "category": "Activation_Medium", "lineId": "77103277",
+                "templateSource": "english.lineTemplates"},
+        "line": {
+            "origin": "native_prefix_row", "path": "prefix[0]", "lineId": "77103277",
+            "nativeId": "771032771", "tier": 1, "tierSource": "exact_native_modifier_id",
+            "tierMeaning": "catalog_line_tier",
+            "role": "medium_tangle_creation_trigger",
+            "template": "When the number of Tangles within # m is below the upper limit, triggers the supported "
+                        "skill, creating it in the form of a Tangle. Interval: # s\nCreates 1 additional Tangle",
+            "templateSource": "english.lineTemplates",
+            "slots": [
+                {"slot": 1, "quantity": "tangle_count_radius", "unit": "metre", "exact": "10",
+                 "range": {"min": "10", "max": "10"}},
+                {"slot": 2, "quantity": "creation_trigger_interval", "unit": "second", "exact": "0.4",
+                 "range": {"min": "0.4", "max": "0.4"}},
+            ],
+            "nativeVersion": {"value": 7, "meaning": "unverified"}, "status": "native_roll_exact",
+            "semantics": "catalog_creation_interval", "runtime": "unverified", "rateDerived": False,
+        },
+    }
+    return raw
+
+
 class SupportInventoryTests(unittest.TestCase):
     """Preserve safe installed effect candidates without promoting their runtime or arithmetic status."""
+
+    def test_legacy_absence_is_explicit_and_survives_canonical_revalidation(self):
+        from damage_lab.supportinventory import summary
+
+        self.assertEqual(summary(project(document(), SHA))["members"][1]["effects"]["medium_trigger"],
+                         {"status": "legacy_absent"})
+
+    def test_legacy_canonical_markers_refuse_foreign_keys_and_values_before_callbacks(self):
+        from damage_lab.supportinventory import summary
+
+        class Foreign(str):
+            """A foreign string which must not be admitted as a schema field."""
+
+        class Hostile:
+            """A foreign value which raises if compared before type admission."""
+
+            def __eq__(self, other):
+                raise RuntimeError("PRIVATE-LEGACY-CANARY")
+
+        for marker in ({Foreign("status"): "legacy_absent"}, {"status": Foreign("legacy_absent")},
+                       {"status": Hostile()}, {"status": "legacy_absent", "extra": True}):
+            with self.subTest(marker=type(marker["status"]).__name__):
+                raw = project(document(), SHA)
+                raw["members"][1]["effects"]["medium_trigger"] = marker
+                with self.assertRaises(ValueError):
+                    summary(raw)
+
+    def test_leaf_versions_must_match_the_declared_adapter_version(self):
+        for raw, version in ((document(), "0.3.0"), (medium_document(), "0.2.0")):
+            with self.subTest(version=version):
+                raw["members"][1]["effects"]["version"] = version
+                with self.assertRaises(ValueError):
+                    project(raw, SHA)
+
+    def test_a_legacy_producer_cannot_smuggle_new_medium_semantics(self):
+        raw = document()
+        raw["members"][1]["effects"]["mediumTrigger"] = {"status": "not_applicable"}
+        with self.assertRaises(ValueError):
+            project(raw, SHA)
+
+    def test_a_current_adapter_requires_the_explicit_medium_subtree(self):
+        raw = medium_document()
+        del raw["members"][1]["effects"]["mediumTrigger"]
+        with self.assertRaises(ValueError):
+            project(raw, SHA)
+
+    def test_medium_rows_and_null_padding_reconcile_without_percent_rolls(self):
+        raw = medium_document()
+        effect = raw["members"][1]["effects"]
+        effect["prefix"].update(rows=3, nullRows=2)
+        effect["mediumTrigger"]["paths"] = ["prefix[1]"]
+        effect["mediumTrigger"]["line"]["path"] = "prefix[1]"
+        self.assertEqual(project(raw, SHA)["members"][1]["effects"]["prefix"],
+                         {"status": "supplied", "rows": 3, "null_rows": 2})
+
+    def test_medium_and_percent_rows_cannot_reuse_a_source_path_or_identity(self):
+        for field in ("path", "lineId", "nativeId"):
+            with self.subTest(field=field):
+                raw = medium_document()
+                effect = raw["members"][1]["effects"]
+                effect["prefix"]["rows"] = 2
+                roll = document()["members"][1]["effects"]["rolledLines"][0]
+                roll["path"] = "prefix[1]"
+                roll[field] = effect["mediumTrigger"]["line"][field]
+                effect["rolledLines"] = [roll]
+                with self.assertRaises(ValueError):
+                    project(raw, SHA)
+
+    def test_a_held_medium_and_unknown_peer_keep_both_omissions(self):
+        raw = medium_document()
+        effect = raw["members"][1]["effects"]
+        effect["prefix"]["rows"] = 2
+        effect["omissions"] = [
+            {"origin": "native_prefix_row", "path": "prefix[0]", "reason": "unresolved_prefix_peer"},
+            {"origin": "native_prefix_row", "path": "prefix[1]", "reason": "no_exact_definition"}]
+        effect["mediumTrigger"].update(status="gap", reason="line_unresolved_rows_present",
+                                       paths=["prefix[0]", "prefix[1]"], line=None)
+        self.assertEqual(project(raw, SHA)["members"][1]["effects"]["medium_trigger"]["status"], "gap")
+
+    def test_medium_creation_slots_keep_metres_and_seconds_without_damage_fractions(self):
+        effect = project(medium_document(), SHA)["members"][1]["effects"]
+        line = effect["medium_trigger"]["line"]
+        self.assertEqual((effect["version"], effect["arithmetic_ready"], line["semantics"],
+                          line["runtime"], line["rate_derived"], line["slots"]), (
+            "0.3.0", False, "catalog_creation_interval", "unverified", False, [
+                {"slot": 1, "quantity": "tangle_count_radius", "unit": "metre", "exact": "10",
+                 "range": {"min": "10", "max": "10"}},
+                {"slot": 2, "quantity": "creation_trigger_interval", "unit": "second", "exact": "0.4",
+                 "range": {"min": "0.4", "max": "0.4"}},
+            ]))
 
     def test_absent_client_keeps_members_and_all_counts_unknown(self):
         raw = document()
@@ -289,6 +417,7 @@ class SupportInventoryTests(unittest.TestCase):
         raw = document()
         raw["members"][1]["gemLevel"]["value"] = None
         raw["members"][1]["effects"] = effects(catalog(), native_base_id=90017, prefix_rows=None)
+        raw["effectsVersion"] = "0.3.0"
         raw["members"][1]["effects"]["identity"]["guid"] = None
         member = project(raw, SHA)["members"][1]
         self.assertEqual((member["gem_level"]["value"], member["effects"]["identity"]["guid"],

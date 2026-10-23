@@ -49,11 +49,22 @@ included record. Its ordinary branch applies
 addition. The raw branch adds those values directly. The selector sorts records
 by ascending `Id` and uses the first record whose configured tags all match.
 
-This is a presentation/delegation trace. The implementation of
-`ExportAttrShow.GetValue`, the applicable attribute records and their relation
-to Carino's observed panel remain open. Its name alone does not establish a
-native implementation. These findings do not supply base damage, critical
-aggregation, effective skill level or exact combat DPS.
+This is a presentation/delegation trace. A later
+[outline inspection](CLIENT_OUTLINE.md) identifies an installed Lua definition
+of `ExportAttrShow.GetValue`. Its constructor assigns the global `AttrUtils`
+to `self.Utils` and builds callback tables. `GetValue` selects
+`self.FuncList[requestedId]`, calls `Utils:_SetCalcType(requestedId)`,
+`:SetStoneItemId(secondArgument)` and `:_BeginCache()`, then invokes the selected
+callback without arguments. The normal return path calls `:_EndCache()` and
+`:_SetCalcType(nil)`. Those helper names do not establish their state effects.
+If the callback is absent, the source returns `{0}`; that fallback does not
+establish an observed zero-valued character stat.
+
+The selected callbacks, `AttrUtils` implementations, applicable attribute
+records and their relation to Carino's panel remain open. Names and source
+declarations do not establish native implementation or runtime method selection.
+These findings do not supply base damage, critical aggregation, effective skill
+level or exact combat DPS.
 
 ## Findings for automatic import
 

@@ -35,10 +35,19 @@ The V2 request has a different field layout. Neither schema establishes how a
 share code becomes `bdId`, how transport flags and frames work, or how to
 authenticate an independent request.
 
-The fixed message-reference projection reached 84 definitions. Five message
-references remain unresolved: `ErrCode`, `GPlayerInfo`, `GSkillPosRequirement`,
+The four-file message-reference projection reached 84 definitions. Five message
+references were unresolved: `ErrCode`, `GPlayerInfo`, `GSkillPosRequirement`,
 `MercenaryOverViewDTO` and `SP3`. Enum definitions and map-entry options were
 not resolved. This is a partial graph, not a usable complete schema bundle.
+
+A subsequent exact `cApi.pb` dependency read used another 22,127 file bytes
+and produced 103,638 saved bytes through the same isolated decoder. A separate
+seven-message projection supplies `GPlayerInfo`, `GSkillPosRequirement` and
+their selected message references. `GPlayerInfo` declares player state and
+aura entries; the referenced `GSkillReserved` declares an `IsActive` boolean.
+Declarations alone do not establish actual aura activation or absence defaults.
+`ErrCode`, `MercenaryOverViewDTO` and `SP3`, plus enum/map options and complete
+schema semantics, remain unresolved for the larger build investigation.
 
 ## Build and stat paths
 
@@ -56,10 +65,20 @@ establish a per-skill damage formula or a relationship to a panel measurement.
 Attribute-ID meanings and combat aggregation remain unverified.
 
 The inspected Lua constructor retains its supplied value as `ServerSource`.
-However, a historical `ServerSource.attrInfo` representation cannot be bound
-to these descriptors from its name alone. Schema applicability, actual wire
-bytes, wrapper decoding, presence and complete-state semantics need separate
-evidence. Missing fields must not become invented zero-valued character stats.
+A historical source contains an explicitly named `rpc.ViewPlayerAttrInfo`
+byte wrapper. A bounded, value-free diagnostic compared its 622 saved bytes
+against ten selected message declarations: all 114 observed wire occurrences
+matched their declared field numbers and wire types. This establishes structural
+compatibility for those observations, without checking full protobuf semantics,
+defaults, attribute-ID meanings or applicability to the current runtime.
+Missing fields must not become invented zero-valued character stats.
+
+The inspected `CreateSkills` body traverses `Skills.skills`, places each entire
+`PlayerItem` in a wrapper with a page type and index, calls
+`ItemMgr:CreateItem(wrapper, nil, true)`, and keys the result by `PlayerItem.Id`.
+It does not directly read `Level` or `SkillItemLevel`; whether the item
+constructor uses either field, and how, is unknown. The wrapper is reused across iterations;
+the item constructor's copy/alias behavior is also unverified.
 
 The next import boundary is lower transport discovery or a verified saved
 response with a bounded decoder. These findings do not change ordinary import

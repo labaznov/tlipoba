@@ -96,6 +96,50 @@ context. Full raw-spell aggregation, effective level, Tangle/hit topology,
 target defenses and finite-window combat DPS remain separate work. No imported
 value, raw-calculation gate or engine formula changes with this source note.
 
+## Conditional propagation through conversion terms
+
+A further static check compared the scalar `104xxx`, minimum `114xxx` and
+maximum `124xxx` families. For the inspected suffixes, instruction words match
+exactly, and tagged constants match after renaming only each family's memo key
+and its family-specific callees. Shared coefficient queries are unchanged.
+This is a source-template comparison, not evidence of equal runtime values.
+
+Write `R(s)` for the first returned value of family `104`, `114` or `124` with
+suffix s. The checked recurrences are:
+
+```text
+R(050) = R(000) * g(21810) / 100
+R(120) = R(020) * g(21880) / 100
+R(130) = R(020) * g(21890) / 100
+R(330) = (R(020) - R(120) - R(130)) * C_c
+R(370) = (R(060) - R(180) - R(190)) * C_pc
+```
+
+Here X(i) and E(i) mean the checked `_GetAttrValue` queries for attribute i,
+with mine tags `{6001100}`, empty other tags, mode X or E, empty filter and
+literal flag A:
+
+```text
+C_c  = (X(5109) + X(5719) + X(5727) - 2)
+       * E(5109) * E(5719) * E(5727)
+C_pc = (X(5002) + X(5109) + X(5719) + X(5727) - 3)
+       * E(5002) * E(5109) * E(5719) * E(5727)
+```
+
+If the coefficients have the same numeric values in all three contexts, an
+existing scalar-equals-endpoint-mean identity propagates through these linear
+operations. For example, the identity for base `020` suffices for `120`, `130`
+and `330`; their mean identities are not independent assumptions. This is real
+algebra, without a bound on floating-point differences. The inspected bodies
+do not establish coefficient ranges, active effects or native pool semantics.
+
+The `370` branch still needs lower identities for `060`, `180` and `190`.
+The full cold sum also contains `400`, `460`, `630` and `690`, outside this
+check. Moreover, equal native query arguments do not prove equal results across
+outer `GetValue(10103)` and `GetValue(11800)` calls: calculation flags, helper,
+stone, frame and cache context can differ. The historical equality of B with
+the inverted mean remains an explicit hypothesis.
+
 ## Static check locations
 
 | Script | Function | Checked source |
@@ -104,6 +148,10 @@ value, raw-calculation gate or engine formula changes with this source note.
 | `ExportAttrShow` | `main.54`–`main.57`, `12000`–`12300` | PC 18–23 and 63–71: different outer endpoint factors |
 | `ExportAttrShow` | `main.501`, `104000` | PC 6–73: weighted base expression |
 | `ExportAttrShow` | `main.732`, `114000`; `main.963`, `124000` | Base query min/max, effect query and skill-damage query |
+| `ExportAttrShow` | `main.506`, `main.737`, `main.968` | `050` conversion-family recurrence |
+| `ExportAttrShow` | `main.513`–`main.514`, `main.744`–`main.745`, `main.975`–`main.976` | `120` and `130` conversion-family recurrences |
+| `ExportAttrShow` | `main.534`, `main.765`, `main.996` | `330` family and coefficient queries |
+| `ExportAttrShow` | `main.538`, `main.769`, `main.1000` | `370` family and coefficient queries |
 
 The function bodies were projected from an already validated complete outline.
 Selected child-free bodies were additionally framed as standalone diagnostic

@@ -24,7 +24,8 @@ def render(data):
         '<title>Диагностика импорта журнала TLI</title>',
         '<style>body{font:16px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}',
         'pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#1f2937;padding:1rem}details{margin:.5rem 0}',
-        'summary{cursor:pointer}section{border-top:1px solid #475569;margin-top:2rem}code{overflow-wrap:anywhere}</style>',
+        'summary{cursor:pointer}section{border-top:1px solid #475569;margin-top:2rem}code{overflow-wrap:anywhere}',
+        'table{border-collapse:collapse;width:100%}th,td{border:1px solid #475569;padding:.5rem;text-align:left;vertical-align:top}</style>',
         '<h1>Состав из напечатанных таблиц журнала</h1>',
         '<p>События не объединены. Идентичность персонажа, код билда, свежесть и действие эффектов не подтверждены.</p>',
         '<p>Complete домена означает полноту напечатанного поддерева, а не полный импорт персонажа. DPS не рассчитывается.</p>',
@@ -48,7 +49,23 @@ def render(data):
             for gap in domain["gaps"]:
                 parts.append(f'<p>{_text(gap)}</p>')
             for row in domain["rows"]:
-                parts.append(f'<details><summary>{_text(row["alias"])}</summary><pre>{_json(row)}</pre></details>')
+                parts.append(f'<details id="event-{_text(context["index"])}-{_text(row["alias"])}">'
+                             f'<summary>{_text(row["alias"])}</summary><pre>{_json(row)}</pre></details>')
+        references = event["skill_references"]
+        parts.extend(['<h3>Ссылки навыков: напечатанные значения одного события</h3>',
+                      '<p>Совпадение токенов не подтверждает установку, активацию, выбранную связку или эффективный уровень.</p>',
+                      f'<pre>{_json({key: references[key] for key in ("layout_side", "items_side", "format", "evidence", "installation", "activation", "effective_level", "inventory_completeness", "coordinate_binding", "record_binding", "counts")})}</pre>',
+                      '<table><tr><th>Слот</th><th>Статус</th><th>Строка камня</th><th>Однозначность</th>'
+                      '<th>Видимых совпадений</th><th>Пути</th></tr>'])
+        for reference in references["references"]:
+            target = (f'<a href="#event-{_text(context["index"])}-{_text(reference["skill_items_alias"])}">'
+                      f'{_text(reference["skill_items_alias"])}</a>' if reference["skill_items_alias"] is not None else '—')
+            paths = {key: reference[key] for key in ("layout_path", "reference_path", "skill_items_path")}
+            parts.append(f'<tr><td>{_text(reference["layout_alias"])}</td><td>{_text(reference["status"])}</td>'
+                         f'<td>{target}</td><td>{_text(reference["uniqueness"] if reference["uniqueness"] is not None else "—")}</td>'
+                         f'<td>{_text(reference["visible_match_count"] if reference["visible_match_count"] is not None else "—")}</td>'
+                         f'<td><details><summary>Пути</summary><pre>{_json(paths)}</pre></details></td></tr>')
+        parts.append('</table>')
         parts.append('</section>')
     return "\n".join(parts) + "\n</html>\n"
 
@@ -80,7 +97,9 @@ def main(argv=None, *, reader=None, builder=None):
         selected = list(candidates) if arguments.event is None else [arguments.event]
         if any(index not in candidates for index in selected):
             raise ValueError("Selected event does not match the supported character-state structure")
-        events = [builder.project(snapshot, index, source["sha256"]) for index in selected]
+        events = [{**builder.project(snapshot, index, source["sha256"]),
+                   "skill_references": builder.skill_references(snapshot, index, source["sha256"])}
+                  for index in selected]
         data = {
             "format": "tli-log-import-v1", "version": "0.1.0", "status": "diagnostic", "scope": "separate_printed_events",
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",

@@ -7,6 +7,10 @@ from .logtables import LIMITS as TREE_LIMITS, MEANING
 
 
 FORMAT = "tli-log-build-domains-v1"
+REFERENCE_STATUSES = ("reference_not_printed", "reference_elided", "reference_printed_empty", "reference_shape_unsupported",
+                      "sentinel_observed", "no_match_items_not_printed", "no_match_items_printed_empty",
+                      "ambiguous_visible_duplicates", "observed_token_match", "no_visible_match_items_incomplete",
+                      "no_visible_match_closed_printed_subtree")
 AFFIXES = {"base_attr": "BaseAttrAffix", "fixed_base": "FixedBaseAffix", "prefix": "Prefix",
            "suffix": "Suffix", "enchant": "EnchantAffixs", "base": "BaseAffix"}
 
@@ -339,6 +343,91 @@ def project(snapshot, event_index, source_sha256):
             "counts": {"domains": len(domains), "rows": sum(len(row["rows"]) for row in domains.values()),
                        "lexical_values": sum(len(field["values"]) for domain in domains.values()
                                              for row in domain["rows"] for field in row["fields"].values())}}
+
+
+def skill_references(snapshot, event_index, source_sha256):
+    """Compare private printed tokens within one validated event and return coordinate aliases."""
+    projection = project(snapshot, event_index, source_sha256)
+    root = snapshot["events"][event_index]["tree"]["root"]
+    items = _reference_side(projection["domains"]["skill_items"])
+    items["hidden_rows"] = _hidden(_at(root, items["path"]))
+    tokens = {}
+    for row in projection["domains"]["skill_items"]["rows"]:
+        detail, path, token = _leaf(_at(root, row["path"]), row["path"], ["Id"])
+        if detail == "scalar":
+            count = tokens.get(token, (0, None, None))[0] + 1
+            tokens[token] = (count, row["alias"] if count == 1 else None, list(row["path"]) if count == 1 else None)
+    items.update(rows_with_token=sum(value[0] for value in tokens.values()),
+                 rows_without_token=items["visible_rows"] - sum(value[0] for value in tokens.values()))
+    items["closed"] = items["status"] == "complete" and not items["hidden_rows"] and not items["rows_without_token"]
+    references = [_reference(row, root, items, tokens) for row in projection["domains"]["skill_layout"]["rows"]]
+    return {"format": "tli-log-skill-references-v1", "scope": "printed_subtree_only",
+            "evidence": "lexical_token_equality_within_one_event", "import_complete": False,
+            **{key: "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code",
+                                         "installation", "activation", "effective_level", "inventory_completeness")},
+            "coordinate_binding": "pending_CalSkillTabIndex", "record_binding": "pending_InitSkillSlotItemData_return",
+            "source": projection["source"], "event": projection["event"],
+            "layout_side": _reference_side(projection["domains"]["skill_layout"]), "items_side": items,
+            "references": references,
+            "counts": {status: sum(row["status"] == status for row in references) for status in REFERENCE_STATUSES}}
+
+
+def _reference_side(domain):
+    return {"path": list(domain["path"]), "status": "empty" if domain["node_kind"] == "empty" else domain["status"],
+            "visible_rows": len(domain["rows"]), "total_rows": None}
+
+
+def _hidden(node):
+    return node is not None and (node["t"] == "elided" or
+        node["t"] == "table" and node["entries"][-1][1]["t"] == "elided")
+
+
+def _leaf(node, path, keys):
+    if node["t"] == "empty":
+        return "row_printed_empty", path + [keys[0]], None
+    for index, key in enumerate(keys):
+        child = dict(node["entries"]).get(key)
+        prefix = "leaf" if index == len(keys) - 1 else "parent"
+        if child is None:
+            return prefix + ("_hidden_tail" if _hidden(node) else "_missing"), path + [key], None
+        path = path + [key]
+        if prefix == "parent":
+            if child["t"] == "table":
+                node = child
+                continue
+            detail = "parent_printed_empty" if child["t"] == "empty" else "parent_" + child["t"]
+            return detail, path + keys[index + 1:] if child["t"] == "empty" else path, None
+        if child["t"] == "scalar":
+            return "scalar", path, child["text"]
+        return "leaf_printed_empty" if child["t"] == "empty" else "leaf_" + child["t"], path, None
+
+
+def _reference(row, root, items, tokens):
+    detail, path, token = _leaf(_at(root, row["path"]), row["path"], ["value", "skillId"])
+    count, alias, location, uniqueness = None, None, None, None
+    if detail in ("row_printed_empty", "parent_missing", "parent_printed_empty", "leaf_missing"):
+        status = "reference_not_printed"
+    elif detail in ("parent_hidden_tail", "parent_elided", "leaf_hidden_tail", "leaf_elided"):
+        status = "reference_elided"
+    elif detail == "leaf_printed_empty":
+        status = "reference_printed_empty"
+    elif detail in ("parent_scalar", "leaf_table"):
+        status = "reference_shape_unsupported"
+    elif token == "0":
+        status = "sentinel_observed"
+    elif items["status"] == "not_printed":
+        status = "no_match_items_not_printed"
+    elif items["status"] == "empty":
+        status = "no_match_items_printed_empty"
+    else:
+        count, alias, location = tokens.get(token, (0, None, None))
+        status = ("ambiguous_visible_duplicates" if count > 1 else "observed_token_match" if count else
+                  "no_visible_match_closed_printed_subtree" if items["closed"] else "no_visible_match_items_incomplete")
+        if count == 1:
+            uniqueness = "unique_in_closed_printed_subtree" if items["closed"] else "unknown"
+    return {"layout_alias": row["alias"], "layout_path": list(row["path"]), "reference_path": path,
+            "status": status, "reference_detail": detail, "skill_items_alias": alias, "skill_items_path": location,
+            "visible_match_count": count, "uniqueness": uniqueness}
 
 
 def _candidate(root):

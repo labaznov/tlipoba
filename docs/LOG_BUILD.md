@@ -66,8 +66,53 @@ The following paths are coverage diagnostics only, without rows or skill-instanc
 
 The two item-level fields remain separate lexical facts. A complete printed
 field does not prove complete skill inventory, an active link, or an effective
-level. Layout `value.skillId` and item `Id` are omitted; matching or interpreting
-those references needs a separate source-bound contract.
+level. Layout `value.skillId` and item `Id` are omitted from the lexical fields.
+
+## Within-event skill-reference observations
+
+`skill_references(snapshot, event_index, source_sha256)` first calls the public
+`project()` above, including its validation of all other mapped domains. It
+then compares the printed `value.skillId` and item `Id` tokens internally in
+that same event. The separate `tli-log-skill-references-v1` result keeps
+coordinate aliases and source paths; it never exports the identifiers, their
+hashes, prefixes, lengths, classes or matching-peer lists. Existing `project()`,
+its lexical allowlists and the fourteen-domain count remain unchanged.
+
+A single visible match points to `skill_items[j]`, whose printed catalog and
+level fields remain available separately. Multiple equal visible item tokens
+produce `ambiguous_visible_duplicates`, without a first or last winner. An
+unseen or unreadable peer can hide another equal token, so visible matching
+does not establish the item chosen by the runtime dictionary. A closed printed
+subtree can establish uniqueness within that printed subtree only.
+
+Missing, elided, printed-empty and unsupported reference shapes retain separate
+statuses and `reference_detail` paths. A missing item list, a printed empty
+container, an incomplete list with no visible match and a closed printed subtree
+with no match also remain distinct. None proves global absence. An empty parent
+does not become an empty reference leaf. Duplicate layout keys remain separate
+rows rather than being merged into a reconstructed slot.
+
+The exact printed token `0` receives `sentinel_observed` by observation policy,
+with no match lookup. The printer loses the distinction between the declared
+string sentinel and numeric zero; this status does not mean an empty or
+unequipped slot. Other tokens are compared without trimming, coercion or
+numeric normalization. Events are never joined.
+
+Installation, activation, effective level, inventory completeness, identity and
+selection stay `unknown`; `import_complete` stays false. The `pending` coordinate
+and record markers denote layers not applied by this observation format. The
+[static helper trace](research/ordinary-layout-source.md) supplies further source
+facts, but does not turn the observed token equality into an active support graph.
+
+Token indexing and lookup use two linear passes over at most thirty visible
+rows per side, with counts and one alias per distinct internal token. Path
+navigation also rebuilds dictionaries over visited path and row entries. The
+whole seam runs all existing tree/domain validation; it is not an O(rows)-only operation.
+The normal CLI currently calls both public seams, so this validation is repeated.
+The event remains bounded by the existing node, depth, line and table limits.
+At most thirty reference records are returned; path byte lengths are variable
+within those input bounds. No live reads, retries, global cache or game access
+are introduced by this layer.
 
 ## Gates and limits
 

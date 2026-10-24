@@ -1,7 +1,9 @@
 import copy
+import hashlib
 import json
 import unittest
 
+from damage_lab import logbuild
 from damage_lab.logtables import parse_event
 from damage_lab.logbuild import candidates, project
 from test_logtables import ELIDED, event, tables
@@ -35,8 +37,307 @@ def skill_document(items, dressed):
                      ("skills", [("skills", items)])])
 
 
+def reference_document(items, slots):
+    """Keep synthetic item tokens and layout references within one printed candidate."""
+    return document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                     ("skillLayout", [("slots", slots)]), ("skills", [("skills", items)])])
+
+
+def refusals(data):
+    """Capture both public seams fixed refusals without inspecting private validation helpers."""
+    results = []
+    for operation in (project, logbuild.skill_references):
+        try:
+            operation(data, 0, "a" * 64)
+        except ValueError as error:
+            results.append(str(error))
+        else:
+            results.append(None)
+    return results
+
+
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
+
+    def test_one_visible_reference_matches_the_same_events_item_alias(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("1", [("key", "3"), ("value", [("skillId", "STONE-X9")])])])]),
+                         ("skills", [("skills", [("1", [("Id", "STONE-X9"), ("BaseId", "9007")])])])])
+        self.assertEqual(logbuild.skill_references(data, 0, "a" * 64)["references"][0]["skill_items_alias"], "skill_items[0]")
+
+    def test_duplicate_visible_tokens_never_choose_an_item_alias(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("1", [("value", [("skillId", "DUPLICATE")])])])]),
+                         ("skills", [("skills", [("1", [("Id", "DUPLICATE"), ("BaseId", "8153")]),
+                                                ("2", [("Id", "DUPLICATE"), ("BaseId", "8153")])])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["skill_items_alias"], row.get("status"), row.get("visible_match_count")),
+                         (None, "ambiguous_visible_duplicates", 2))
+
+    def test_hidden_item_rows_keep_visible_matches_conditional(self):
+        items = [(str(index), [("Id", "ITEM" + str(index))]) for index in range(1, 31)] + [("31", ELIDED)]
+        data = reference_document(items, [("1", [("value", [("skillId", "ITEM7")])]),
+                                          ("2", [("value", [("skillId", "ITEM99")])])])
+        rows = logbuild.skill_references(data, 0, "a" * 64)["references"]
+        self.assertEqual([(row["status"], row.get("uniqueness"), row["visible_match_count"]) for row in rows],
+                         [("observed_token_match", "unknown", 1), ("no_visible_match_items_incomplete", None, 0)])
+
+    def test_a_printed_zero_observes_the_sentinel_without_looking_up_an_equal_item(self):
+        data = reference_document([("1", [("Id", "0")])], [("1", [("value", [("skillId", "0")])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["status"], row["visible_match_count"], row["skill_items_alias"], row["uniqueness"]),
+                         ("sentinel_observed", None, None, None))
+
+    def test_a_scalar_reference_parent_is_an_observation_gap_without_a_refusal(self):
+        data = reference_document([("1", [("Id", "UNUSED")])], [("1", [("value", "PARENTCANARY")])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["status"], row.get("reference_detail"), row.get("reference_path"), row["visible_match_count"]),
+                         ("reference_shape_unsupported", "parent_scalar", ["skillLayout", "slots", "1", "value"], None))
+
+    def test_reference_results_keep_a_fixed_diagnostic_envelope_without_fabricating_empty_rows(self):
+        data = reference_document([("1", [("Id", "TOKEN")])], None)
+        projection = project(data, 0, "a" * 64)
+        self.assertEqual(logbuild.skill_references(data, 0, "a" * 64), {
+            "format": "tli-log-skill-references-v1", "scope": "printed_subtree_only",
+            "evidence": "lexical_token_equality_within_one_event", "import_complete": False,
+            "identity": "unknown", "runtime": "unknown", "freshness": "unknown", "selected_skill": "unknown",
+            "build_code": "unknown", "installation": "unknown", "activation": "unknown", "effective_level": "unknown",
+            "inventory_completeness": "unknown", "coordinate_binding": "pending_CalSkillTabIndex",
+            "record_binding": "pending_InitSkillSlotItemData_return", "source": projection["source"], "event": projection["event"],
+            "layout_side": {"path": ["skillLayout", "slots"], "status": "empty", "visible_rows": 0, "total_rows": None},
+            "items_side": {"path": ["skills", "skills"], "status": "complete", "visible_rows": 1, "total_rows": None,
+                           "rows_with_token": 1, "rows_without_token": 0, "hidden_rows": False, "closed": True},
+            "references": [], "counts": {"reference_not_printed": 0, "reference_elided": 0, "reference_printed_empty": 0,
+                "reference_shape_unsupported": 0, "sentinel_observed": 0, "no_match_items_not_printed": 0,
+                "no_match_items_printed_empty": 0, "ambiguous_visible_duplicates": 0, "observed_token_match": 0,
+                "no_visible_match_items_incomplete": 0, "no_visible_match_closed_printed_subtree": 0}})
+
+    def test_a_printed_empty_row_does_not_fabricate_a_reference_parent(self):
+        row = logbuild.skill_references(reference_document(None, [("1", None)]), 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"], row["visible_match_count"]),
+                         ("row_printed_empty", "reference_not_printed", ["skillLayout", "slots", "1", "value"], None))
+
+    def test_an_unprinted_reference_parent_retains_its_first_missing_path(self):
+        row = logbuild.skill_references(reference_document(None, [("1", [("key", "9")])]), 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"]),
+                         ("parent_missing", "reference_not_printed", ["skillLayout", "slots", "1", "value"]))
+
+    def test_a_reference_parent_hidden_after_thirty_tables_is_elided(self):
+        data = reference_document(None, [("1", tables(30) + [("tail", ELIDED)])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"]),
+                         ("parent_hidden_tail", "reference_elided", ["skillLayout", "slots", "1", "value"]))
+
+    def test_an_elided_reference_parent_stays_distinct_from_a_missing_parent(self):
+        data = reference_document(None, [("1", tables(30) + [("value", ELIDED)])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"]),
+                         ("parent_elided", "reference_elided", ["skillLayout", "slots", "1", "value"]))
+
+    def test_a_printed_empty_parent_leaves_its_child_unprinted(self):
+        data = reference_document(None, [("1", [("value", None)])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"]),
+                         ("parent_printed_empty", "reference_not_printed", ["skillLayout", "slots", "1", "value", "skillId"]))
+
+    def test_an_unprinted_reference_leaf_retains_the_full_leaf_path(self):
+        data = reference_document(None, [("1", [("value", [("Other", "ignored")])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"]),
+                         ("leaf_missing", "reference_not_printed", ["skillLayout", "slots", "1", "value", "skillId"]))
+
+    def test_a_reference_leaf_hidden_after_thirty_tables_is_elided(self):
+        data = reference_document(None, [("1", [("value", tables(30) + [("tail", ELIDED)])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"]),
+                         ("leaf_hidden_tail", "reference_elided", ["skillLayout", "slots", "1", "value", "skillId"]))
+
+    def test_an_elided_reference_leaf_does_not_become_an_empty_reference(self):
+        data = reference_document(None, [("1", [("value", tables(30) + [("skillId", ELIDED)])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["visible_match_count"]),
+                         ("leaf_elided", "reference_elided", None))
+
+    def test_a_printed_empty_leaf_is_an_observed_empty_without_a_lookup(self):
+        data = reference_document(None, [("1", [("value", [("skillId", None)])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["reference_path"], row["visible_match_count"]),
+                         ("leaf_printed_empty", "reference_printed_empty", ["skillLayout", "slots", "1", "value", "skillId"], None))
+
+    def test_a_table_reference_leaf_is_an_observation_gap_without_a_refusal(self):
+        data = reference_document(None, [("1", [("value", [("skillId", [("Other", "LEAFCANARY")])])])])
+        row = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((row["reference_detail"], row["status"], row["visible_match_count"]),
+                         ("leaf_table", "reference_shape_unsupported", None))
+
+    def test_scalar_references_emit_only_the_projected_coordinate_alias_and_paths(self):
+        data = reference_document([("1", [("Id", "MATCH")])], [("1", [("value", [("skillId", "MATCH")])])])
+        self.assertEqual(logbuild.skill_references(data, 0, "a" * 64)["references"], [{
+            "layout_alias": "skill_layout[0]", "layout_path": ["skillLayout", "slots", "1"],
+            "reference_path": ["skillLayout", "slots", "1", "value", "skillId"], "status": "observed_token_match",
+            "reference_detail": "scalar", "skill_items_alias": "skill_items[0]", "skill_items_path": ["skills", "skills", "1"],
+            "visible_match_count": 1, "uniqueness": "unique_in_closed_printed_subtree"}])
+
+    def test_only_the_exact_printed_zero_is_a_sentinel(self):
+        data = reference_document([(str(index), [("Id", token)]) for index, token in enumerate(("00", "-0", "0.0", " 0"), 1)],
+            [(str(index), [("value", [("skillId", token)])]) for index, token in enumerate(("00", "-0", "0.0", " 0"), 1)])
+        self.assertEqual([(row["status"], row["visible_match_count"]) for row in logbuild.skill_references(data, 0, "a" * 64)["references"]],
+                         [("observed_token_match", 1)] * 4)
+
+    def test_token_matching_does_not_coerce_numeric_text_or_fold_case(self):
+        data = reference_document([("1", [("Id", "7")]), ("2", [("Id", "a1")])],
+            [("1", [("value", [("skillId", "007")])]), ("2", [("value", [("skillId", "A1")])])])
+        self.assertEqual([(row["status"], row["visible_match_count"]) for row in logbuild.skill_references(data, 0, "a" * 64)["references"]],
+                         [("no_visible_match_closed_printed_subtree", 0)] * 2)
+
+    def test_an_unprinted_item_collection_stops_before_token_lookup(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("1", [("value", [("skillId", "UNMATCHED")])])])])])
+        result = logbuild.skill_references(data, 0, "a" * 64)
+        self.assertEqual((result["items_side"], result["references"][0]["status"], result["references"][0]["visible_match_count"]),
+                         ({"path": ["skills", "skills"], "status": "not_printed", "visible_rows": 0, "total_rows": None,
+                           "rows_with_token": 0, "rows_without_token": 0, "hidden_rows": False, "closed": False},
+                          "no_match_items_not_printed", None))
+
+    def test_a_printed_empty_item_collection_stops_before_token_lookup(self):
+        result = logbuild.skill_references(reference_document(None, [("1", [("value", [("skillId", "UNMATCHED")])])]), 0, "a" * 64)
+        self.assertEqual((result["items_side"]["status"], result["items_side"]["closed"],
+                          result["references"][0]["status"], result["references"][0]["visible_match_count"]),
+                         ("empty", False, "no_match_items_printed_empty", None))
+
+    def test_a_wholly_elided_item_collection_keeps_no_visible_matches_incomplete(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+            ("skillLayout", [("slots", [("1", [("value", [("skillId", "UNMATCHED")])])])]),
+            ("skills", tables(30) + [("skills", ELIDED)])])
+        result = logbuild.skill_references(data, 0, "a" * 64)
+        self.assertEqual((result["items_side"], result["references"][0]["status"], result["references"][0]["visible_match_count"]),
+                         ({"path": ["skills", "skills"], "status": "elided", "visible_rows": 0, "total_rows": None,
+                           "rows_with_token": 0, "rows_without_token": 0, "hidden_rows": True, "closed": False},
+                          "no_visible_match_items_incomplete", 0))
+
+    def test_one_unprinted_item_token_prevents_closed_subtree_uniqueness(self):
+        data = reference_document([("1", [("Id", "MATCH")]), ("2", [("Other", "ignored")])],
+            [("1", [("value", [("skillId", "MATCH")])]), ("2", [("value", [("skillId", "UNMATCHED")])])])
+        result = logbuild.skill_references(data, 0, "a" * 64)
+        self.assertEqual((result["items_side"]["closed"], result["items_side"]["rows_without_token"],
+                          [(row["status"], row["uniqueness"]) for row in result["references"]]),
+                         (False, 1, [("observed_token_match", "unknown"), ("no_visible_match_items_incomplete", None)]))
+
+    def test_non_scalar_item_tokens_are_counted_without_becoming_matches(self):
+        items = [("1", [("Id", "MATCH")]), ("2", None), ("3", [("Other", "ignored")]),
+                 ("4", [("Id", None)]), ("5", [("Id", [("Other", "ignored")])]), ("6", tables(30) + [("Id", ELIDED)])]
+        result = logbuild.skill_references(reference_document(items, [("1", [("value", [("skillId", "MATCH")])])]), 0, "a" * 64)
+        self.assertEqual((result["items_side"], result["references"][0]["uniqueness"]),
+                         ({"path": ["skills", "skills"], "status": "elided", "visible_rows": 6, "total_rows": None,
+                           "rows_with_token": 1, "rows_without_token": 5, "hidden_rows": False, "closed": False}, "unknown"))
+
+    def test_nested_item_elision_does_not_invent_hidden_item_rows(self):
+        items = [("1", [("Id", "MATCH"), ("Other", tables(30) + [("tail", ELIDED)])])]
+        result = logbuild.skill_references(reference_document(items, [("1", [("value", [("skillId", "MATCH")])])]), 0, "a" * 64)
+        self.assertEqual((result["items_side"]["status"], result["items_side"]["hidden_rows"],
+                          result["items_side"]["closed"], result["references"][0]["uniqueness"]),
+                         ("elided", False, False, "unknown"))
+
+    def test_references_use_the_same_item_aliases_and_paths_as_the_public_projection(self):
+        data = reference_document([("1", [("Id", "FIRST")]), ("2", [("Id", "SECOND")])],
+                                 [("1", [("value", [("skillId", "SECOND")])])])
+        projection = project(data, 0, "a" * 64)
+        result = logbuild.skill_references(data, 0, "a" * 64)["references"][0]
+        self.assertEqual((result["layout_alias"], result["layout_path"], result["skill_items_alias"], result["skill_items_path"]),
+                         (projection["domains"]["skill_layout"]["rows"][0]["alias"], projection["domains"]["skill_layout"]["rows"][0]["path"],
+                          projection["domains"]["skill_items"]["rows"][1]["alias"], projection["domains"]["skill_items"]["rows"][1]["path"]))
+
+    def test_duplicate_layout_keys_do_not_merge_distinct_printed_reference_rows(self):
+        data = reference_document([("1", [("Id", "MATCH")])],
+            [("1", [("key", "7"), ("value", [("skillId", "MATCH")])]), ("2", [("key", "7"), ("value", [("skillId", "MATCH")])])])
+        self.assertEqual([(row["layout_alias"], row["skill_items_alias"]) for row in logbuild.skill_references(data, 0, "a" * 64)["references"]],
+                         [("skill_layout[0]", "skill_items[0]"), ("skill_layout[1]", "skill_items[0]")])
+
+    def test_layout_elision_preserves_thirty_references_without_inventing_a_total(self):
+        data = reference_document(None, [(str(index), [("key", str(index))]) for index in range(1, 31)] + [("31", ELIDED)])
+        result = logbuild.skill_references(data, 0, "a" * 64)
+        self.assertEqual((result["layout_side"], len(result["references"]), result["references"][-1]["layout_path"]),
+                         ({"path": ["skillLayout", "slots"], "status": "elided", "visible_rows": 30, "total_rows": None},
+                          30, ["skillLayout", "slots", "30"]))
+
+    def test_a_missing_layout_collection_does_not_invent_references(self):
+        result = logbuild.skill_references(skill_document(None, None), 0, "a" * 64)
+        self.assertEqual((result["layout_side"], result["references"]),
+                         ({"path": ["skillLayout", "slots"], "status": "not_printed", "visible_rows": 0, "total_rows": None}, []))
+
+    def test_a_wholly_elided_layout_collection_does_not_invent_references(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", tables(30) + [("slots", ELIDED)])])
+        result = logbuild.skill_references(data, 0, "a" * 64)
+        self.assertEqual((result["layout_side"], result["references"]),
+                         ({"path": ["skillLayout", "slots"], "status": "elided", "visible_rows": 0, "total_rows": None}, []))
+
+    def test_reference_counts_include_all_statuses_with_zeroes_for_unobserved_cases(self):
+        data = reference_document([("1", [("Id", "ALPHA")]), ("2", [("Id", "DUP")]), ("3", [("Id", "DUP")])],
+            [("1", [("value", [("skillId", "ALPHA")])]), ("2", [("value", [("skillId", "0")])]),
+             ("3", [("value", [("skillId", "DUP")])]), ("4", [("value", [("skillId", "UNMATCHED")])]),
+             ("5", [("value", [("skillId", "ALPHA")])]), ("6", [("value", [("Other", "ignored")])])])
+        self.assertEqual(logbuild.skill_references(data, 0, "a" * 64)["counts"], {
+            "reference_not_printed": 1, "reference_elided": 0, "reference_printed_empty": 0, "reference_shape_unsupported": 0,
+            "sentinel_observed": 1, "no_match_items_not_printed": 0, "no_match_items_printed_empty": 0,
+            "ambiguous_visible_duplicates": 1, "observed_token_match": 2, "no_visible_match_items_incomplete": 0,
+            "no_visible_match_closed_printed_subtree": 1})
+
+    def test_reference_tokens_and_their_hashes_never_leave_the_private_comparison(self):
+        canaries = ("SECRETMATCH93", "SECRETDUPE27", "SECRETMISS81")
+        data = reference_document([("1", [("Id", canaries[0])]), ("2", [("Id", canaries[1])]), ("3", [("Id", canaries[1])])],
+            [(str(index), [("value", [("skillId", token)])]) for index, token in enumerate(canaries, 1)])
+        result = json.dumps(logbuild.skill_references(data, 0, "a" * 64))
+        self.assertEqual([value for token in canaries for value in (token, hashlib.sha256(token.encode()).hexdigest()) if value in result], [])
+
+    def test_reference_matching_never_borrows_items_from_another_event(self):
+        data = reference_document([("1", [("Id", "DIFFERENT")])], [("1", [("value", [("skillId", "ONLYLATER")])])])
+        data["events"].append(reference_document([("1", [("Id", "ONLYLATER")])], None)["events"][0])
+        self.assertEqual(logbuild.skill_references(data, 0, "a" * 64)["references"][0]["status"],
+                         "no_visible_match_closed_printed_subtree")
+
+    def test_unrelated_malformed_equipment_keeps_the_same_public_refusal(self):
+        data = document([("bag", [("wearItems", [("1", [("Item", [("BaseId", [("Other", "REFUSALCANARY")])])])])]),
+                         ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_unrelated_malformed_affixes_keep_the_same_public_refusal(self):
+        data = document([("bag", [("wearItems", [("1", [("Item", [("Prefix", [("1", [("Id", [("Other", "AFFIXCANARY")])])])])])])]),
+                         ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_nonarray_layout_slots_keep_the_same_public_refusal(self):
+        data = reference_document(None, [("wrong", [("key", "3")])])
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_nonarray_skill_items_keep_the_same_public_refusal(self):
+        data = reference_document([("wrong", [("Id", "REFUSALCANARY")])], None)
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_scalar_layout_rows_keep_the_same_public_refusal(self):
+        data = reference_document(None, [("1", "REFUSALCANARY")])
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_a_noncandidate_event_keeps_the_same_public_refusal(self):
+        self.assertEqual(refusals(document([("Other", "REFUSALCANARY")])),
+                         ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_reference_observations_do_not_mutate_the_input_or_existing_projection(self):
+        data = reference_document([("1", [("Id", "MATCH"), ("Level", "019"), ("SkillItemLevel", "6")])],
+                                 [("1", [("key", "007"), ("value", [("skillId", "MATCH")])])])
+        before = copy.deepcopy(data)
+        projection = project(data, 0, "a" * 64)
+        logbuild.skill_references(data, 0, "a" * 64)
+        self.assertEqual((data, project(data, 0, "a" * 64)), (before, projection))
+
+    def test_the_existing_projection_keeps_fourteen_domains_and_its_original_allowlists(self):
+        data = reference_document([("1", [("Id", "MATCH"), ("Level", "019"), ("SkillItemLevel", "6")])],
+                                 [("1", [("key", "007"), ("value", [("skillId", "MATCH")])])])
+        result = project(data, 0, "a" * 64)
+        self.assertEqual((result["format"], result["counts"]["domains"], set(result["domains"]["skill_layout"]["rows"][0]["fields"]),
+                          set(result["domains"]["skill_items"]["rows"][0]["fields"]), "references" in result,
+                          result["import_complete"], result["selected_skill"]),
+                         ("tli-log-build-domains-v1", 14, {"slot_key"}, {"base_id", "level", "skill_item_level", "rarity"}, False, False, "unknown"))
 
     def test_explicit_event_keeps_lexical_tokens_and_unprinted_conditions(self):
         result = project(document(), 0, "a" * 64)

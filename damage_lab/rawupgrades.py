@@ -33,6 +33,8 @@ def _finite(value, label):
 
 
 def _common(baseline, target):
+    if baseline["format"] != target["format"]:
+        raise ValueError("Raw upgrade variants must share the spell model version")
     for section, field in (("context", "skill_id"), ("context", "catalog_sha256"),
                            ("damage", "roll_model"), ("casting", "frequency")):
         # Shared unknown groups block deltas without asserting a roll or tick policy

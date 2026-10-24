@@ -21,6 +21,20 @@ def scenario():
     }
 
 
+def double():
+    """Declare a synthetic constant hit with branch-conditional Double Damage."""
+    document = scenario()
+    document["format"] = "tli-raw-cold-spell-v2"
+    document["damage"].update(base={"min": 100, "max": 100}, physical={"min": 0, "max": 0},
+                              cold={"min": 0, "max": 0}, effectiveness=1,
+                              increased={"all": 0, "physical": 0, "cold": 0})
+    document["critical"].update(chance=0, multiplier=1, more=0)
+    document["casting"].update(interval=1, increased=0)
+    document["double_damage"] = {"noncritical": .25, "critical": 0, "mean_model": "shared_midpoint",
+                                 "gate": {"status": "confirmed", "evidence": ["synthetic:joint-law"]}}
+    return document
+
+
 def modifier(identity, affix, value, scope=None):
     result = {"id": identity, "affix": affix, "value": value, "stacks": 1, "mode": "add"}
     if scope is not None:
@@ -41,6 +55,59 @@ def subnormal():
 
 class RawSpellTests(unittest.TestCase):
     """Check a raw spell expectation without using a character panel."""
+
+    def test_explicit_double_damage_expectation_is_an_optin_scenario(self):
+        document = double()
+        self.assertEqual(evaluate(document)["pre_defence_dps"], 125)
+
+    def test_joint_branches_keep_critical_lucky_and_more_once(self):
+        outcomes = []
+        for lucky, more in ((False, 0), (True, 0), (False, 1)):
+            document = double()
+            document["critical"].update(chance=.5, multiplier=3, lucky=lucky, more=more)
+            document["double_damage"].update(noncritical=0, critical=1)
+            report = evaluate(document)
+            outcomes.append((report["expected_hit"], report["critical_factor"]))
+        self.assertEqual(outcomes, [(350, 2), (475, 2.5), (650, 3.5)])
+
+    def test_double_damage_boundaries_and_zero_critical_factor_do_not_divide(self):
+        outcomes = []
+        for chance in (0, 1):
+            document = double()
+            document["double_damage"]["noncritical"] = chance
+            outcomes.append(evaluate(document)["pre_defence_dps"])
+        document["critical"].update(chance=1, multiplier=0)
+        outcomes.append(evaluate(document)["pre_defence_dps"])
+        self.assertEqual(outcomes, [100, 200, 0])
+
+    def test_unknown_double_damage_blocks_without_inventing_zero(self):
+        outcomes = []
+        for status in (None, "unknown", "conflict"):
+            document = double()
+            if status is None:
+                document["double_damage"] = None
+            else:
+                document["double_damage"]["gate"]["status"] = status
+            result = evaluate(document)
+            outcomes.append((result["format"], result["status"], result["pre_defence_dps"], result["gaps"]))
+        self.assertEqual(outcomes, [("tli-raw-cold-spell-report-v2", "blocked", None,
+                                    ["double_damage: " + status])
+                                   for status in ("unavailable", "unknown", "conflict")])
+
+    def test_double_damage_validates_all_fields_and_supplied_siblings_before_blocking(self):
+        for field, value in (("noncritical", True), ("critical", -1), ("noncritical", float("nan")),
+                             ("critical", 1.01), ("mean_model", "independent"), ("extra", 1),
+                             ("gate", {"status": "confirmed", "evidence": []})):
+            document = double()
+            document["damage"] = None
+            document["double_damage"][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                evaluate(document)
+        document = double()
+        document["double_damage"] = None
+        document["casting"]["interval"] = 0
+        with self.assertRaises(ValueError):
+            evaluate(document)
 
     def test_each_explicitly_unavailable_group_blocks_even_with_confirmed_context_gates(self):
         for name in ("damage", "critical", "casting"):

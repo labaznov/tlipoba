@@ -122,6 +122,8 @@ def evaluate(document):
                 "Target damage-taken rows are complete explicit pools and are applied once",
                 "Several casters retain their individual cast caps without a second global cap",
             ]}
+    if document["spell"]["format"] == "tli-raw-cold-spell-v2":
+        result["ownership"]["spell"].append("joint critical and conditional Double Damage expectation")
     if gaps:
         return result
     value, trace = spell["pre_defence_dps"], []

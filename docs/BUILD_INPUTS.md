@@ -51,14 +51,17 @@ ID, уровень и координаты должны точно совпас�
 ## Границы расчёта
 
 Для наблюдаемого spell с catalog-render-consistent Physical hit assembler
-создаёт вход `tli-raw-cold-spell-v1`. Нужны exact catalog GUID и единственный
+создаёт вход `tli-raw-cold-spell-v2`. Нужны exact catalog GUID и единственный
 master document выбранной категории. `catalog_sha256` берётся из его
 `member_sha256`, а не wrapper hash или сериализованного профиля; source SHA
 совпадает с импортированным record. Выбор alias остаётся явным. Неподдержанный
 путь либо отсутствующая identity/provenance оставляют оба raw поля `null` с
 конкретным gap; имя или другой камень не подставляются.
 
-`effective_level` и целые `damage`, `critical`, `casting` остаются `null`.
+`effective_level` и целые `damage`, `critical`, `casting`, `double_damage`
+остаются `null`. Панельное среднее Double Damage не заполняет условные
+вероятности попадания: для них нужен отдельный подтверждённый контекст.
+Это явный gap, а не нулевой шанс; см. [Double Damage](DOUBLE_DAMAGE.md).
 Четыре gates version/level/base/conversion остаются unknown. Сценарий проходит
 существующий evaluator и сохраняется вместе с его blocked-результатом, без
 числового DPS и трассы. Это соединение импорта и движка; полного числового

@@ -3,6 +3,7 @@ import unittest
 
 from damage_lab.rawupgrades import evaluate
 from test_rawspell import scenario as spell
+from test_rawspell import double
 
 
 def scenario():
@@ -22,6 +23,23 @@ def candidate(identity, target, cost):
 
 class RawUpgradesTests(unittest.TestCase):
     """Compare complete source-hit replacements without reusing a panel aggregate."""
+
+    def test_conditional_double_damage_upgrade_has_explicit_price_and_unknown_blocks(self):
+        document = scenario()
+        document["baseline"] = double()
+        document["baseline"]["double_damage"]["noncritical"] = 0
+        document["candidates"] = [candidate("double", double(), 5)]
+        row = evaluate(document)["candidates"][0]
+        document["candidates"][0]["scenario"]["double_damage"] = None
+        blocked = evaluate(document)["candidates"][0]
+        self.assertEqual((row["delta"], row["per_cost"], blocked["delta"], blocked["status"]),
+                         (25, 5, None, "blocked"))
+
+    def test_legacy_and_joint_models_cannot_be_compared(self):
+        document = scenario()
+        document["candidates"] = [candidate("double", double(), 5)]
+        with self.assertRaisesRegex(ValueError, "model version"):
+            evaluate(document)
 
     def test_unavailable_spell_groups_block_comparison_without_hiding_supplied_candidates(self):
         for group in ("damage", "critical", "casting"):

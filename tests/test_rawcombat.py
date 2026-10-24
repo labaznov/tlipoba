@@ -2,6 +2,7 @@ import copy
 import unittest
 
 from damage_lab.rawcombat import evaluate
+from test_rawspell import double
 
 
 def scenario():
@@ -35,6 +36,19 @@ def scenario():
 
 class RawCombatTests(unittest.TestCase):
     """Compose declared spell stages once while keeping unknown combat evidence blocked."""
+
+    def test_joint_spell_expectation_is_applied_once_before_combat_factors(self):
+        document = scenario()
+        document["spell"] = double()
+        result = evaluate(document)
+        self.assertAlmostEqual(result["dps"], 173.25)
+
+    def test_unknown_double_damage_blocks_combat_without_replacing_it_by_zero(self):
+        document = scenario()
+        document["spell"] = double()
+        document["spell"]["double_damage"] = None
+        result = evaluate(document)
+        self.assertEqual((result["dps"], result["gaps"]), (None, ["spell: double_damage: unavailable"]))
 
     def test_complete_spell_topology_and_target_match_the_independent_oracle(self):
         self.assertAlmostEqual(evaluate(scenario())["dps"], 415.8)

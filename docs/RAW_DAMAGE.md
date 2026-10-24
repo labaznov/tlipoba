@@ -4,6 +4,10 @@
 
 Вход `tli-raw-cold-spell-v1` содержит ровно семь полей:
 
+Версия v1 исключает Double Damage из модели; отсутствие этого поля не означает
+проверенный нулевой шанс в игре. Opt-in v2 требует отдельные условные вероятности
+и gate; контракт и примеры — в [Double Damage](DOUBLE_DAMAGE.md).
+
 - `format` — имя формата
 - `context` — точные `source_sha256`/`catalog_sha256`, `skill_id`, `effective_level` и `gates`; подтверждённый уровень — целое число от 1 до 1000
 - `damage` — диапазоны `base`, `physical`, `cold` с `min`/`max`; `effectiveness`; полный `increased` с `all`, `physical`, `cold`; массив `more`; `roll_model: "midpoint"`

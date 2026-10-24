@@ -12,6 +12,7 @@ from .rawspell import evaluate
 FORMAT = "tli-build-input-report-v1"
 GAPS = ("effective_level_unknown", "current_patch_unverified", "base_damage_unverified",
         "main_attributes_unresolved", "critical_pools_unresolved", "cast_pools_unresolved",
+        "double_damage_unresolved",
         "conversion_unverified", "support_activation_unverified", "combat_context_unresolved")
 ASSUMPTIONS = (
     "Selection names an observed gem alias and does not verify the panel skill",
@@ -90,14 +91,14 @@ def _raw(record, selected, profiles, gaps):
                 "base": [path + ".skills[" + identity["guid"] + "]"], "conversion": []}
     omitted = {"effective_level_unknown", "current_patch_unverified", "base_damage_unverified",
                "conversion_unverified", "combat_context_unresolved"}
-    document = {"format": "tli-raw-cold-spell-v1",
+    document = {"format": "tli-raw-cold-spell-v2",
                 "context": {"source_sha256": record["source_sha256"], "catalog_sha256": documents[0]["member_sha256"],
                             "skill_id": identity["guid"], "effective_level": None,
                             "gates": {name: {"status": "unknown", "evidence": references}
                                       for name, references in evidence.items()}},
-                "damage": None, "critical": None, "casting": None,
+                "damage": None, "critical": None, "casting": None, "double_damage": None,
                 "missing": list(dict.fromkeys(gap for gap in gaps if gap not in omitted)),
-                "notes": ["Imported candidate rows are not complete damage, critical or casting groups",
+                "notes": ["Imported candidate rows are not complete damage, critical, casting or Double Damage groups",
                           "No panel or benchmark supplies unavailable raw inputs"]}
     return document, evaluate(document)
 

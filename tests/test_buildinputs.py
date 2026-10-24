@@ -105,12 +105,22 @@ class BuildInputsTests(unittest.TestCase):
                                   report["arithmetic_ready"], report["runtime_verified"]),
                                  (count, baseline["raw_spell"], baseline["raw_result"], "blocked", False, False))
 
+    def test_displayed_double_damage_average_does_not_fill_conditional_hit_probabilities(self):
+        data = record()
+        data["stats"]["double_damage_chance"] = .37
+        report = assemble(data, skill_alias="gem[1]")
+        self.assertEqual((report["raw_spell"]["format"], report["raw_spell"].get("double_damage", "absent"),
+                          "double_damage: unavailable" in report["raw_result"]["gaps"],
+                          report["raw_result"]["pre_defence_dps"],
+                          report["record"]["stats"]["double_damage_chance"]),
+                         ("tli-raw-cold-spell-v2", None, True, None, .37))
+
     def test_the_observed_spell_context_reaches_the_real_evaluator_with_unavailable_groups(self):
         from damage_lab.rawspell import evaluate
 
         report = assemble(record(), skill_alias="gem[1]")
         self.assertEqual((report["raw_spell"]["format"], report["raw_result"]),
-                         ("tli-raw-cold-spell-v1", evaluate(report["raw_spell"])))
+                         ("tli-raw-cold-spell-v2", evaluate(report["raw_spell"])))
 
     def test_an_invalid_catalog_guid_does_not_create_a_guessed_raw_spell_identity(self):
         data = record()

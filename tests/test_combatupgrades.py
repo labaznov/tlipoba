@@ -3,6 +3,7 @@ import unittest
 
 from damage_lab.combatupgrades import evaluate
 from test_rawcombat import scenario as combat
+from test_rawspell import double
 
 
 def scenario():
@@ -36,6 +37,29 @@ def unit(amount):
 
 class CombatUpgradesTests(unittest.TestCase):
     """Compare complete conditional combat replacements without duplicating owned spell or target stages."""
+
+    def test_joint_damage_is_owned_once_by_spell_in_combat_upgrade(self):
+        baseline = unit(100)
+        baseline["spell"] = double()
+        baseline["spell"]["double_damage"]["noncritical"] = 0
+        target = copy.deepcopy(baseline)
+        target["spell"]["double_damage"]["noncritical"] = .25
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                    "currency": "synthetic tokens", "candidates": [candidate("double", target, 5)]}
+        result = evaluate(document)
+        row = result["candidates"][0]
+        self.assertEqual((result["baseline"]["dps"], row["dps"], row["delta"], row["per_cost"]),
+                         (100, 125, 25, 5))
+
+    def test_combat_variants_cannot_mix_legacy_and_joint_spell_models(self):
+        baseline = unit(100)
+        target = copy.deepcopy(baseline)
+        target["spell"]["format"] = "tli-raw-cold-spell-v2"
+        target["spell"]["double_damage"] = double()["double_damage"]
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                    "currency": "synthetic tokens", "candidates": [candidate("double", target, 5)]}
+        with self.assertRaisesRegex(ValueError, "model version"):
+            evaluate(document)
 
     def test_unavailable_spell_groups_cannot_produce_combat_deltas_or_price_rankings(self):
         for group in ("damage", "critical", "casting"):

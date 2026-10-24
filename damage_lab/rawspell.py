@@ -3,6 +3,7 @@
 import copy
 import math
 import re
+from fractions import Fraction
 
 from .engine import cold, critical
 from .formulas import additional, product, tangle_rate
@@ -117,6 +118,23 @@ def _casting(value):
         raise ValueError("Tick frequency must be 30 or None")
 
 
+def _double(value):
+    if value is None:
+        return ["double_damage: unavailable"]
+    _object(value, "noncritical critical mean_model gate", "Double Damage")
+    for field in ("noncritical", "critical"):
+        _number(value[field], 0, 1, "Conditional Double Damage probability")
+    if value["mean_model"] != "shared_midpoint":
+        raise ValueError("Double Damage requires the explicit shared midpoint model")
+    gate = _object(value["gate"], "status evidence", "Double Damage gate")
+    if gate["status"] not in ("confirmed", "unknown", "conflict"):
+        raise ValueError("Double Damage gate status must be confirmed unknown or conflict")
+    evidence = _texts(gate["evidence"], "Double Damage evidence")
+    if gate["status"] == "confirmed" and not evidence:
+        raise ValueError("A confirmed Double Damage gate requires evidence references")
+    return [] if gate["status"] == "confirmed" else ["double_damage: " + gate["status"]]
+
+
 def evaluate(document):
     """Return a conditional raw expectation or a blocked result with explicit evidence gaps.
 
@@ -126,11 +144,18 @@ def evaluate(document):
     Every supplied non-null group is fully validated before returning a blocked result.
     Base damage must be Physical and conversion must be ordinary complete conversion
     to Cold; native added Cold retains its separate modifier path.
+    Opt-in v2 requires an explicit Double Damage group and shared branch midpoint.
+    Probabilities are already effective conditional probabilities, not inferred marginals.
     """
-    _object(document, "format context damage critical casting missing notes", "Raw spell scenario")
-    if document["format"] != "tli-raw-cold-spell-v1":
+    version = document.get("format") if type(document) is dict else None
+    if version not in ("tli-raw-cold-spell-v1", "tli-raw-cold-spell-v2"):
         raise ValueError("Unsupported raw spell format")
+    modern = version == "tli-raw-cold-spell-v2"
+    _object(document, "format context damage critical casting missing notes" +
+            (" double_damage" if modern else ""), "Raw spell scenario")
     gaps = _context(document["context"]) + _texts(document["missing"], "Missing effects")
+    if modern:
+        gaps += _double(document["double_damage"])
     _texts(document["notes"], "Scenario notes")
     for name, validator in (("damage", _damage), ("critical", _critical), ("casting", _casting)):
         if document[name] is None:
@@ -138,7 +163,7 @@ def evaluate(document):
         else:
             validator(document[name])
     damage, crit, casting = (document[name] for name in ("damage", "critical", "casting"))
-    result = {"format": "tli-raw-cold-spell-report-v1", "status": "blocked" if gaps else "conditional",
+    result = {"format": "tli-raw-cold-spell-report-v2" if modern else "tli-raw-cold-spell-report-v1", "status": "blocked" if gaps else "conditional",
               "pre_defence_dps": None, "gaps": gaps, "scenario": copy.deepcopy(document), "trace": [],
               "assumptions": [
                   "Evidence gates are caller assertions; runtime identity and freshness are not verified",
@@ -148,6 +173,9 @@ def evaluate(document):
                   "The result is one caster before enemy defence, damage taken, Tangle topology and uptime",
                   "Tick rounding, when selected, is a separate unverified 30 Hz hypothesis",
               ]}
+    result["assumptions"].append(
+        "Double Damage uses caller-asserted conditional probabilities and the same midpoint in every crit/DD branch"
+        if modern else "Legacy v1 excludes Double Damage; its absence is not verified game zero")
     if gaps:
         return result
     increased = damage["increased"]
@@ -161,7 +189,15 @@ def evaluate(document):
     maximum = components["converted"]["max"] + components["native"]["max"]
     mean = minimum + product((maximum - minimum, .5), name="Midpoint spread")
     factor = critical(crit["chance"], crit["multiplier"], lucky=crit["lucky"], more=crit["more"])
-    expected = product((mean, factor), name="Expected hit")
+    joint = None
+    if modern:
+        chance = Fraction(crit["chance"])
+        probability = chance * (2 - chance) if crit["lucky"] else chance
+        double = document["double_damage"]
+        joint = ((1 - probability) * (1 + Fraction(double["noncritical"])) +
+                 probability * Fraction(crit["multiplier"]) * (1 + Fraction(crit["more"])) *
+                 (1 + Fraction(double["critical"])))
+    expected = product((mean, joint if modern else factor), name="Expected hit")
     speed = additional(casting["more"])
     rate = product(((1 + casting["increased"]) / casting["interval"], speed), name="Raw cast rate")
     _number(rate, 0, 1e300, "Raw cast rate")
@@ -183,4 +219,11 @@ def evaluate(document):
                          {"label": "Uncapped cast rate", "value": rate},
                          {"label": "Effective cast rate per caster", "value": effective},
                          {"label": "Pre-defence DPS", "value": dps}])
+    if modern:
+        result["joint_factor"] = float(joint)
+        result["trace"][3]["label"] = "Critical-only expectation reference (not multiplied again)"
+        result["trace"].insert(4, {"label": "Joint critical and Double Damage expectation",
+            "effective_critical_probability": float(probability), "noncritical": double["noncritical"],
+            "critical": double["critical"], "mean_model": double["mean_model"],
+            "shared_midpoint": mean, "factor": float(joint)})
     return result

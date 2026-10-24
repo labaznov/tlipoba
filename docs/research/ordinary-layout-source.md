@@ -168,3 +168,7 @@ The inspected local-player readers use a separate `SlotType` configuration
 and external support selection; those are not bound to this ordinary-log
 view-player graph. Installation, activation, effective level, completeness,
 currentness and raw-stat binding remain unknown. No Carino DPS gate is changed.
+
+The [slot identity and reader trace](skill-slot-bindings.md) records the
+distinct empty-string and `"0"` paths, the view-player readers and the
+separate local-player configuration contract.

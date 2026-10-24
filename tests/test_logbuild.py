@@ -63,6 +63,85 @@ class LogBuildTest(unittest.TestCase):
                          [{"page_id": ["003"], "index": ["02"], "base_id": ["8153"],
                            "level": ["019"], "skill_item_level": ["6"], "rarity": ["4"]}])
 
+    def test_printed_layout_slot_keys_are_retained_as_lexical_fields(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("1", [("key", "3")]), ("2", [("key", "5")])])])])
+        rows = project(data, 0, "a" * 64)["domains"]["skill_layout"]["rows"]
+        self.assertEqual([{field: [(value["text"], value["class"]) for value in result["values"]]
+                           for field, result in row["fields"].items()} for row in rows],
+                         [{"slot_key": [("3", "int")]}, {"slot_key": [("5", "int")]}])
+
+    def test_layout_keys_keep_raw_grammar_tokens_without_numeric_conversion(self):
+        entries = [(str(index), [("key", token)])
+                   for index, token in enumerate(("007", "-4", "2.50", "false", "slot word"), 1)]
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", entries)])])
+        rows = project(data, 0, "a" * 64)["domains"]["skill_layout"]["rows"]
+        self.assertEqual([(row["fields"]["slot_key"]["values"][0]["text"],
+                           row["fields"]["slot_key"]["values"][0]["class"]) for row in rows],
+                         [("007", "text"), ("-4", "int"), ("2.50", "float"), ("false", "bool"), ("slot word", "text")])
+
+    def test_layout_projection_strips_skill_references_and_unapproved_fields(self):
+        entries = [("1", [("key", "3"), ("Id", "LAYOUTCANARY"), ("Other", "LAYOUTCANARY"),
+                          ("value", [("skillId", "LAYOUTCANARY"), ("Other", "LAYOUTCANARY")])])]
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", entries)])])
+        self.assertNotIn("LAYOUTCANARY", json.dumps(project(data, 0, "a" * 64)))
+
+    def test_a_layout_row_without_a_key_retains_an_explicit_missing_field(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("1", [("value", [("skillId", "LAYOUTCANARY")])])])])])
+        self.assertEqual(project(data, 0, "a" * 64)["domains"]["skill_layout"]["rows"],
+                         [{"alias": "skill_layout[0]", "path": ["skillLayout", "slots", "1"],
+                           "fields": {"slot_key": {"status": "not_printed", "values": [],
+                               "missing_paths": [["skillLayout", "slots", "1", "key"]],
+                               "elided_paths": [], "empty_paths": []}}}])
+
+    def test_layout_elision_retains_thirty_visible_keys_without_a_total(self):
+        entries = [(str(index), [("key", str(index))]) for index in range(1, 31)] + [("31", ELIDED)]
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", entries)])])
+        result = project(data, 0, "a" * 64)["domains"]["skill_layout"]
+        self.assertEqual((result["status"], result["visible_entries"], result["total_entries"], len(result["rows"]),
+                          result["rows"][0]["fields"]["slot_key"]["values"][0]["text"],
+                          result["rows"][-1]["path"], result["rows"][-1]["fields"]["slot_key"]["values"][0]["text"],
+                          result["gaps"]),
+                         ("elided", 30, None, 30, "1", ["skillLayout", "slots", "30"], "30",
+                          [{"path": ["skillLayout", "slots"], "reason": "subtree_elided"}]))
+
+    def test_a_missing_layout_collection_does_not_fabricate_rows(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        result = project(data, 0, "a" * 64)["domains"]["skill_layout"]
+        self.assertEqual((result["status"], result["rows"], result["gaps"]),
+                         ("not_printed", [], [{"path": ["skillLayout", "slots"], "reason": "not_printed"}]))
+
+    def test_an_empty_layout_collection_does_not_fabricate_rows(self):
+        result = project(document(), 0, "a" * 64)["domains"]["skill_layout"]
+        self.assertEqual((result["status"], result["visible_entries"], result["total_entries"], result["rows"], result["gaps"]),
+                         ("complete", 0, None, [], [{"path": ["skillLayout", "slots"], "reason": "empty_container_type_unknown"}]))
+
+    def test_a_wholly_elided_layout_collection_does_not_fabricate_rows(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", tables(30) + [("slots", ELIDED)])])
+        result = project(data, 0, "a" * 64)["domains"]["skill_layout"]
+        self.assertEqual((result["status"], result["rows"], result["total_entries"]), ("elided", [], None))
+
+    def test_layout_slots_cannot_use_a_nonarray_container(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("wrong", [("key", "3")])])])])
+        with self.assertRaises(ValueError):
+            project(data, 0, "a" * 64)
+
+    def test_layout_keys_do_not_promote_snapshot_identity_or_completeness(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("slots", [("1", [("key", "3")])])])])
+        result = project(data, 0, "a" * 64)
+        self.assertEqual((result["format"], result["counts"]["domains"], result["scope"], result["import_complete"],
+                          result["identity"], result["runtime"], result["freshness"], result["selected_skill"],
+                          result["build_code"], result["domains"]["pact_roster"]["rows"], result["domains"]["stats"]["rows"]),
+                         ("tli-log-build-domains-v1", 14, "printed_subtree_only", False,
+                          "unknown", "unknown", "unknown", "unknown", "unknown", [], []))
+
     def test_skill_collections_strip_identifiers_and_unapproved_fields(self):
         fields = [("Id", "PRIVATECANARY"), ("key", "PRIVATECANARY"), ("Lock", "PRIVATECANARY"),
                   ("Exp", "PRIVATECANARY"), ("DropSource", "PRIVATECANARY"), ("Other", "PRIVATECANARY")]
@@ -177,15 +256,15 @@ class LogBuildTest(unittest.TestCase):
             with self.subTest(count=field), self.assertRaises(ValueError):
                 project(data, 0, "a" * 64)
 
-    def test_root_elision_does_not_poison_complete_children_or_fill_diagnostic_lists(self):
+    def test_root_elision_does_not_poison_complete_children_or_invent_tail_rows(self):
         entries = [("bag", [("wearItems", [("1", [("Item", [("BaseId", "9001")])])])]),
                    ("heroCharacterv3OverView", [("pointOverView", [("activeId", [("1", "41")])])]),
                    ("skillLayout", [("slots", tables(30) + [("31", ELIDED)])])]
         entries += [("other" + str(index), [("v", "1")]) for index in range(27)] + [("tail", ELIDED)]
         result = project(document(entries), 0, "a" * 64)
         self.assertEqual((result["domains"]["equipment"]["status"], result["domains"]["skill_layout"]["status"],
-                          result["domains"]["skill_layout"]["visible_entries"], result["domains"]["skill_layout"]["rows"],
-                          result["domains"]["stats"]["status"]), ("complete", "elided", 30, [], "not_printed"))
+                          result["domains"]["skill_layout"]["visible_entries"], len(result["domains"]["skill_layout"]["rows"]),
+                          result["domains"]["stats"]["status"]), ("complete", "elided", 30, 30, "not_printed"))
 
     def test_candidates_only_enumerate_structural_matches_without_selection_or_merging(self):
         data = document([("prices", [("1", "9.0")])])

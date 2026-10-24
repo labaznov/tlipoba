@@ -34,7 +34,7 @@ DOMAINS = {
     "influence": ("talentBlockInfluence", {"effect_talents": "value.EffectTalentIds.#", "devoured": "value.TalentIdDevour.#",
                   "influenced_talents": "value.TalentIdInfluence.#"}),
     "pacts": ("ContractInfosV2.ContractDatas", {"area_id": "areaId", "servant_id": "servantId"}),
-    "skill_layout": ("skillLayout.slots", None),
+    "skill_layout": ("skillLayout.slots", {"slot_key": "key"}),
     "skill_items": ("skills.skills", {"base_id": "BaseId", "level": "Level",
                     "skill_item_level": "SkillItemLevel", "rarity": "RareValue"}),
     "dressed_skill_items": ("bag.dressSkillItems", {"page_id": "PageId", "index": "Index",

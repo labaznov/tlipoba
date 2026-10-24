@@ -44,6 +44,9 @@ compiled-modifier, or damage results.
 | slates | `bag.dressingTalentBlocks` | `PageId`, `Index`, `Item.{BaseId,Level,RareValue,ShapeId,Direction,EnhanceId,EnhancedTimes,InfluenceId}`, `BaseTalentList`, `EnchantTalentList`, `talentSlotList.{color,talentId}` |
 | influence | `talentBlockInfluence` | `value.{EffectTalentIds,TalentIdDevour,TalentIdInfluence}`; its instance-key join is excluded |
 | pacts | `ContractInfosV2.ContractDatas` | `areaId`, `servantId`; no activation, star level, or chosen scheme inferred |
+| skill_layout | `skillLayout.slots` | `key` as lexical `slot_key`; no slot role or skill reference inferred |
+| skill_items | `skills.skills` | `BaseId`, `Level`, `SkillItemLevel`, `RareValue`; no instance IDs or effective level |
+| dressed_skill_items | `bag.dressSkillItems` | `PageId`, `Index`, `Item.{BaseId,Level,SkillItemLevel,RareValue}`; no instance IDs or joins |
 
 The equipment affix lists are exactly `BaseAttrAffix`, `FixedBaseAffix`, `Prefix`, `Suffix`, and
 `EnchantAffixs`. Memories also allow `BaseAffix`. Only `.Id`, `.Version`, `.source`, and `.DynArgs`
@@ -55,14 +58,16 @@ The following paths are coverage diagnostics only, without rows or skill-instanc
 
 | Domain | Path |
 |---|---|
-| skill_layout | `skillLayout.slots` |
-| skill_items | `skills.skills` |
-| dressed_skill_items | `bag.dressSkillItems` |
 | pact_points | `ContractInfosV2.pointDatas` |
 | pact_roster | `ServantInfos.servantData` |
 | talents | `geniusInfos` |
 | stats | `attrInfo` |
 | season | `SP3Base.TalentTree` |
+
+The two item-level fields remain separate lexical facts. A complete printed
+field does not prove complete skill inventory, an active link, or an effective
+level. Layout `value.skillId` and item `Id` are omitted; matching or interpreting
+those references needs a separate source-bound contract.
 
 ## Gates and limits
 

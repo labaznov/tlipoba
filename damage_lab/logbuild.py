@@ -375,6 +375,70 @@ def skill_references(snapshot, event_index, source_sha256):
             "counts": {status: sum(row["status"] == status for row in references) for status in REFERENCE_STATUSES}}
 
 
+def installation_graph(snapshot, event_index, source_sha256):
+    """Group visible skill references by conditional saved-helper coordinates."""
+    references = skill_references(snapshot, event_index, source_sha256)
+    root = snapshot["events"][event_index]["tree"]["root"]
+    path, fields = DOMAINS["skill_layout"]
+    allowed = path == "skillLayout.slots" and fields is not None and fields.get("slot_key") == "key"
+    index = dict(_at(root, ["skillLayout", "slots"])["entries"]) if allowed and references["references"] else {}
+    slots = []
+    for reference in references["references"]:
+        status, tab, position = "key_not_allowlisted", None, None
+        if allowed:
+            detail, _, text = _leaf(index[reference["layout_path"][-1]], reference["layout_path"], ["key"])
+            status, tab, position = _coordinate(detail, text)
+        slots.append({"layout_alias": reference["layout_alias"], "slot_key_status": status,
+                      "tab_candidate": tab, "position_candidate": position,
+                      "reference_status": reference["status"],
+                      **{key: reference[key] for key in ("reference_detail", "skill_items_alias", "visible_match_count", "uniqueness")}})
+    return {"format": "tli-log-installation-candidates-v1", "scope": "conditional_saved_helper_coordinates",
+            "import_complete": False,
+            **{key: "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code",
+                                         "installation", "activation", "effective_level", "inventory_completeness", "raw_binding")},
+            "source": references["source"], "event": references["event"],
+            "derivation": {"helper": "SkillConstantMgr.CalSkillTabIndex", "input_domain": "canonical_int32_lexeme",
+                           "captured_initial_values": [100, 1000, 6], "constants_unchanged": "assumed",
+                           "operand_conventions": "inspected_static_listing", "runtime_binding": "unverified",
+                           "record_identity": "same_argument_on_successful_InitSkillSlotItemData_return",
+                           "snapshot_unchanged_during_call": "required", "ui_role": "unknown"},
+            "slots": slots, "tabs": _tabs(slots), "skill_references": references}
+
+
+def _tabs(slots):
+    groups, members = {}, {}
+    for slot in slots:
+        if slot["slot_key_status"] == "coordinated":
+            groups.setdefault(slot["tab_candidate"], {}).setdefault(slot["position_candidate"], []).append(slot["layout_alias"])
+            members.setdefault(slot["tab_candidate"], []).append(slot["layout_alias"])
+    return [{"tab_candidate": tab,
+             "slots": members[tab],
+             "collisions": [{"position_candidate": position, "aliases": aliases, "winner": "unknown"}
+                            for position, aliases in sorted(positions.items()) if len(aliases) > 1]}
+            for tab, positions in sorted(groups.items())]
+
+
+def _coordinate(detail, text):
+    if detail == "leaf_elided":
+        return "key_elided", None, None
+    if detail == "leaf_hidden_tail":
+        return "key_hidden_by_elision", None, None
+    if detail == "leaf_missing":
+        return "key_not_printed", None, None
+    if detail in ("leaf_printed_empty", "row_printed_empty"):
+        return "key_printed_empty", None, None
+    if _class(text) != "int":
+        return "key_not_integer", None, None
+    if len(text) > 11 or not -2147483648 <= int(text) <= 2147483647:
+        return "key_outside_domain", None, None
+    value = int(text)
+    if value < 100:
+        return "coordinated", value, 1
+    if value < 1000:
+        return "coordinated", value // 100, value % 100 + 1
+    return "coordinated", (value - 1001) // 6 + 6, (value - 1000) % 6 or 6
+
+
 def _reference_side(domain):
     return {"path": list(domain["path"]), "status": "empty" if domain["node_kind"] == "empty" else domain["status"],
             "visible_rows": len(domain["rows"]), "total_rows": None}

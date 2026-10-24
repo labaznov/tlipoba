@@ -51,9 +51,77 @@ class Builder:
                     "skill_items_path": ["skills", "skills", "1"], "visible_match_count": 1,
                     "uniqueness": "unique_in_closed_printed_subtree"}]}
 
+    @staticmethod
+    def installation_graph(document, index, source):
+        return {"skill_references": Builder.skill_references(document, index, source), "slots": [], "tabs": [],
+                "derivation": {"runtime_binding": "unverified"}}
+
 
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
+
+    def test_installation_graphs_and_html_targets_stay_in_their_own_log_event(self):
+        from test_logtables import event
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            lines = []
+            for key in ("103", "1007"):
+                lines.extend(event([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                    ("skillLayout", [("slots", [("1", [("key", key)])])])]) + ["[closed]"])
+            path = root / "input.log"
+            path.write_text("\n".join(lines) + "\n", encoding="ascii")
+            main(["--game-log", str(path), "--output", str(root / "result")])
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            self.assertEqual(([(row["installation_graph"]["event"]["index"],
+                row["installation_graph"]["slots"][0]["tab_candidate"],
+                row["installation_graph"]["slots"][0]["position_candidate"],
+                row["installation_graph"]["source"]["sha256"] == data["source"]["sha256"]) for row in data["events"]],
+                [value in page for value in ('href="#event-0-skill_layout[0]"', 'id="event-0-skill_layout[0]"',
+                    'href="#event-1-skill_layout[0]"', 'id="event-1-skill_layout[0]"')]),
+                ([(0, 1, 4, True), (1, 7, 1, True)], [True] * 4))
+
+    def test_legacy_html_reports_that_installation_coordinates_are_unavailable(self):
+        document = snapshot(Path(__file__))
+        event = Builder.project(document, 0, document["source"]["sha256"])
+        event["skill_references"] = Builder.skill_references(document, 0, document["source"]["sha256"])
+        page = render({"source": {"sha256": "a" * 64, "bytes_read": 9},
+                       "acquisition": {"parsed_events": 1, "rejected_events": 0}, "gaps": [], "events": [event]})
+        self.assertIn("Кандидаты позиций недоступны в этом отчёте", page)
+
+    def test_html_displays_conditional_coordinates_collisions_and_same_event_links(self):
+        document = snapshot(Path(__file__))
+        event = Builder.project(document, 2, document["source"]["sha256"])
+        event["skill_references"] = Builder.skill_references(document, 2, document["source"]["sha256"])
+        event["installation_graph"] = {"slots": [{"layout_alias": "skill_layout[0]", "slot_key_status": "coordinated",
+            "tab_candidate": 7, "position_candidate": 3}], "tabs": [{"tab_candidate": 7,
+            "slots": ["skill_layout[0]"], "collisions": [{"position_candidate": 3,
+                "aliases": ["skill_layout[0]", "skill_layout[1]"], "winner": "unknown"}]}],
+            "derivation": {"constants_unchanged": "assumed", "canary": "<script>graph()</script>"}}
+        page = render({"source": {"sha256": "a" * 64, "bytes_read": 9},
+                       "acquisition": {"parsed_events": 1, "rejected_events": 0}, "gaps": [], "events": [event]})
+        self.assertEqual(tuple(value in page for value in ("Условные позиции навыков", "коллизии", "winner",
+            "constants_unchanged", "&lt;script&gt;graph()&lt;/script&gt;", 'href="#event-2-skill_layout[0]"',
+            "<td>7</td><td>3</td>", "<script>graph()</script>")), (True, True, True, True, True, True, True, False))
+
+    def test_ordinary_import_saves_conditional_installation_coordinates_from_the_same_event(self):
+        from test_logtables import event
+
+        entries = [("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                   ("skillLayout", [("slots", [("1", [("key", "205"), ("value", [("skillId", "PRIVATE-GRAPH-CANARY")])])])]),
+                   ("skills", [("skills", [("1", [("Id", "PRIVATE-GRAPH-CANARY"), ("BaseId", "9749")])])])]
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = root / "input.log"
+            path.write_bytes(("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii"))
+            code = main(["--game-log", str(path), "--output", str(root / "result")])
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            graph = data["events"][0]["installation_graph"]
+            self.assertEqual((code, data["version"], graph["slots"][0]["tab_candidate"],
+                              graph["slots"][0]["position_candidate"], graph["skill_references"], graph["import_complete"],
+                              "PRIVATE-GRAPH-CANARY" in json.dumps(data)),
+                             (0, "0.1.1", 2, 6, data["events"][0]["skill_references"], False, False))
 
     def test_ordinary_import_keeps_memory_catalog_and_affix_ids_separate(self):
         from test_logtables import event
@@ -159,7 +227,7 @@ class LogCliTests(unittest.TestCase):
             project = staticmethod(Builder.project)
 
             @staticmethod
-            def skill_references(document, index, source):
+            def installation_graph(document, index, source):
                 raise ValueError("PRIVATE-REFERENCE-CANARY")
 
         with tempfile.TemporaryDirectory() as folder:
@@ -180,9 +248,9 @@ class LogCliTests(unittest.TestCase):
             project = staticmethod(Builder.project)
 
             @staticmethod
-            def skill_references(document, index, source):
-                result = Builder.skill_references(document, index, source)
-                result["references"][0].update(status="ambiguous_visible_duplicates", skill_items_alias=None,
+            def installation_graph(document, index, source):
+                result = Builder.installation_graph(document, index, source)
+                result["skill_references"]["references"][0].update(status="ambiguous_visible_duplicates", skill_items_alias=None,
                     skill_items_path=None, visible_match_count=2, uniqueness=None)
                 return result
 

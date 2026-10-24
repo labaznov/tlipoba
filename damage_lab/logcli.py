@@ -66,8 +66,27 @@ def render(data):
                          f'<td>{_text(reference["visible_match_count"] if reference["visible_match_count"] is not None else "—")}</td>'
                          f'<td><details><summary>Пути</summary><pre>{_json(paths)}</pre></details></td></tr>')
         parts.append('</table>')
+        if "installation_graph" in event:
+            parts.extend(_installation(event["installation_graph"], context["index"]))
+        else:
+            parts.append('<p>Кандидаты позиций недоступны в этом отчёте</p>')
         parts.append('</section>')
     return "\n".join(parts) + "\n</html>\n"
+
+
+def _installation(graph, index):
+    parts = ['<h3>Условные позиции навыков</h3>',
+             '<p>Кандидаты по сохранённому коду и предполагаемым константам; роли, установка, активация и уровни не подтверждены.</p>',
+             f'<details><summary>Допущения</summary><pre>{_json(graph["derivation"])}</pre></details>',
+             '<table><tr><th>Слот</th><th>Кандидат вкладки</th><th>Кандидат позиции</th><th>Статус ключа</th></tr>']
+    for slot in graph["slots"]:
+        parts.append(f'<tr><td><a href="#event-{_text(index)}-{_text(slot["layout_alias"])}">{_text(slot["layout_alias"])}</a></td>'
+                     f'<td>{_text(slot["tab_candidate"] if slot["tab_candidate"] is not None else "—")}</td>'
+                     f'<td>{_text(slot["position_candidate"] if slot["position_candidate"] is not None else "—")}</td>'
+                     f'<td>{_text(slot["slot_key_status"])}</td></tr>')
+    parts.extend(['</table>', '<details><summary>Группы и видимые коллизии; победитель неизвестен</summary>',
+                  f'<pre>{_json(graph["tabs"])}</pre></details>'])
+    return parts
 
 
 def parser():
@@ -97,11 +116,13 @@ def main(argv=None, *, reader=None, builder=None):
         selected = list(candidates) if arguments.event is None else [arguments.event]
         if any(index not in candidates for index in selected):
             raise ValueError("Selected event does not match the supported character-state structure")
-        events = [{**builder.project(snapshot, index, source["sha256"]),
-                   "skill_references": builder.skill_references(snapshot, index, source["sha256"])}
-                  for index in selected]
+        events = []
+        for index in selected:
+            graph = builder.installation_graph(snapshot, index, source["sha256"])
+            events.append({**builder.project(snapshot, index, source["sha256"]),
+                           "skill_references": graph["skill_references"], "installation_graph": graph})
         data = {
-            "format": "tli-log-import-v1", "version": "0.1.0", "status": "diagnostic", "scope": "separate_printed_events",
+            "format": "tli-log-import-v1", "version": "0.1.1", "status": "diagnostic", "scope": "separate_printed_events",
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",
             "selected_skill": "unknown", "build_code": "unknown",
             "source": {"kind": "ordinary_log", "path": str(arguments.game_log.resolve()), "sha256": source["sha256"],

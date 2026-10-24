@@ -84,11 +84,11 @@ otherwise:       100*a + b - 1
 The modulo in `G` is a literal source operation. These functions are not
 global inverses: `F(1) = F(100) = (1,1)`, while `F(1000) = (5,6)` and
 `G(5,6) = 505`. Another collision is `F(6) = F(1001) = (6,1)`.
-These are mathematical examples, not player keys. A future coordinate layer
-must preserve visible collisions rather than merge records or invent a winner.
+These are mathematical examples, not player keys. The conditional coordinate layer
+preserves visible collisions rather than merging records or inventing a winner.
 Valid UI domains, slot roles, ordinary-log wire types and runtime binding
-remain unverified; the current lexical reference layer does not apply these
-coordinate formulas.
+remain unverified; the lexical reference layer remains unchanged. A separate
+candidate graph applies these formulas only to canonical int32 lexical keys.
 
 The initializer writes literal `IsActive=true`, including for the sentinel
 reference. That constant is initialization, not evidence that an effect is
@@ -133,3 +133,38 @@ The [support-selection trace](support-selection-source.md) identifies the
 native check and the later readers of these initialized fields. Effective skill level, activation and the unresolved
 [raw damage calculation](attribute-calculation-source.md) remain separate
 requirements; this trace supplies no numeric DPS.
+
+## Ordinary import candidate graph
+
+`logbuild.installation_graph` validates one saved event through the existing
+reference projection, retains that exact projection and groups its visible
+slot aliases by conditional `F(key)` coordinates. The normal log CLI includes
+the graph in JSON version 0.1.1 and shows candidates, collisions and assumptions
+in HTML. Events remain separate; missing graph data in older reports is shown
+as unavailable.
+
+The accepted arithmetic domain is the full int32 interval, including negative
+keys and zero. This is a descriptor-based input bound, not a valid UI-slot
+domain. Float, boolean, text, leading-zero and out-of-range lexical keys give
+unavailable coordinates; missing, printed-empty and elided keys remain distinct.
+Empty, missing or wholly elided collections do not invent rows. Visible
+coordinate collisions retain every alias with an unknown winner. No inverse
+helper, first/last choice or role inference resolves them.
+
+The derivation assumes the captured initial constants remain 100, 1000 and 6,
+the inspected operand conventions and method bindings apply, and the supplied
+snapshot is unchanged during the call. The source's successful initializer
+return establishes only its argument's identity, not runtime installation or
+activation. Neither identical observations nor the graph prove atomicity.
+
+Coordinates can reveal the numeric slot key; noninjectivity is not
+anonymization. Their inclusion depends on the existing explicit `slot_key`
+allowlist for `skillLayout.slots`. Revoking that path or field prevents
+coordinate output. Raw item-instance `Id` and reference `skillId` tokens are
+not exported by the graph. Reports remain local and private.
+
+Numeric positions alone do not establish main, support or passive roles.
+The inspected local-player readers use a separate `SlotType` configuration
+and external support selection; those are not bound to this ordinary-log
+view-player graph. Installation, activation, effective level, completeness,
+currentness and raw-stat binding remain unknown. No Carino DPS gate is changed.

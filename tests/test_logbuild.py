@@ -72,6 +72,145 @@ def refusals(data):
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
 
+    def test_installation_key_zero_does_not_turn_a_reference_sentinel_into_an_installed_item(self):
+        data = reference_document([("1", [("Id", "0")])], [("1", [("key", "0"), ("value", [("skillId", "0")])])])
+        row = logbuild.installation_graph(data, 0, "a" * 64)["slots"][0]
+        self.assertEqual((row["tab_candidate"], row["position_candidate"], row["reference_status"], row["skill_items_alias"]),
+                         (0, 1, "sentinel_observed", None))
+
+    def test_installation_graph_keeps_thirty_visible_slots_without_inventing_the_elided_tail(self):
+        data = reference_document(None, [(str(index + 1), [("key", str(100 + index))]) for index in range(30)] + [("31", ELIDED)])
+        graph = logbuild.installation_graph(data, 0, "a" * 64)
+        self.assertEqual((len(graph["slots"]), graph["slots"][-1]["layout_alias"], graph["skill_references"]["layout_side"]["status"],
+                          graph["inventory_completeness"]), (30, "skill_layout[29]", "elided", "unknown"))
+
+    def test_installation_graph_does_not_mutate_or_disclose_private_instance_tokens(self):
+        data = reference_document([("1", [("Id", "PRIVATE-ITEM-INSTANCE-CANARY")])], [("1", [
+            ("key", "103"), ("value", [("skillId", "PRIVATE-ITEM-INSTANCE-CANARY"), ("status", "PRIVATE-STATUS-CANARY")])])])
+        saved = copy.deepcopy(data)
+        packet = json.dumps(logbuild.installation_graph(data, 0, "a" * 64), sort_keys=True)
+        self.assertEqual((data, "PRIVATE-ITEM-INSTANCE-CANARY" in packet, "PRIVATE-STATUS-CANARY" in packet), (saved, False, False))
+
+    def test_installation_graph_preserves_public_refusals_for_malformed_and_oversized_keys(self):
+        duplicate = reference_document(None, [("1", [("key", "17"), ("other", "18")])])
+        duplicate["events"][0]["tree"]["root"]["entries"][2][1]["entries"][0][1]["entries"][0][1]["entries"][1][0] = "key"
+        oversized = reference_document(None, [("1", [("key", "17")])])
+        oversized["events"][0]["tree"]["root"]["entries"][2][1]["entries"][0][1]["entries"][0][1]["entries"][0][1]["text"] = "9" * 5000
+        results = []
+        for data in (reference_document(None, [("1", [("key", [("v", "17")])])]),
+                     duplicate,
+                     oversized):
+            for operation in (project, logbuild.skill_references, logbuild.installation_graph):
+                try:
+                    operation(data, 0, "a" * 64)
+                except ValueError as error:
+                    results.append(str(error))
+                else:
+                    results.append(None)
+        self.assertEqual(results, ["Log build projection requires a supported bounded saved-tree contract"] * 9)
+
+    def test_installation_coordinates_require_the_current_slot_key_allowlist(self):
+        data = reference_document(None, [("1", [("key", "101")])])
+        domain = logbuild.DOMAINS["skill_layout"]
+        try:
+            logbuild.DOMAINS["skill_layout"] = ("skillLayout.slots", {})
+            result = logbuild.installation_graph(data, 0, "a" * 64)
+        finally:
+            logbuild.DOMAINS["skill_layout"] = domain
+        self.assertEqual((result["slots"][0]["slot_key_status"], result["slots"][0]["tab_candidate"], result["tabs"]),
+                         ("key_not_allowlisted", None, []))
+
+    def test_installation_graph_accepts_an_opaque_layout_policy_without_reading_keys(self):
+        data = reference_document(None, [("1", [("key", "101")])])
+        domain = logbuild.DOMAINS["skill_layout"]
+        try:
+            logbuild.DOMAINS["skill_layout"] = ("skillLayout.slots", None)
+            result = logbuild.installation_graph(data, 0, "a" * 64)
+        finally:
+            logbuild.DOMAINS["skill_layout"] = domain
+        self.assertEqual((result["slots"], result["tabs"]), ([], []))
+
+    def test_installation_coordinates_do_not_apply_to_a_different_allowlisted_path(self):
+        data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                         ("skillLayout", [("other", [("1", [("key", "102")])])])])
+        domain = logbuild.DOMAINS["skill_layout"]
+        try:
+            logbuild.DOMAINS["skill_layout"] = ("skillLayout.other", {"slot_key": "key"})
+            result = logbuild.installation_graph(data, 0, "a" * 64)
+        finally:
+            logbuild.DOMAINS["skill_layout"] = domain
+        self.assertEqual(result["slots"][0]["slot_key_status"], "key_not_allowlisted")
+
+    def test_installation_graph_does_not_promote_source_candidates_into_a_verified_build(self):
+        graph = logbuild.installation_graph(reference_document(None, [("1", [("key", "101")])]), 0, "a" * 64)
+        self.assertEqual((graph["format"], graph["scope"], graph["import_complete"],
+                          [graph[key] for key in ("identity", "runtime", "freshness", "selected_skill", "build_code",
+                              "installation", "activation", "effective_level", "inventory_completeness", "raw_binding")],
+                          graph["source"], graph["event"], graph["derivation"]), (
+            "tli-log-installation-candidates-v1", "conditional_saved_helper_coordinates", False, ["unknown"] * 10,
+            graph["skill_references"]["source"], graph["skill_references"]["event"], {
+                "helper": "SkillConstantMgr.CalSkillTabIndex", "input_domain": "canonical_int32_lexeme",
+                "captured_initial_values": [100, 1000, 6], "constants_unchanged": "assumed",
+                "operand_conventions": "inspected_static_listing", "runtime_binding": "unverified",
+                "record_identity": "same_argument_on_successful_InitSkillSlotItemData_return",
+                "snapshot_unchanged_during_call": "required", "ui_role": "unknown"}))
+
+    def test_installation_graph_retains_the_unchanged_reference_trace_and_peer_ambiguity(self):
+        data = reference_document([("1", [("Id", "private-peer")]), ("2", [("Id", "private-peer")])],
+                                  [("1", [("key", "101"), ("value", [("skillId", "private-peer")])])])
+        graph = logbuild.installation_graph(data, 0, "a" * 64)
+        self.assertEqual((graph["skill_references"], graph["slots"][0]),
+                         (logbuild.skill_references(data, 0, "a" * 64), {
+                             "layout_alias": "skill_layout[0]", "slot_key_status": "coordinated",
+                             "tab_candidate": 1, "position_candidate": 2,
+                             "reference_status": "ambiguous_visible_duplicates", "reference_detail": "scalar",
+                             "skill_items_alias": None, "visible_match_count": 2, "uniqueness": None}))
+
+    def test_installation_graph_keeps_every_alias_in_coordinate_collisions(self):
+        data = reference_document(None, [(str(index + 1), [("key", key)])
+                                         for index, key in enumerate(("1001", "6", "205", "1", "100"))])
+        self.assertEqual(logbuild.installation_graph(data, 0, "a" * 64)["tabs"], [
+            {"tab_candidate": 1, "slots": ["skill_layout[3]", "skill_layout[4]"], "collisions": [
+                {"position_candidate": 1, "aliases": ["skill_layout[3]", "skill_layout[4]"], "winner": "unknown"}]},
+            {"tab_candidate": 2, "slots": ["skill_layout[2]"], "collisions": []},
+            {"tab_candidate": 6, "slots": ["skill_layout[0]", "skill_layout[1]"], "collisions": [
+                {"position_candidate": 1, "aliases": ["skill_layout[0]", "skill_layout[1]"], "winner": "unknown"}]}])
+
+    def test_installation_graph_accepts_unprinted_and_empty_slot_collections(self):
+        entries = [("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None), ("skillLayout", tables(30) + [("31", ELIDED)])]
+        self.assertEqual([logbuild.installation_graph(data, 0, "a" * 64)["slots"]
+                          for data in (document(), reference_document(None, None), document(entries))], [[], [], []])
+
+    def test_installation_coordinates_do_not_guess_a_key_hidden_by_the_printer(self):
+        data = reference_document(None, [("1", tables(30) + [("31", ELIDED)])])
+        self.assertEqual(logbuild.installation_graph(data, 0, "a" * 64)["slots"][0]["slot_key_status"],
+                         "key_hidden_by_elision")
+
+    def test_installation_coordinates_keep_an_explicitly_elided_key_unavailable(self):
+        data = reference_document(None, [("1", tables(30) + [("key", ELIDED)])])
+        self.assertEqual(logbuild.installation_graph(data, 0, "a" * 64)["slots"][0]["slot_key_status"], "key_elided")
+
+    def test_installation_coordinates_follow_the_saved_helper_across_int32_boundaries(self):
+        keys = ("-2147483648", "-1", "-0", "3", "99", "100", "205", "999", "1000", "1001", "1006", "1007", "2147483647")
+        data = reference_document(None, [(str(index + 1), [("key", key)]) for index, key in enumerate(keys)])
+        self.assertEqual([(row["tab_candidate"], row["position_candidate"])
+                          for row in logbuild.installation_graph(data, 0, "a" * 64)["slots"]],
+                         [(-2147483648, 1), (-1, 1), (0, 1), (3, 1), (99, 1), (1, 1), (2, 6), (9, 100),
+                          (5, 6), (6, 1), (6, 6), (7, 1), (357913780, 3)])
+
+    def test_installation_coordinates_keep_non_integer_and_outside_keys_unavailable(self):
+        keys = ("1.0", "true", "false", "001", "not-a-position", "2147483648", "-2147483649", "100000000001", "9" * 300)
+        data = reference_document(None, [(str(index + 1), [("key", key)]) for index, key in enumerate(keys)])
+        self.assertEqual([(row["slot_key_status"], row["tab_candidate"], row["position_candidate"])
+                          for row in logbuild.installation_graph(data, 0, "a" * 64)["slots"]],
+                         [("key_not_integer", None, None)] * 5 + [("key_outside_domain", None, None)] * 4)
+
+    def test_installation_coordinates_distinguish_missing_and_printed_empty_keys(self):
+        data = reference_document(None, [("1", [("value", [("skillId", "0")])]), ("2", [("key", None)]), ("3", None)])
+        self.assertEqual([(row["slot_key_status"], row["tab_candidate"], row["position_candidate"])
+                          for row in logbuild.installation_graph(data, 0, "a" * 64)["slots"]],
+                         [("key_not_printed", None, None), ("key_printed_empty", None, None), ("key_printed_empty", None, None)])
+
     def test_corrected_memory_alias_semantics_use_the_second_projection_format(self):
         self.assertEqual(project(memory_document([("BaseId", "9767")]), 0, "a" * 64)["format"],
                          "tli-log-build-domains-v2")

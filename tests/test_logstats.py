@@ -28,6 +28,72 @@ def document():
 class LogstatsTests(unittest.TestCase):
     """Verify exact ID bindings and conservative state selection."""
 
+    def test_displayed_double_damage_chance_cannot_exceed_one_hundred_percent(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "21401", "name": "Double Damage Chance", "status": "resolved",
+            "values": [100.375], "raw_values": ["100.375"], "line_numbers": [55, 56],
+        })
+        with self.assertRaisesRegex(ValueError, "double damage chance"):
+            select(payload, 3217)
+
+    def test_absent_displayed_double_damage_chance_does_not_invent_zero(self):
+        from damage_lab.logstats import select
+
+        self.assertNotIn("double_damage_chance", [row["key"] for row in select(document(), 3217)["rows"]])
+
+    def test_observed_double_damage_zero_keeps_its_printed_token(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "21401", "name": "Double Damage Chance", "status": "resolved",
+            "values": [0], "raw_values": ["0.000"], "line_numbers": [55, 56],
+        })
+        self.assertEqual([(row["value"], row["source"]["raw_value"]) for row in select(payload, 3217)["rows"]
+                          if row["key"] == "double_damage_chance"], [(0, "0.000")])
+
+    def test_displayed_double_damage_chance_accepts_exactly_one_hundred_percent(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "21401", "name": "Double Damage Chance", "status": "resolved",
+            "values": [100], "raw_values": ["100.000"], "line_numbers": [55, 56],
+        })
+        self.assertEqual([(row["value"], row["source"]["raw_value"]) for row in select(payload, 3217)["rows"]
+                          if row["key"] == "double_damage_chance"], [(1, "100.000")])
+
+    def test_displayed_double_damage_chance_requires_its_exact_label_and_one_nonnegative_value(self):
+        from damage_lab.logstats import select
+
+        for name, tokens in (("Cold Double Damage Chance", ["37.125"]),
+                             ("Double Damage Chance", ["37.125", "43"]),
+                             ("Double Damage Chance", ["-7.375"])):
+            payload = document()
+            payload["cohorts"][0]["attributes"].append({
+                "id": "21401", "name": name, "status": "resolved", "values": [float(token) for token in tokens],
+                "raw_values": tokens, "line_numbers": [55, 56],
+            })
+            with self.subTest(name=name, tokens=tokens), self.assertRaises(ValueError):
+                select(payload, 3217)
+
+    def test_displayed_double_damage_chance_preserves_the_exact_upper_bound_under_decimal_traps(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"][0]["attributes"].append({
+            "id": "21401", "name": "Double Damage Chance", "status": "resolved",
+            "values": [100.0], "raw_values": ["100.000000000000000000000000001"], "line_numbers": [55, 56],
+        })
+        with localcontext() as context:
+            context.prec = 2
+            context.traps[Inexact] = context.traps[Rounded] = True
+            with self.assertRaisesRegex(ValueError, "double damage chance"):
+                select(payload, 3217)
+
     def test_normalization_is_independent_of_caller_decimal_precision_and_traps(self):
         from damage_lab.logstats import select
 

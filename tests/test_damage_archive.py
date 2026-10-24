@@ -2007,6 +2007,26 @@ class ArchiveDatabaseTest(unittest.TestCase):
 class ArchivePrecisionTest(unittest.TestCase):
     """Check that displayed numbers survive with their units and rounding."""
 
+    def test_displayed_double_damage_observation_cannot_exceed_a_probability(self):
+        from damage_lab.archive import recorded
+
+        data = {"evidence": {"panel": {"path": "synthetic-evidence"}},
+                "panel": [{"key": "double_damage_chance", "label": "Double Damage Chance", "value": 1.1375,
+                           "display": "113.75%", "unit": "fraction", "evidence": "panel"}],
+                "benchmark": {"values": [], "evidence": "panel"}}
+        with self.assertRaisesRegex(ValueError, "double_damage_chance"):
+            recorded(data, partial=True)
+
+    def test_displayed_double_damage_observation_requires_fraction_units(self):
+        from damage_lab.archive import recorded
+
+        data = {"evidence": {"panel": {"path": "synthetic-evidence"}},
+                "panel": [{"key": "double_damage_chance", "label": "Double Damage Chance", "value": 0.375,
+                           "display": "0.375", "unit": "count", "evidence": "panel"}],
+                "benchmark": {"values": [], "evidence": "panel"}}
+        with self.assertRaisesRegex(ValueError, "unit must be fraction"):
+            recorded(data, partial=True)
+
     def test_named_spell_burst_observations_cannot_use_negative_or_fractional_counts(self):
         from damage_lab.archive import recorded
 

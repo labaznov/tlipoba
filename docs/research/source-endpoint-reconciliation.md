@@ -91,6 +91,19 @@ cannot settle those assumptions. The caller must not convert this diagnostic
 into an automatically confirmed combat formula or apply its correction on top
 of an already computed Spell DPS.
 
+A separate check on 24 October 2026 reapplied this same fixed equation to one
+new automatically acquired panel cohort. The observed cold-only eligibility
+checks passed, but the near-equality did not carry over. This is evidence
+against treating the earlier conditional fit as a general reconstruction rule;
+it does not identify which unverified assumption failed.
+
+The new observation also contains a displayed Double Damage Chance. Inspected
+getter `_Get21401` averages the first values of `_Get12400` through `_Get12800`;
+it is not an alias for `_Get12400`. Substituting the displayed average into the
+endpoint factor, or choosing a residual compensation, is not justified. The
+optional observation is retained by the importer without changing DPS or raw
+input gates; see [the import contract](../IMPORT.md).
+
 Next evidence is the lower-level endpoint/scalar binding and its runtime
 context. Full raw-spell aggregation, effective level, Tangle/hit topology,
 target defenses and finite-window combat DPS remain separate work. No imported

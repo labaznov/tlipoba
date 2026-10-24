@@ -20,6 +20,7 @@ _BINDINGS = {
     "11000": ("Cold Penetration", (("cold_penetration", "fraction", 100),)),
 }
 _OPTIONAL = {
+    "21401": ("Double Damage Chance", (("double_damage_chance", "fraction", 100),)),
     "11201": ("Armor DMG Mitigation Penetration", (("armor_penetration", "fraction", 100),)),
     "21604": ("Max Spell Burst", (("max_spell_burst", "count", 1),)),
 }
@@ -164,6 +165,8 @@ def _attribute(attribute):
                 raise ValueError("Panel log known values must be nonnegative with integral counts")
             if key == "crit_chance" and value > 1:
                 raise ValueError("Panel log critical chance must be between zero and one")
+            if key == "double_damage_chance" and value > 1:
+                raise ValueError("Panel log displayed double damage chance must be between zero and one")
         if attribute["id"] == "11800" and Decimal(attribute["raw_values"][0]) > Decimal(attribute["raw_values"][1]):
             raise ValueError("Panel log damage range minimum cannot exceed maximum")
 

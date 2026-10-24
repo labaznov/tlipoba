@@ -104,6 +104,17 @@ endpoint factor, or choosing a residual compensation, is not justified. The
 optional observation is retained by the importer without changing DPS or raw
 input gates; see [the import contract](../IMPORT.md).
 
+On 25 October 2026, one bounded ordinary-log tail supplied two further resolved
+cohorts, each containing 193 distinct attribute IDs. Both passed the same
+cold-only numeric checks, but their observed/predicted ratios differed. The
+fixed equation was reapplied unchanged and independently recomputed from the
+raw decimal tokens. These states were not an isolated one-variable experiment,
+and the parser did not establish their selected-skill or actor identity.
+They therefore do not identify the failed internal query assumption, but they
+provide further evidence against applying one constant residual correction.
+The source window, canonical panel projection and private comparison retain
+separate hashes; no raw character values are published here.
+
 Next evidence is the lower-level endpoint/scalar binding and its runtime
 context. Full raw-spell aggregation, effective level, Tangle/hit topology,
 target defenses and finite-window combat DPS remain separate work. No imported

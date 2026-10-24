@@ -18,6 +18,8 @@ def document(entries=None):
                    ("skillLayout", [("slots", None)])]
     lines = event(entries)
     tree = parse_event(lines)
+    tree['version'] = '0.2.0'
+    tree['counts'].pop('references')
     return {"format": "tli-build-log-v1", "version": "0.1.2", "status": "diagnostic", "scope": "printed_tree_only",
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",
             "selected_skill": "unknown", "build_code": "unknown",
@@ -76,6 +78,18 @@ def message_document(*, partial=False):
     return data
 
 
+def graph_document(lines):
+    """A new writer snapshot retains independent lexical reference nodes."""
+    data = document()
+    tree = parse_event(lines)
+    data['version'] = '0.1.4'
+    data['source']['lines'] = len(lines) + 8
+    data['events'][0].update(tree=tree, end_line=len(lines) + 2,
+                            message={'name': 'GetPlayerData', 'direction': 'recv', 'line': 2,
+                                     'logTimeText': tree['header']['logTimeText'], 'frame': tree['header']['frame']})
+    return data
+
+
 def refusals(data):
     """Capture both public seams fixed refusals without inspecting private validation helpers."""
     results = []
@@ -91,6 +105,83 @@ def refusals(data):
 
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
+
+    def test_reference_bearing_character_shape_is_partial_without_resolution(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        data = document(entries)
+        lines = event(entries) + ['+mirror {.skillLayout}']
+        tree = parse_event(lines)
+        data['version'] = '0.1.4'
+        data['events'][0].update(tree=tree, end_line=len(lines) + 2,
+                                message={'name': 'GetPlayerData', 'direction': 'recv', 'line': 2,
+                                         'logTimeText': tree['header']['logTimeText'], 'frame': tree['header']['frame']})
+        result = logbuild.project_partial(data, 0, 'a' * 64)
+        self.assertEqual((candidates(data, 'a' * 64), logbuild.partial_candidates(data, 'a' * 64), result['status'],
+                          result['structure']['kind'], result['structure']['unavailable_paths']),
+                         ([], [0], 'partial', 'reference_character_shape', [['mirror']]))
+
+    def test_reference_field_preserves_visible_sibling_without_copying_the_target(self):
+        entries = [('shared', [('leaf', '73')]),
+                   ('bag', [('wearItems', [('1', [('PageId', '7'), ('Item', [('BaseId', 'REF')])])])]),
+                   ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        data = graph_document([line.replace('[REF]', '{.shared}') for line in event(entries)])
+        equipment = logbuild.project_partial(data, 0, 'a' * 64)['domains']['equipment']
+        self.assertEqual((equipment['status'], equipment['rows'][0]['fields']['page_id']['values'][0]['text'],
+                          equipment['rows'][0]['fields']['base_id']),
+                         ('partial', '7', {'status': 'unresolved_reference', 'values': [], 'missing_paths': [],
+                                          'elided_paths': [], 'empty_paths': [],
+                                          'reference_paths': [['bag', 'wearItems', '1', 'Item', 'BaseId']]}))
+
+    def test_reference_domain_remains_unknown_without_inventing_empty_inventory(self):
+        entries = [('shared', [('leaf', '73')]), ('bag', [('wearItems', None)]),
+                   ('heroCharacterv3OverView', None), ('skillLayout', None), ('skills', [('skills', 'REF')])]
+        data = graph_document([line.replace('[REF]', '{.shared}') for line in event(entries)])
+        result = logbuild.project_partial(data, 0, 'a' * 64)['domains']['skill_items']
+        self.assertEqual((result['status'], result['node_kind'], result['visible_entries'], result['rows'], result['gaps']),
+                         ('partial', 'reference', None, [], [{'path': ['skills', 'skills'], 'reason': 'unresolved_reference'}]))
+
+    def test_reference_cannot_replace_a_required_character_container(self):
+        entries = [('shared', [('leaf', '73')]), ('bag', [('wearItems', 'REF')]),
+                   ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        data = graph_document([line.replace('[REF]', '{.shared}') for line in event(entries)])
+        self.assertEqual((candidates(data, 'a' * 64), logbuild.partial_candidates(data, 'a' * 64)), ([], []))
+
+    def test_new_writer_tree_matrix_and_closed_reference_metadata_are_enforced(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        for change in ('old_writer', 'old_tree', 'new_with_old_tree', 'extra_node', 'count', 'forward', 'ref_target'):
+            data = graph_document(event(entries) + ['+mirror {.skillLayout}', '+another {.}'])
+            tree = data['events'][0]['tree']
+            if change == 'old_writer':
+                data['version'] = '0.1.3'
+            elif change == 'old_tree':
+                data['version'] = '0.1.3'; tree['version'] = '0.2.0'; tree['counts'].pop('references')
+            elif change == 'new_with_old_tree':
+                tree['version'] = '0.2.0'
+            elif change == 'extra_node':
+                tree['root']['entries'][-1][1]['extra'] = 7
+            elif change == 'count':
+                tree['counts']['references'] = True
+            elif change == 'forward':
+                tree['root']['entries'][-2][1]['path'] = ['later']
+            else:
+                tree['root']['entries'][-1][1]['path'] = ['mirror']
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                logbuild.partial_candidates(data, 'a' * 64)
+
+    def test_legacy_tree_cannot_claim_reference_count_even_without_reference_nodes(self):
+        data = document()
+        data['events'][0]['tree']['counts']['references'] = 0
+        with self.assertRaises(ValueError):
+            candidates(data, 'a' * 64)
+
+    def test_reference_layout_keeps_unknown_reference_and_independent_coordinate(self):
+        entries = [('shared', [('leaf', '73')]), ('bag', [('wearItems', None)]),
+                   ('heroCharacterv3OverView', None), ('skillLayout', [('slots', [('1', [('key', '101'), ('value', 'REF')])])])]
+        data = graph_document([line.replace('[REF]', '{.shared}') for line in event(entries)])
+        graph = logbuild.partial_installation_graph(data, 0, 'a' * 64)
+        self.assertEqual((graph['slots'][0]['reference_status'], graph['slots'][0]['skill_items_alias'],
+                          graph['slots'][0]['tab_candidate'], graph['skill_references']['counts']['reference_unresolved']),
+                         ('reference_unresolved', None, 1, 1))
 
     def test_received_player_message_qualifies_new_version_without_identity_claims(self):
         data = document()

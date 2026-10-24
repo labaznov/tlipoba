@@ -16,13 +16,14 @@ from __future__ import annotations
 import re
 
 FORMAT = 'tli-log-table-v0'
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 TABLE_ENTRY_LIMIT = 30          # measured dumper rule: a table is cut after this many table-valued entries
 LIMITS = {'max_lines': 20000, 'max_line_length': 512, 'max_depth': 32, 'max_nodes': 200000}
 HEADER = re.compile(r'\[([0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2}\.[0-9]{2}\.[0-9]{2}:[0-9]{3})\]\[ *([0-9]{1,10})\]'
                     r'TLNetGame: Display: \[Game\]', re.ASCII)
 SEGMENTS = re.compile(r'([ |]*)((?:\+(?:[A-Za-z0-9]+|\.\.\.))+)')
 VALUE = re.compile(r' \[([^\[\]]*)\]')
+REFERENCE = re.compile(r' \{(\.|(?:\.[A-Za-z0-9]+)+)\}', re.ASCII)
 KEY = re.compile(r'\+([A-Za-z0-9]+|\.\.\.)')
 INT = re.compile(r'-?(?:0|[1-9][0-9]*)')
 FLOAT = re.compile(r'-?[0-9]+\.[0-9]+')
@@ -76,18 +77,21 @@ def _split_line(line, index):
     if not match:
         raise LogTableError('segment', index)
     rest = line[match.end():]
-    if rest and not rest.startswith(' ['):
+    if rest and not rest.startswith((' [', ' {')):
         raise LogTableError('segment', index)
-    value = None
+    value, reference = None, None
     if rest:
-        found = VALUE.fullmatch(rest)
-        if not found:
+        found, cached = VALUE.fullmatch(rest), REFERENCE.fullmatch(rest)
+        if not found and not cached:
             raise LogTableError('value', index)
-        value = found.group(1)
+        if found:
+            value = found.group(1)
+        else:
+            reference = [] if cached.group(1) == '.' else cached.group(1)[1:].split('.')
     keys = KEY.findall(match.group(2))
-    if '...' in keys and (keys.index('...') != len(keys) - 1 or len(keys) < 2 or value is not None):
+    if '...' in keys and (keys.index('...') != len(keys) - 1 or len(keys) < 2 or value is not None or reference is not None):
         raise LogTableError('elision', index)
-    return len(match.group(1)), keys, value
+    return len(match.group(1)), keys, value, reference
 
 
 def _render(root):
@@ -110,6 +114,8 @@ def _render(root):
             out.append(f'{current}{segment} [{node["text"]}]')
         elif node['t'] == 'empty':
             out.append(current + segment)
+        elif node['t'] == 'reference':
+            out.append(current + segment + ' {.' + '.'.join(node['path']) + '}')
         else:
             out.append(current + segment + '+...')
     return out
@@ -137,13 +143,14 @@ def parse_event(lines, *, max_lines=LIMITS['max_lines'], max_line_length=LIMITS[
     # Frames: child column, node, depth, path, kind; a closed table id set marks elided tables.
     stack = [(0, root, 0, (), 'table')]
     keys_of, tables_of = {id(root): set()}, {id(root): 0}     # keys and table-valued entry count per table
-    closed, elisions = set(), []
+    closed, elisions, cache = set(), [], {(): root}
+    references = 0
     nodes = empty_tables = max_seen = 0
     scalars = {'bool': 0, 'int': 0, 'float': 0, 'text': 0}
     for index in range(1, len(lines)):
         line = lines[index]
         _check_text(line, index, max_line_length)
-        column, keys, value = _split_line(line, index)
+        column, keys, value, reference = _split_line(line, index)
         while stack[-1][0] > column:
             stack.pop()
         child_column, parent, depth, path, kind = stack[-1]
@@ -171,6 +178,11 @@ def parse_event(lines, *, max_lines=LIMITS['max_lines'], max_line_length=LIMITS[
                 node, node_kind = {'t': 'table', 'entries': []}, 'table'
             elif elided:
                 node, node_kind = {'t': 'elided'}, 'elided'
+            elif reference is not None:
+                if tuple(reference) not in cache:
+                    raise LogTableError('reference', index)
+                node, node_kind = {'t': 'reference', 'path': reference}, 'reference'
+                references += 1
             elif value is not None:
                 node, node_kind = {'t': 'scalar', 'text': value, 'class': _class(value)}, 'scalar'
                 scalars[node['class']] += 1
@@ -191,6 +203,8 @@ def parse_event(lines, *, max_lines=LIMITS['max_lines'], max_line_length=LIMITS[
             parent['entries'].append([key, node])
             child_column = segment_column + 1 + len(key)
             path = path + (key,)
+            if node_kind in ('table', 'empty'):
+                cache[path] = node
             if node_kind == 'table':
                 keys_of[id(node)], tables_of[id(node)] = set(), 0
             stack.append((child_column, node, depth, path, node_kind))
@@ -206,7 +220,7 @@ def parse_event(lines, *, max_lines=LIMITS['max_lines'], max_line_length=LIMITS[
             'header': {'logTimeText': header.group(1), 'frame': int(header.group(2)), 'timezone': 'unknown'},
             'root': root, 'status': 'elided' if elisions else 'complete', 'meaning': MEANING, 'elisions': elisions,
             'counts': {'lines': len(body), 'leaves': len(body), 'emptyTables': empty_tables, 'elisions': len(elisions),
-                       'nodes': nodes, 'maxDepth': max_seen, 'scalars': scalars}}
+                       'nodes': nodes, 'maxDepth': max_seen, 'scalars': scalars, 'references': references}}
 
 
 def split_events(lines, *, max_lines=10_000_000):

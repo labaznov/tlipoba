@@ -21,6 +21,24 @@ def event(value=17):
 class LogContextTests(unittest.TestCase):
     """Bind retained neighbouring lines to the same file prefix as the parsed events."""
 
+    def test_prior_snapshot_context_remains_a_physical_window_without_graph_promotion(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = log(Path(folder), event())
+            source = snapshot(path)
+            source['version'] = '0.1.3'
+            source['events'][0]['tree']['version'] = '0.2.0'
+            source['events'][0]['tree']['counts'].pop('references')
+            result = collect(path, source)
+        self.assertEqual((len(result['lines']), result['import_complete']), (2, False))
+
+    def test_older_unsupported_context_version_is_not_newly_admitted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = log(Path(folder), event())
+            source = snapshot(path)
+            source['version'] = '0.1.2'
+            with self.assertRaisesRegex(ValueError, 'Unsupported log context snapshot'):
+                collect(path, source)
+
     def test_context_retains_event_and_neighbours_without_changing_the_snapshot(self):
         with tempfile.TemporaryDirectory() as folder:
             path = log(Path(folder), b"before\n" + event() + b"[other] after\n")

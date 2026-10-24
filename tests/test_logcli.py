@@ -73,6 +73,19 @@ class Builder:
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
 
+    def test_reference_reply_imports_as_partial_without_reconstructed_values(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source = root / 'input.log'
+            source.write_text('\n'.join(received(entries) + ['+mirror {.skillLayout}', '[closed]']) + '\n', encoding='ascii')
+            code = main(['--game-log', str(source), '--output', str(root / 'result')])
+            data = json.loads((root / 'result/log-import.json').read_text())
+            page = (root / 'result/index.html').read_text(encoding='utf-8')
+        self.assertEqual((code, data['version'], len(data['events']), len(data['partial_events']),
+                          data['partial_events'][0]['status'], 'Неразрешённые ссылки' in page, 'bag elided:' in page),
+                         (0, '0.3.2', 0, 1, 'partial', True, False))
+
     def test_html_preserves_and_escapes_socket_message_provenance(self):
         document = snapshot(Path(__file__))
         event = Builder.project(document, 0, document["source"]["sha256"])
@@ -92,7 +105,7 @@ class LogCliTests(unittest.TestCase):
                         reader=lambda path: partial_document())
             data = json.loads((output / "log-import.json").read_text(encoding="utf-8"))
             self.assertEqual((code, data["version"], len(data["events"]), len(data.get("partial_events", []))),
-                             (0, "0.3.1", 0, 1))
+                             (0, "0.3.2", 0, 1))
 
     def test_partial_html_shows_unknown_equipment_and_same_event_reference_targets(self):
         from test_logbuild import partial_document
@@ -204,7 +217,7 @@ class LogCliTests(unittest.TestCase):
             self.assertEqual((code, data["version"], graph["slots"][0]["tab_candidate"],
                               graph["slots"][0]["position_candidate"], graph["skill_references"], graph["import_complete"],
                               "PRIVATE-GRAPH-CANARY" in json.dumps(data)),
-                             (0, "0.3.1", 2, 6, data["events"][0]["skill_references"], False, False))
+                             (0, "0.3.2", 2, 6, data["events"][0]["skill_references"], False, False))
 
     def test_ordinary_import_keeps_memory_catalog_and_affix_ids_separate(self):
         detail = [("BaseId", "9737"), ("Id", "PRIVATE-MEMORY-CANARY"),
@@ -474,7 +487,7 @@ class LogCliTests(unittest.TestCase):
             data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
             self.assertEqual((code, data["version"], data["skill_catalog_source"]["kind"],
                               data["partial_events"][0]["skill_catalog"]["rows"][0]["identity"]["tlidb_id"]),
-                             (0, "0.3.1", "saved_skill_catalog", 9001))
+                             (0, "0.3.2", "saved_skill_catalog", 9001))
 
     def test_invalid_catalog_is_refused_even_before_an_empty_source_is_projected(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):

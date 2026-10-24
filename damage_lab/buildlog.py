@@ -13,7 +13,7 @@ from pathlib import Path
 from .logtables import HEADER, LIMITS as PARSER_LIMITS, LogTableError, parse_event
 
 FORMAT = 'tli-build-log-v1'
-VERSION = '0.1.3'
+VERSION = '0.1.4'
 MESSAGE = re.compile(HEADER.pattern + r' ----Socket (Recv|Send)Message STT----([A-Za-z][A-Za-z0-9_]{0,63})----(?:SynId = [0-9]{1,10})?', re.ASCII)
 LIMITS = {'max_source_bytes': 1 << 30, 'max_lines': 20_000_000,
           'max_line_bytes': 512, 'max_events': 512, 'max_event_lines': 20_000,

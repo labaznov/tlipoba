@@ -18,6 +18,18 @@ def records():
 class LogCatalogTests(unittest.TestCase):
     """Bind printed catalog IDs while retaining uncertain levels and installation."""
 
+    def test_reference_skill_row_cannot_copy_catalog_identity_from_its_target(self):
+        from test_logbuild import graph_document
+        from test_logtables import event
+
+        entries = [('shared', [('BaseId', '9001'), ('Level', '17')]), ('bag', [('wearItems', None)]),
+                   ('heroCharacterv3OverView', None), ('skillLayout', None), ('skills', [('skills', [('1', 'REF')])])]
+        data = graph_document([line.replace('[REF]', '{.shared}') for line in event(entries)])
+        result = project(data, 0, 'a' * 64, records(), metadata(), partial=True)
+        self.assertEqual((result['coverage']['status'], result['rows'][0]['identity'], result['rows'][0]['profile'],
+                          result['rows'][0]['fields']['base_id']['status'], result['arithmetic_ready']),
+                         ('partial', None, None, 'unresolved_reference', False))
+
     def test_exact_catalog_candidate_preserves_two_levels_without_selecting_either(self):
         result = project(document(), 0, "a" * 64, records(), metadata())
         self.assertEqual([row["identity"] for row in result["rows"]],

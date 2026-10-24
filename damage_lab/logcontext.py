@@ -14,7 +14,7 @@ SENSITIVE = re.compile(r"authorization|bearer|password|secret|token|cookie|authk
 
 
 def _events(snapshot):
-    if snapshot["format"] != buildlog.FORMAT or snapshot["version"] != buildlog.VERSION:
+    if snapshot["format"] != buildlog.FORMAT or snapshot["version"] not in ('0.1.3', buildlog.VERSION):
         raise ValueError("Unsupported log context snapshot")
     source = snapshot["source"]
     for field, limit in (("snapshotBytes", buildlog.LIMITS["max_source_bytes"]),

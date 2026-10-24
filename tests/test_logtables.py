@@ -43,6 +43,49 @@ def tables(count, start=1):
 class ParseTest(unittest.TestCase):
     """Check supported printed trees and lexical values with synthetic data."""
 
+    def test_prior_table_reference_is_retained_as_a_lexical_graph_edge(self):
+        result = parse_event([HEADER, '+first+leaf [73]', '+again {.first}'])
+        self.assertEqual((result['version'], result['root']['entries'][-1], result['counts']['references']),
+                         ('0.3.0', ['again', {'t': 'reference', 'path': ['first']}], 1))
+
+    def test_root_ancestor_and_prior_empty_references_are_lexical_only(self):
+        result = parse_event([HEADER, '+outer+self {.outer}', '+empty', '+alias {.empty}', '+root {.}'])
+        self.assertEqual((result['root']['entries'], result['counts']['references']),
+                         ([['outer', {'t': 'table', 'entries': [['self', {'t': 'reference', 'path': ['outer']}]]}],
+                           ['empty', {'t': 'empty'}], ['alias', {'t': 'reference', 'path': ['empty']}],
+                           ['root', {'t': 'reference', 'path': []}]], 3))
+
+    def test_references_after_thirty_fresh_tables_do_not_consume_the_counter(self):
+        lines = event(tables(30)) + [f'+ref{number} {{.1}}' for number in range(47)] + ['+last+...']
+        result = parse_event(lines)
+        self.assertEqual((result['counts']['references'], result['elisions'], len(result['root']['entries'])),
+                         (47, [{'path': [], 'printedTableEntries': 30}], 78))
+
+    def test_scalar_brace_text_is_not_a_reference(self):
+        result = parse_event([HEADER, '+text [literal {.missing} {}]'])
+        self.assertEqual((result['root']['entries'][0][1], result['counts']['references']),
+                         ({'t': 'scalar', 'text': 'literal {.missing} {}', 'class': 'text'}, 0))
+
+    def test_forward_scalar_reference_and_noncanonical_targets_are_refused(self):
+        for lines in ([HEADER, '+forward {.later}', '+later'],
+                      [HEADER, '+scalar [7]', '+alias {.scalar}'],
+                      [HEADER, '+first', '+alias {.first}', '+again {.alias}'],
+                      *([HEADER, '+first', '+alias {' + target + '}']
+                        for target in ('first', '..first', '.first.', '.first..x', '.-1', '.first x', ''))):
+            with self.subTest(lines=len(lines)), self.assertRaises(LogTableError):
+                parse_event(lines)
+
+    def test_elided_targets_and_children_under_references_are_refused(self):
+        for lines in (event([('big', tables(30) + [('cut', ELIDED)])]) + ['+alias {.big.cut}'],
+                      [HEADER, '+first', '+alias {.first}', '      +child [7]']):
+            with self.subTest(lines=len(lines)), self.assertRaises(LogTableError):
+                parse_event(lines)
+
+    def test_reference_tree_survives_json_roundtrip_without_object_aliasing(self):
+        import json
+        result = json.loads(json.dumps(parse_event([HEADER, '+first+leaf [73]', '+again {.first}'])))
+        self.assertEqual(result['root']['entries'][-1], ['again', {'t': 'reference', 'path': ['first']}])
+
     def test_f1_valid_minimum(self):
         lines = event(F1)
         result = parse_event(lines)

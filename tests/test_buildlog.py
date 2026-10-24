@@ -48,7 +48,16 @@ class SnapshotTest(unittest.TestCase):
     def test_new_snapshot_retains_explicit_unknown_message(self):
         with tempfile.TemporaryDirectory() as directory:
             result = snapshot(saved(directory, event('+amount [001]')))
-        self.assertEqual((result['version'], result['events'][0].get('message', 'absent')), ('0.1.3', None))
+        self.assertEqual((result['version'], result['events'][0].get('message', 'absent')), ('0.1.4', None))
+
+    def test_reference_snapshot_roundtrips_as_new_writer_without_resolving_nodes(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message() + event('+first+leaf [73]', '+again {.first}')))
+        restored = json.loads(json.dumps(result))
+        self.assertEqual((restored['version'], restored['events'][0]['tree']['version'],
+                          restored['events'][0]['tree']['root']['entries'][-1], restored['events'][0]['message']['name']),
+                         ('0.1.4', '0.3.0', ['again', {'t': 'reference', 'path': ['first']}], 'GetPlayerData'))
 
     def test_adjacent_matching_socket_marker_is_bound_without_its_raw_text(self):
         with tempfile.TemporaryDirectory() as directory:

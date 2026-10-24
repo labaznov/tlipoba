@@ -52,7 +52,9 @@ def render(data):
         if "message" in context:
             parts.extend(['<p>Источник сообщения:</p>', f'<pre>{_json(context["message"])}</pre>'])
         if partial:
-            parts.extend(['<p>bag elided: экипировка неизвестна, а не пуста</p>',
+            parts.extend(['<p>' + ('bag elided: экипировка неизвестна, а не пуста'
+                          if event['structure']['kind'] == 'bag_elided_character_shape' else
+                          'Неразрешённые ссылки: данные не восстановлены из других узлов') + '</p>',
                           f'<pre>{_json(event["structure"])}</pre>'])
         if "skill_catalog" in event:
             parts.extend(_catalog(event["skill_catalog"]))
@@ -171,7 +173,7 @@ def main(argv=None, *, reader=None, builder=None):
                 event["skill_catalog"] = logcatalog.project(snapshot, event["event"]["index"],
                     source["sha256"], records, catalog, partial=True)
         data = {
-            "format": "tli-log-import-v1", "version": "0.3.1", "status": "diagnostic", "scope": "separate_printed_events",
+            "format": "tli-log-import-v1", "version": "0.3.2", "status": "diagnostic", "scope": "separate_printed_events",
             "skill_catalog_source": catalog_source,
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",
             "selected_skill": "unknown", "build_code": "unknown",
@@ -187,7 +189,7 @@ def main(argv=None, *, reader=None, builder=None):
                             "incomplete_final_line": source["incompleteFinalLine"]},
             "events": events,
             "partial_events": partial_events,
-            "gaps": (["Строгие полные состояния не напечатаны; доступны отдельные частичные состояния с неизвестной экипировкой"
+            "gaps": (["Строгие полные состояния не напечатаны; доступны отдельные частичные состояния с явными пропусками данных"
                       if partials else "В снимке нет таблиц поддерживаемой структуры; отсутствие билда этим не установлено"]
                      if not candidates else [])}
         packet = None

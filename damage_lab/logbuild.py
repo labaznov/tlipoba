@@ -70,7 +70,7 @@ def _integer(value, maximum, minimum=0):
 def _envelope(snapshot, digest):
     _object(snapshot, ("format", "version", "status", "scope", "import_complete", "identity", "runtime", "freshness",
                        "selected_skill", "build_code", "source", "events", "rejected", "limits"))
-    if (snapshot["format"] != "tli-build-log-v1" or snapshot["version"] not in ("0.1.2", "0.1.3") or snapshot["status"] != "diagnostic"
+    if (snapshot["format"] != "tli-build-log-v1" or snapshot["version"] not in ("0.1.2", "0.1.3", "0.1.4") or snapshot["status"] != "diagnostic"
             or snapshot["scope"] != "printed_tree_only" or snapshot["import_complete"] is not False
             or any(snapshot[key] != "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code"))):
         _error()
@@ -104,6 +104,9 @@ def _snapshot(snapshot, index, digest):
     _integer(index, len(snapshot["events"]) - 1)
     event = snapshot["events"][index]
     _object(event, ("start_line", "end_line", "boundary", "header_trailing_space", "tree"))
+    _object(event['tree'], ('version',))
+    if event['tree']['version'] != ('0.3.0' if snapshot['version'] == '0.1.4' else '0.2.0'):
+        _error()
     _integer(event["start_line"], source["lines"], 1)
     _integer(event["end_line"], source["lines"], event["start_line"])
     if (event["boundary"] not in ("next_record", "snapshot_boundary") or type(event["header_trailing_space"]) is not bool
@@ -117,7 +120,7 @@ def _snapshot(snapshot, index, digest):
         _integer(tail["bytes"], source["snapshotBytes"], 1)
         if tail["line"] != source["lines"] or type(tail["line"]) is not int or event["end_line"] >= tail["line"]:
             _error()
-    if snapshot['version'] == '0.1.3':
+    if snapshot['version'] != '0.1.2':
         _object(event, ('message',))
         message = event['message']
         if message is not None:
@@ -158,7 +161,10 @@ def _class(text):
 
 def _tree(tree, event, limits):
     _object(tree, ("format", "version", "status", "meaning", "root", "header", "counts", "elisions"))
-    if tree["format"] != "tli-log-table-v0" or tree["version"] != "0.2.0" or tree["meaning"] != MEANING:
+    if tree["format"] != "tli-log-table-v0" or tree["version"] not in ("0.2.0", "0.3.0") or tree["meaning"] != MEANING:
+        _error()
+    modern = tree['version'] == '0.3.0'
+    if modern and set(tree) != {'format', 'version', 'status', 'meaning', 'root', 'header', 'counts', 'elisions'}:
         _error()
     header = tree["header"]
     _object(header, ("logTimeText", "frame", "timezone"))
@@ -167,16 +173,24 @@ def _tree(tree, event, limits):
             or header["timezone"] != "unknown"):
         _error()
     _integer(header["frame"], 9999999999)
+    if modern and set(header) != {'logTimeText', 'frame', 'timezone'}:
+        _error()
     _object(tree["root"], ("t",))
     if tree["root"]["t"] != "table":
         _error()
     stack, nodes, maximum, leaves, empties, elisions = [(tree["root"], [], 0)], 0, 0, 0, 0, []
     scalars = {key: 0 for key in ("bool", "int", "float", "text")}
+    introduced, references = set(), 0
     while stack:
         node, path, depth = stack.pop()
         _object(node, ("t",))
-        if node["t"] not in ("table", "scalar", "empty", "elided"):
+        if node["t"] not in (("table", "scalar", "empty", "elided", "reference") if modern else ("table", "scalar", "empty", "elided")):
             _error()
+        if modern and set(node) != {'table': {'t', 'entries'}, 'scalar': {'t', 'text', 'class'},
+                                    'empty': {'t'}, 'elided': {'t'}, 'reference': {'t', 'path'}}[node['t']]:
+            _error()
+        if node['t'] in ('table', 'empty'):
+            introduced.add(tuple(path))
         nodes += bool(path)
         maximum = max(maximum, depth)
         if nodes > TREE_LIMITS["max_nodes"] or depth > TREE_LIMITS["max_depth"]:
@@ -219,17 +233,31 @@ def _tree(tree, event, limits):
             elif node["t"] == "elided":
                 length += 4
                 elisions.append({"path": path[:-1], "printedTableEntries": 30})
+            elif node['t'] == 'reference':
+                target = node['path']
+                if (type(target) is not list or len(target) > TREE_LIMITS['max_depth']
+                        or any(type(key) is not str or not re.fullmatch('[A-Za-z0-9]+', key, re.ASCII) for key in target)
+                        or tuple(target) not in introduced):
+                    _error()
+                references += 1
+                length += 4 + len('.'.join(target))
             if length > limits["max_line_bytes"]:
                 _error()
     counts = tree["counts"]
     expected = {"lines": leaves, "leaves": leaves, "emptyTables": empties, "elisions": len(elisions),
                 "nodes": nodes, "maxDepth": maximum}
+    if modern:
+        expected['references'] = references
+    if (modern and set(counts) != {*expected, 'scalars'}) or (not modern and 'references' in counts):
+        _error()
     _object(counts, (*expected, "scalars"))
     for key, value in expected.items():
         _integer(counts[key], TREE_LIMITS["max_nodes"])
         if counts[key] != value:
             _error()
     _object(counts["scalars"], tuple(scalars))
+    if modern and set(counts['scalars']) != set(scalars):
+        _error()
     if any(type(counts["scalars"][key]) is not int or counts["scalars"][key] != value for key, value in scalars.items()):
         _error()
     if (not leaves or leaves != event["end_line"] - event["start_line"]
@@ -239,6 +267,8 @@ def _tree(tree, event, limits):
     projected = []
     for row in tree["elisions"]:
         _object(row, ("path", "printedTableEntries"))
+        if modern and set(row) != {'path', 'printedTableEntries'}:
+            _error()
         if type(row["path"]) is not list or type(row["printedTableEntries"]) is not int:
             _error()
         projected.append({"path": row["path"], "printedTableEntries": row["printedTableEntries"]})
@@ -260,10 +290,13 @@ def _array(node):
 
 def _gather(root, path, pattern):
     states, missing, elided, empty = [(path, root)], [], [], []
+    references = []
     for index, key in enumerate(pattern):
         following = []
         for location, node in states:
-            if node["t"] == "elided":
+            if node['t'] == 'reference':
+                references.append(location)
+            elif node["t"] == "elided":
                 elided.append(location)
             elif node["t"] == "empty" and key == "#":
                 empty.append(location)
@@ -285,11 +318,11 @@ def _gather(root, path, pattern):
                 else:
                     following.append((location + [key], child))
         states = following
-    return states, missing, elided, empty
+    return states, missing, elided, empty, references
 
 
 def _field(node, path, pattern):
-    states, missing, elided, empty = _gather(node, path, pattern.split(".") if pattern else [])
+    states, missing, elided, empty, references = _gather(node, path, pattern.split(".") if pattern else [])
     values = []
     for location, child in states:
         if child["t"] == "scalar":
@@ -298,20 +331,36 @@ def _field(node, path, pattern):
             empty.append(location)
         elif child["t"] == "elided":
             elided.append(location)
+        elif child['t'] == 'reference':
+            references.append(location)
         else:
             _error()
-    return {"status": "elided" if elided else "complete" if values or empty else "not_printed",
-            "values": values, "missing_paths": missing, "elided_paths": elided, "empty_paths": empty}
+    return {"status": 'unresolved_reference' if references else "elided" if elided else "complete" if values or empty else "not_printed",
+            "values": values, "missing_paths": missing, "elided_paths": elided, "empty_paths": empty,
+            **({'reference_paths': references} if references else {})}
 
 
 def _at(root, path):
     for key in path:
+        if root['t'] == 'reference':
+            return root
         if root["t"] != "table":
             return None
         root = dict(root["entries"]).get(key)
         if root is None:
             return None
     return root
+
+
+def _unresolved(root, path=()):
+    result, stack = [], [(root, list(path))]
+    while stack:
+        node, location = stack.pop()
+        if node['t'] == 'reference':
+            result.append({'path': location, 'target_path': list(node['path'])})
+        elif node['t'] == 'table':
+            stack.extend((child, location + [key]) for key, child in reversed(node['entries']))
+    return result
 
 
 def _elided(root):
@@ -332,12 +381,20 @@ def _domain(root, name, path, fields):
     if node is None:
         result["gaps"].append({"path": list(path), "reason": "not_printed"})
         return result
+    if node['t'] == 'reference':
+        result.update(status='partial', node_kind='reference')
+        result['gaps'].append({'path': list(path), 'reason': 'unresolved_reference'})
+        return result
     if node["t"] not in ("table", "empty", "elided"):
         _error()
     result.update(status="elided" if _elided(node) else "complete", node_kind=node["t"],
                   visible_entries=sum(child["t"] != "elided" for key, child in node.get("entries", [])))
     if result["status"] == "elided":
         result["gaps"].append({"path": list(path), "reason": "subtree_elided"})
+    references = _unresolved(node, path)
+    if references:
+        result['status'] = 'partial'
+        result['gaps'].extend({'path': row['path'], 'reason': 'unresolved_reference'} for row in references)
     if node["t"] == "empty":
         result["gaps"].append({"path": list(path), "reason": "empty_container_type_unknown"})
     if fields is None or node["t"] == "elided":
@@ -349,11 +406,18 @@ def _domain(root, name, path, fields):
         if name in ("equipment", "memories"):
             prefix = "Item" if name == "equipment" else "detail"
             row["conditions"] = {
-                field.lower(): "printed_unmapped" if any(_gather(child, location, [prefix, native, "#", field])[0]
-                    for affix, native in AFFIXES.items() if name == "equipment" or affix in MEMORY_AFFIXES) else "not_printed"
+                field.lower(): _condition(child, location, prefix, field, name)
                 for field in ("Condition", "Filter", "Behavior")}
         result["rows"].append(row)
     return result
+
+
+def _condition(root, path, prefix, field, domain):
+    gathered = [_gather(root, path, [prefix, native, '#', field]) for affix, native in AFFIXES.items()
+                if domain == 'equipment' or affix in MEMORY_AFFIXES]
+    if any(row[4] or any(node['t'] == 'reference' for location, node in row[0]) for row in gathered):
+        return 'unresolved_reference'
+    return 'printed_unmapped' if any(row[0] for row in gathered) else 'not_printed'
 
 
 def project(snapshot, event_index, source_sha256):
@@ -373,15 +437,19 @@ def _project(snapshot, event_index, source_sha256, *, partial):
     if not _received(snapshot, event) or not (_partial(tree["root"]) if partial else _candidate(tree["root"])):
         _error()
     domains = {name: _domain(tree["root"], name, path.split("."), fields) for name, (path, fields) in DOMAINS.items()}
+    references = _unresolved(tree['root'])
     return {"format": "tli-log-partial-build-domains-v1" if partial else FORMAT,
-            **({"structure": {"kind": "bag_elided_character_shape", "unavailable_paths": [["bag", "wearItems"]]}}
+            **({'status': 'partial', 'structure': {'kind': 'reference_character_shape',
+                 'unavailable_paths': ([['bag', 'wearItems']] if _at(tree['root'], ['bag'])['t'] == 'elided' else []) +
+                                      [row['path'] for row in references], 'references': references}} if references else
+               {"structure": {"kind": "bag_elided_character_shape", "unavailable_paths": [["bag", "wearItems"]]}}
                if partial else {}), "scope": "printed_subtree_only", "import_complete": False,
             **{key: "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code")},
             "source": {"sha256": snapshot["source"]["sha256"], "snapshot_bytes": snapshot["source"]["snapshotBytes"]},
             "event": {"index": event_index, "start_line": event["start_line"], "end_line": event["end_line"],
                       "boundary": event["boundary"], "header": header,
                       **({'message': None if event['message'] is None else dict(event['message'])}
-                         if snapshot['version'] == '0.1.3' else {})},
+                         if snapshot['version'] != '0.1.2' else {})},
             "domains": domains,
             "counts": {"domains": len(domains), "rows": sum(len(row["rows"]) for row in domains.values()),
                        "lexical_values": sum(len(field["values"]) for domain in domains.values()
@@ -422,7 +490,9 @@ def _references(snapshot, event_index, projection):
             "source": projection["source"], "event": projection["event"],
             "layout_side": _reference_side(projection["domains"]["skill_layout"]), "items_side": items,
             "references": references,
-            "counts": {status: sum(row["status"] == status for row in references) for status in REFERENCE_STATUSES}}
+            "counts": {**{status: sum(row["status"] == status for row in references) for status in REFERENCE_STATUSES},
+                       **({'reference_unresolved': sum(row['status'] == 'reference_unresolved' for row in references)}
+                          if any(row['status'] == 'reference_unresolved' for row in references) else {})}}
 
 
 def installation_graph(snapshot, event_index, source_sha256):
@@ -479,6 +549,8 @@ def _tabs(slots):
 
 
 def _coordinate(detail, text):
+    if detail in ('row_reference', 'parent_reference', 'leaf_reference'):
+        return 'key_unresolved_reference', None, None
     if detail == "leaf_elided":
         return "key_elided", None, None
     if detail == "leaf_hidden_tail":
@@ -510,6 +582,8 @@ def _hidden(node):
 
 
 def _leaf(node, path, keys):
+    if node['t'] == 'reference':
+        return 'row_reference', path, None
     if node["t"] == "empty":
         return "row_printed_empty", path + [keys[0]], None
     for index, key in enumerate(keys):
@@ -540,6 +614,8 @@ def _reference(row, root, items, tokens):
         status = "reference_printed_empty"
     elif detail in ("parent_scalar", "leaf_table"):
         status = "reference_shape_unsupported"
+    elif detail in ('row_reference', 'parent_reference', 'leaf_reference'):
+        status = 'reference_unresolved'
     elif token == "0":
         status = "sentinel_observed"
     elif items["status"] == "not_printed":
@@ -557,12 +633,16 @@ def _reference(row, root, items, tokens):
             "visible_match_count": count, "uniqueness": uniqueness}
 
 
-def _candidate(root):
+def _shape(root):
     for path in ("bag.wearItems", "heroCharacterv3OverView", "skillLayout"):
         node = _at(root, path.split("."))
         if node is None or node["t"] not in ("table", "empty"):
             return False
     return True
+
+
+def _candidate(root):
+    return _shape(root) and not _unresolved(root)
 
 
 def candidates(snapshot, source_sha256):
@@ -590,6 +670,8 @@ def partial_candidates(snapshot, source_sha256):
 
 
 def _partial(root):
+    if _shape(root) and _unresolved(root):
+        return True
     bag = _at(root, ["bag"])
     return bag is not None and bag["t"] == "elided" and all(
         (node := _at(root, [name])) is not None and node["t"] == "table"

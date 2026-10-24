@@ -26,7 +26,7 @@ class Builder:
 
     @staticmethod
     def project(document, index, source):
-        return {"format": "tli-log-build-domains-v1", "scope": "printed_subtree_only", "import_complete": False,
+        return {"format": "tli-log-build-domains-v2", "scope": "printed_subtree_only", "import_complete": False,
                 "identity": "unknown", "runtime": "unknown", "freshness": "unknown", "selected_skill": "unknown",
                 "build_code": "unknown", "source": {"sha256": source, "snapshot_bytes": document["source"]["snapshotBytes"]},
                 "event": {"index": index, "start_line": index + 1, "end_line": index + 2, "boundary": "next_record"},
@@ -54,6 +54,27 @@ class Builder:
 
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
+
+    def test_ordinary_import_keeps_memory_catalog_and_affix_ids_separate(self):
+        from test_logtables import event
+
+        detail = [("BaseId", "9737"), ("Id", "PRIVATE-MEMORY-CANARY"),
+                  ("BaseAffix", [("1", [("Id", "870061"), ("DynArgs", [("1", "12.875")])])])]
+        entries = [("bag", [("wearItems", None)]), ("skillLayout", None),
+                   ("heroCharacterv3OverView", [("reminiscenceOverView", [("reminiscence", [
+                       ("1", [("detail", detail)])])])])]
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = root / "input.log"
+            path.write_bytes(("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii"))
+            code = main(["--game-log", str(path), "--output", str(root / "result")])
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            fields = data["events"][0]["domains"]["memories"]["rows"][0]["fields"]
+            self.assertEqual((code, fields["base_id"]["values"][0]["text"],
+                              fields["base_affix_id"]["values"][0]["text"], "base_affix_args" in page,
+                              "PRIVATE-MEMORY-CANARY" in json.dumps(data) + page, data["events"][0]["import_complete"]),
+                             (0, "9737", "870061", True, False, False))
 
     def test_ordinary_import_keeps_skill_affixes_without_parent_instance_ids(self):
         from test_logtables import event

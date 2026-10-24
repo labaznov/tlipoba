@@ -37,6 +37,13 @@ def skill_document(items, dressed):
                      ("skills", [("skills", items)])])
 
 
+def memory_document(fields):
+    """Keep synthetic memory catalog and affix fields in their printed detail object."""
+    return document([("bag", [("wearItems", None)]), ("skillLayout", None),
+                     ("heroCharacterv3OverView", [("reminiscenceOverView", [("reminiscence", [
+                         ("1", [("detail", fields)])])])])])
+
+
 def empty_affixes():
     """Describe every newly admitted unprinted skill-affix field independently of production maps."""
     return {family + "_" + field: [] for family in ("base_affix", "prefix", "suffix", "slot", "enchant", "chip")
@@ -64,6 +71,43 @@ def refusals(data):
 
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
+
+    def test_corrected_memory_alias_semantics_use_the_second_projection_format(self):
+        self.assertEqual(project(memory_document([("BaseId", "9767")]), 0, "a" * 64)["format"],
+                         "tli-log-build-domains-v2")
+
+    def test_memories_keep_the_catalog_id_when_the_base_affix_has_a_different_id(self):
+        data = memory_document([("BaseId", "9727"), ("BaseAffix", [("1", [("Id", "870047")])])])
+        fields = project(data, 0, "a" * 64)["domains"]["memories"]["rows"][0]["fields"]
+        self.assertEqual(fields["base_id"]["values"], [{
+            "path": ["heroCharacterv3OverView", "reminiscenceOverView", "reminiscence", "1", "detail", "BaseId"],
+            "text": "9727", "class": "int"}])
+
+    def test_memories_keep_all_base_affix_tokens_under_separate_names(self):
+        data = memory_document([("BaseId", "9733"), ("BaseAffix", [("1", [("Id", "870053"),
+            ("Version", "007"), ("source", "002"), ("DynArgs", [("1", "-0.750")])])])])
+        fields = project(data, 0, "a" * 64)["domains"]["memories"]["rows"][0]["fields"]
+        self.assertEqual(([(name, [(row["text"], row["path"][-3:]) for row in fields[name]["values"]])
+                           for name in ("base_affix_id", "base_affix_version", "base_affix_source", "base_affix_args")],
+                          set(fields) & {"base_version", "base_source", "base_args"}),
+                         ([("base_affix_id", [("870053", ["BaseAffix", "1", "Id"])]),
+                           ("base_affix_version", [("007", ["BaseAffix", "1", "Version"])]),
+                           ("base_affix_source", [("002", ["BaseAffix", "1", "source"])]),
+                           ("base_affix_args", [("-0.750", ["1", "DynArgs", "1"])])], set()))
+
+    def test_an_unprinted_memory_catalog_id_does_not_fall_back_to_an_affix_id(self):
+        data = memory_document([("BaseAffix", [("1", [("Id", "870059")])])])
+        fields = project(data, 0, "a" * 64)["domains"]["memories"]["rows"][0]["fields"]
+        self.assertEqual((fields["base_id"]["status"], fields["base_id"]["values"],
+                          fields["base_id"]["missing_paths"], fields["base_affix_id"]["values"][0]["text"]),
+                         ("not_printed", [], [["heroCharacterv3OverView", "reminiscenceOverView", "reminiscence", "1", "detail", "BaseId"]],
+                          "870059"))
+
+    def test_an_unprinted_memory_base_affix_does_not_hide_the_printed_catalog_id(self):
+        data = memory_document([("BaseId", "9749")])
+        fields = project(data, 0, "a" * 64)["domains"]["memories"]["rows"][0]["fields"]
+        self.assertEqual((fields["base_id"]["values"][0]["text"], fields["base_affix_id"]["status"],
+                          fields["base_affix_id"]["values"]), ("9749", "not_printed", []))
 
     def test_equipment_base_affixes_keep_their_printed_argument_tokens(self):
         data = document([("bag", [("wearItems", [("1", [("Item", [("BaseAffix", [("1", [
@@ -461,7 +505,7 @@ class LogBuildTest(unittest.TestCase):
         self.assertEqual((result["format"], result["counts"]["domains"], set(result["domains"]["skill_layout"]["rows"][0]["fields"]),
                           set(result["domains"]["skill_items"]["rows"][0]["fields"]), "references" in result,
                           result["import_complete"], result["selected_skill"]),
-                         ("tli-log-build-domains-v1", 14, {"slot_key"}, {"base_id", "level", "skill_item_level", "rarity", *empty_affixes()}, False, False, "unknown"))
+                         ("tli-log-build-domains-v2", 14, {"slot_key"}, {"base_id", "level", "skill_item_level", "rarity", *empty_affixes()}, False, False, "unknown"))
 
     def test_explicit_event_keeps_lexical_tokens_and_unprinted_conditions(self):
         result = project(document(), 0, "a" * 64)
@@ -564,7 +608,7 @@ class LogBuildTest(unittest.TestCase):
         self.assertEqual((result["format"], result["counts"]["domains"], result["scope"], result["import_complete"],
                           result["identity"], result["runtime"], result["freshness"], result["selected_skill"],
                           result["build_code"], result["domains"]["pact_roster"]["rows"], result["domains"]["stats"]["rows"]),
-                         ("tli-log-build-domains-v1", 14, "printed_subtree_only", False,
+                         ("tli-log-build-domains-v2", 14, "printed_subtree_only", False,
                           "unknown", "unknown", "unknown", "unknown", "unknown", [], []))
 
     def test_skill_collections_strip_identifiers_and_unapproved_fields(self):
@@ -647,7 +691,7 @@ class LogBuildTest(unittest.TestCase):
         self.assertEqual((result["format"], result["counts"]["domains"], result["scope"], result["import_complete"],
                           result["identity"], result["runtime"], result["freshness"], result["selected_skill"],
                           result["build_code"], result["domains"]["skill_layout"]["rows"], result["domains"]["stats"]["rows"]),
-                         ("tli-log-build-domains-v1", 14, "printed_subtree_only", False,
+                         ("tli-log-build-domains-v2", 14, "printed_subtree_only", False,
                           "unknown", "unknown", "unknown", "unknown", "unknown", [], []))
 
     def test_envelope_source_index_and_candidate_context_are_validated(self):

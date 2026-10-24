@@ -6,7 +6,7 @@ from .buildlog import LIMITS as READER_LIMITS
 from .logtables import LIMITS as TREE_LIMITS, MEANING
 
 
-FORMAT = "tli-log-build-domains-v1"
+FORMAT = "tli-log-build-domains-v2"
 REFERENCE_STATUSES = ("reference_not_printed", "reference_elided", "reference_printed_empty", "reference_shape_unsupported",
                       "sentinel_observed", "no_match_items_not_printed", "no_match_items_printed_empty",
                       "ambiguous_visible_duplicates", "observed_token_match", "no_visible_match_items_incomplete",
@@ -18,8 +18,8 @@ MEMORY_AFFIXES = ("base_attr", "fixed_base", "prefix", "suffix", "enchant", "bas
 SKILL_AFFIXES = ("base", "prefix", "suffix", "slot", "enchant", "chip")
 
 
-def _affixes(prefix, names, memory=False):
-    return {(name if memory or name != "base" else "base_affix") + "_" + field: prefix + ("." if prefix else "") + native + ".#." + source
+def _affixes(prefix, names):
+    return {(name if name != "base" else "base_affix") + "_" + field: prefix + ("." if prefix else "") + native + ".#." + source
             for name, native in AFFIXES.items() if name in names
             for field, source in (("id", "Id"), ("version", "Version"), ("source", "source"), ("args", "DynArgs.#"))}
 
@@ -31,7 +31,7 @@ DOMAINS = {
     "memories": ("heroCharacterv3OverView.reminiscenceOverView.reminiscence",
                  {"index": "index", "state": "state", "base_id": "detail.BaseId", "level": "detail.Level",
                   "fixed_level": "detail.ReminiscenceFixedLevel", "enhance_level": "detail.ReminiscenceFixedLevelFromEnhance",
-                  "memory_level": "detail.ReminiscenceLevel", **_affixes("detail", MEMORY_AFFIXES, True)}),
+                  "memory_level": "detail.ReminiscenceLevel", **_affixes("detail", MEMORY_AFFIXES)}),
     "traits": ("heroCharacterv3OverView.pointOverView.activeId", {"trait_id": ""}),
     "slates": ("bag.dressingTalentBlocks", {"page_id": "PageId", "index": "Index", "base_id": "Item.BaseId",
                "level": "Item.Level", "rarity": "Item.RareValue", "shape_id": "Item.ShapeId", "direction": "Item.Direction",

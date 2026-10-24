@@ -15,7 +15,7 @@ and returns an empty list when no accepted event matches. Each candidate must be
 
 ## Output
 
-The format is `tli-log-build-domains-v1`, with `scope: printed_subtree_only`, `import_complete: false`,
+The format is `tli-log-build-domains-v2`, with `scope: printed_subtree_only`, `import_complete: false`,
 and `identity`, `runtime`, `freshness`, `selected_skill`, and `build_code` always `unknown`.
 Safe source metadata includes SHA-256 and prefix bytes; event metadata includes its index, physical line
 range, boundary, and the lexical client-log header. Header time has unknown timezone and is not data age.
@@ -58,10 +58,18 @@ an invented extra record. Affix `Condition`, `Filter`, and `Behavior` remain `no
 `printed_unmapped` on equipment and memory rows, never `[]`. Skill affix fields remain lexical
 observations without a compiled condition or effect. No row is compiled as an unconditional effect.
 
-New equipment/skill/dressed `BaseAffix` fields use `base_affix_id`, `base_affix_version`,
-`base_affix_source` and `base_affix_args`, keeping catalog `base_id` separate. The existing memory
-`base_*` naming is retained: its legacy `base_id` mapping overlaps the catalog name and must not be
-treated as a verified memory catalog binding. That existing gap needs a separate contract correction.
+All four item domains use `base_affix_id`, `base_affix_version`, `base_affix_source` and
+`base_affix_args` for `BaseAffix`, keeping catalog `base_id` separate. In particular, memory
+`base_id` now refers only to `detail.BaseId`; memory `BaseAffix` values remain separate lexical
+observations under their own source paths. An unprinted catalog ID never falls back to an affix ID.
+
+Version 2 corrects a version-1 memory field collision: its affix `base_id` overwrote the catalog
+mapping, while `base_version`, `base_source` and `base_args` described the affix. Those ambiguous
+aliases are not duplicated in version 2. Re-run `import-log` from the saved input into a fresh output
+directory to obtain the corrected projection. A version-1 summary can lack the catalog ID entirely;
+renaming fields in that summary cannot recover it. The outer `tli-log-import-v1` envelope and separate
+`tli-log-skill-references-v1` result retain their meanings; inspect each event's projection format.
+This correction does not establish a complete, current or active memory configuration.
 
 This extension preserves the current flat-array importer subset. The
 [actual command conversion](research/affix-command-source.md) can also encounter nested tables and

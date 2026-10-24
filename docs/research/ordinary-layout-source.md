@@ -129,7 +129,7 @@ The follow-up helper listings use independent function-tree coordinates:
 | Initializer method assignment | `SkillMgr` main PC 45–47 |
 | Direct return of original R0 | `SkillMgr` `main.14` PC 38 |
 
-The next source boundary is support grouping and the later readers of these
-initialized fields. Effective skill level, activation and the unresolved
+The [support-selection trace](support-selection-source.md) identifies the
+native check and the later readers of these initialized fields. Effective skill level, activation and the unresolved
 [raw damage calculation](attribute-calculation-source.md) remain separate
 requirements; this trace supplies no numeric DPS.

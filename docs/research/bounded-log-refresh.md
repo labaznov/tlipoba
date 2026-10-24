@@ -8,8 +8,8 @@ equal observations do not prove stability or atomicity.
 
 The bytes may begin or end within a line or UTF-8 sequence. Decoding, complete
 event coverage and selected-build identity require a separate adapter. The
-utility is currently unconnected to ordinary imports and Reader defaults,
-and it has not been invoked against a real game log.
+utility was initially unconnected to ordinary imports and Reader defaults,
+and the initial tests did not invoke it against a real game log.
 
 Independent review found a missing terminal time checkpoint. Both coordinator
 and helper reproduced it before repair. Fourteen focused tests ran: thirteen
@@ -21,3 +21,30 @@ A separate one-off diagnostic captured a fixed 1 MiB tail from the active log.
 That window contained none of the six requested build/stat markers. This
 observation says nothing about earlier log windows or protocol availability.
 Its raw bytes and account-bearing path remain private.
+
+## Fresh panel and composition check
+
+A Windows development check on 24 October 2026 acquired one fixed 1 MiB
+ordinary-log window after the user opened the skill statistics panel. The normal
+[`panellog`](../../damage_lab/panellog.py) parser retained one resolved cohort
+with 193 unique attributes, no duplicate IDs and no rejected records. No
+screenshots, manually entered values, process-memory access or UI automation
+were used for that acquisition.
+
+The normal `import-log --context` command parsed six trees in the same window.
+They were market search messages; none matched the supported composition
+structure. A separate, fixed 4,969,008-byte omitted interval contained no
+supported tree headers or composition candidates. No parser limits were relaxed,
+and the two acquisitions were not merged into an atomic snapshot. The interval
+edges can cut physical lines or events.
+
+The existing native-anchor selector refused to join the fresh panel to an older
+native export with a different Spell DPS. The panel also lacked the internal
+getter inputs required by the traced damage equation. Observed panel aggregates
+do not replace those inputs.
+
+This verifies a screenshot-free development path for observed statistics, not a
+complete automatic build import or exact combat DPS. Selected-instance identity,
+actor binding, effective levels and complete composition remain unresolved.
+Real windows and reports stay private; production code and defaults were
+unchanged by this check.

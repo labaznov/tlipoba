@@ -33,12 +33,13 @@ duplicate ambiguity; it cannot establish the selected installed item or a
 complete support group. The printer's lexical classes are not original wire types.
 
 The code also compares the reference with the string `"0"`. At PC 29–32,
-the listing has `EQ`, `JMP` with signed offset 1, the dictionary lookup and
+the listing has `EQ`, `JMP` with signed offset 2, the dictionary lookup and
 then the `SkillData` assignment. With ordinary `pc + 1 + offset` semantics,
-the jump skips only the lookup; the assigned register still holds the earlier
-initialization helper's return. The data inspector alone does not verify
-custom control-flow semantics or that helper's behavior. An empty or
-unequipped slot is therefore not established by the literal sentinel.
+the jump at PC 30 reaches PC 33, skipping both lookup and assignment. This
+function then makes no such assignment on the string-sentinel path. The
+initialization helper or struct defaults may already supply a value, and the
+data inspector alone does not verify the game's custom control-flow semantics.
+An empty or unequipped slot is therefore not established by the literal sentinel.
 
 ## Position and alias gaps
 

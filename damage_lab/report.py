@@ -677,6 +677,25 @@ def rankdetails(record):
             f"{items(data['assumptions'])}{items(data['gaps'])}</section>")
 
 
+def rawdetails(record):
+    """Display only revalidated source-bound protocol numbers with unknown combat meaning."""
+    if "raw_attribute_evidence" not in record:
+        return ""
+    from .rawattrbundle import summary
+
+    if type(record.get("source_sha256")) is not str:
+        raise ValueError("Raw attribute evidence requires the enclosing source hash")
+    data = summary(record["raw_attribute_evidence"], record["source_sha256"])
+    counts = data["counts"]
+    return ("<section><h2>Сырые протокольные показатели</h2>"
+            "<p>Эти записи не связаны с параметрами урона: значения, единицы и правила применения ещё не сопоставлены</p>"
+            f"<p>Статус: {text(data['status'])}; групп: {text(counts['players'])}; "
+            f"записей атрибутов: {text(counts['entries'])}; пропущено непрозрачных записей: {text(counts['omitted_records'])}</p>"
+            "<p>Пропуски не заменены нулями; исходный снимок не подтверждает текущего персонажа или полный DPS</p>"
+            "<details><summary>Показать разрешённые записи и происхождение</summary><pre>"
+            f"{text(json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False))}</pre></details></section>")
+
+
 def render_import(record):
     """Display available imported evidence without computing a combat scenario."""
     evidence = {row["key"]: row for row in record.get("observations", [])}
@@ -730,6 +749,7 @@ article{{border:1px solid #304158;border-radius:8px;padding:14px}}h4{{margin:0 0
 {leveldetails(record)}
 {witnessdetails(record)}
 {memorydetails(record)}
+{rawdetails(record)}
 <section><h2>Пробелы автоматического импорта</h2>{missing}{coverage}
 <p>Недостающие данные предстоит извлечь автоматически; ручной ввод характеристик не требуется</p></section>
 <section><h2>Доступный состав билда</h2>{contents(record)}</section>
@@ -903,6 +923,7 @@ footer{{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:24px
 {leveldetails(record)}
 {witnessdetails(record)}
 {memorydetails(record)}
+{rawdetails(record)}
 <section><h2>Повторить расчёт локально</h2><p>Каждый запуск создаёт новый каталог с SQLite, JSON и этим отчётом
 Путь к существующему каталогу отклоняется</p><pre>{text(command)}</pre></section>
 <section><h2>Источники правил</h2><ul>{''.join(sources)}</ul>

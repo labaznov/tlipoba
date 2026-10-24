@@ -522,6 +522,9 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
     facts_data = load(facts)
     observed = developer
     coverage = discovery(load(files["source"]))
+    from .rawattrbundle import read as rawattributes
+    documents["raw_attribute_evidence"] = rawattributes(files["source"], hashes["source"][0])
+    coverage.append("Raw attribute evidence is imported separately without named combat parameters or verified protocol semantics")
     bundle = None
     if native_stats is None and "nativeStats" in manifest:
         bundle = manifest["nativeStats"]
@@ -795,6 +798,7 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         "skill_values": documents["skill_values"],
         "coverage": coverage,
         "source_sha256": hashes["source"][0],
+        "raw_attribute_evidence": documents["raw_attribute_evidence"],
     }
     if native_stats is not None:
         document = documents["native_stats"]

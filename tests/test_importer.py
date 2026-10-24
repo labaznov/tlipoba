@@ -12,6 +12,15 @@ from damage_lab.importer import main
 from examples.make_fixture import fixture
 
 
+def rawevidence():
+    """Create one safe synthetic protocol group without account or combat meaning."""
+    from damage_lab.rawattrbundle import read
+    from test_rawattrbundle import message, source
+
+    with tempfile.TemporaryDirectory() as folder:
+        return read(*source(folder, message(1, b"\x50\x35")))
+
+
 def record():
     return {
         "name": "Synthetic import", "capturedAt": "2001-02-03T04:05:06Z",
@@ -88,6 +97,57 @@ def memoried():
         _, descriptor, source = diagnostic(directory)
         bundle, _ = read(directory, descriptor, source)
     return {**record(), "source_sha256": source, "memory_definitions": bundle}
+
+
+class RawAttributeImporterTests(unittest.TestCase):
+    """Keep safe protocol evidence source-bound without changing combat observations."""
+
+    def test_snapshot_keeps_safe_raw_evidence_without_changing_the_damage_inputs(self):
+        from damage_lab.importer import snapshot
+
+        data = record()
+        data["raw_attribute_evidence"] = rawevidence()
+        data["source_sha256"] = data["raw_attribute_evidence"]["source"]["sha256"]
+        data["raw_attribute_evidence"]["private"] = "PRIVATE-SNAPSHOT-CANARY"
+        result = snapshot(data)
+        self.assertEqual((result.get("raw_attribute_evidence", {}).get("status"), result["stats"],
+                          "PRIVATE-SNAPSHOT-CANARY" in json.dumps(result)),
+                         ("decoded", {"spell_dps": 84317}, False))
+
+    def test_snapshot_requires_a_nonnull_enclosing_source_hash_when_raw_evidence_exists(self):
+        from damage_lab.importer import snapshot
+
+        for absent in (True, False):
+            with self.subTest(absent=absent):
+                data = record()
+                data["raw_attribute_evidence"] = rawevidence()
+                data.pop("source_sha256")
+                if not absent:
+                    data["source_sha256"] = None
+                with self.assertRaises(ValueError):
+                    snapshot(data)
+
+    def test_snapshot_refuses_raw_evidence_from_another_source(self):
+        from damage_lab.importer import snapshot
+
+        data = {**record(), "raw_attribute_evidence": rawevidence()}
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
+    def test_cli_automatically_keeps_protocol_evidence_and_omits_opaque_accounts(self):
+        from test_rawattrbundle import message, source
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            fixture(root / "package")
+            source(root / "package", message(1, b"\x50\x35" + message(13, b"CLI-ACCOUNT-CANARY")))
+            code = main(["--package", str(root / "package"), "--output", str(root / "result")])
+            data = json.loads((root / "result/import.json").read_text(encoding="utf-8"))
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            self.assertEqual((code, data.get("raw_attribute_evidence", {}).get("status"),
+                              "CLI-ACCOUNT-CANARY" in json.dumps(data) + page,
+                              "Сырые протокольные показатели" in page, data["stats"]),
+                             (0, "decoded", False, True, {}))
 
 
 class MemoryDefinitionImporterTests(unittest.TestCase):

@@ -27,6 +27,34 @@ def supportevidence():
             "installed_support_catalog": catalog(raw)}
 
 
+class RawAttributeReportTests(unittest.TestCase):
+    """Revalidate private-safe structural evidence even when reports are rendered directly."""
+
+    def test_direct_report_shows_unmapped_evidence_without_dumping_extra_fields(self):
+        from test_importer import rawevidence
+
+        evidence = rawevidence()
+        evidence["private"] = "RAW-REPORT-PRIVATE-CANARY"
+        page = render_import({"raw_attribute_evidence": evidence, "source_sha256": evidence["source"]["sha256"]})
+        self.assertEqual(("Сырые протокольные показатели" in page, "RAW-REPORT-PRIVATE-CANARY" in page,
+                          "не связаны с параметрами урона" in page), (True, False, True))
+
+    def test_direct_report_refuses_a_missing_or_null_enclosing_hash(self):
+        from test_importer import rawevidence
+
+        for fields in ({}, {"source_sha256": None}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                render_import({"raw_attribute_evidence": rawevidence(), **fields})
+
+    def test_direct_report_revalidates_the_evidence_flags(self):
+        from test_importer import rawevidence
+
+        evidence = rawevidence()
+        evidence["dps"] = "verified"
+        with self.assertRaises(ValueError):
+            render_import({"raw_attribute_evidence": evidence, "source_sha256": evidence["source"]["sha256"]})
+
+
 class MediumReportTests(unittest.TestCase):
     """Expose creation-time metadata in passive reports without turning it into damage."""
 

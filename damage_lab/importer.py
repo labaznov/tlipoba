@@ -124,6 +124,17 @@ def memorysummary(data):
     return {"memory_definitions": bundle}
 
 
+def rawsummary(data):
+    """Retain only safe protocol numbers bound to the enclosing saved source."""
+    if "raw_attribute_evidence" not in data:
+        return {}
+    from .rawattrbundle import summary
+
+    if type(data.get("source_sha256")) is not str:
+        raise ValueError("Raw attribute evidence requires the enclosing source hash")
+    return {"raw_attribute_evidence": summary(data["raw_attribute_evidence"], data["source_sha256"])}
+
+
 def levelsummary(data):
     """Keep diagnostic level candidates bound to the record and its observed installation."""
     if "installed_level_candidates" not in data:
@@ -200,6 +211,7 @@ def snapshot(data):
     result.update(levelsummary(data))
     result.update(witnesssummary(data))
     result.update(memorysummary(data))
+    result.update(rawsummary(data))
     if "skill_values" in data:
         result["skill_values"] = []
         for entry in data["skill_values"]:

@@ -12,6 +12,26 @@ from damage_lab.archive import archive
 from examples.make_fixture import fixture
 
 
+class RawAttributeArchiveTests(unittest.TestCase):
+    """Acquire structural attribute values automatically without promoting combat stats."""
+
+    def test_native_package_automatically_stores_only_safe_raw_attribute_evidence(self):
+        from damage_lab.rawattrbundle import read
+        from test_rawattrbundle import message, source
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = package(root)
+            path, digest = source(directory, message(1, b"\x50\x2b" + message(13, b"ARCHIVE-ACCOUNT-CANARY")))
+            expected = read(path, digest)
+            data = archive(directory, None, facts(root), root / "out.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "out.sqlite")) as connection:
+                row = connection.execute("SELECT json FROM documents WHERE role='raw_attribute_evidence'").fetchone()
+                stored = json.loads(row[0]) if row else None
+            self.assertEqual((data.get("raw_attribute_evidence"), stored, data["stats"], data["import_status"]),
+                             (expected, expected, {}, "partial"))
+
+
 class DiscoveryArchiveTests(unittest.TestCase):
     """Preserve scan limitations without storing raw process data or proving identity."""
 

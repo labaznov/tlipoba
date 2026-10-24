@@ -30,6 +30,32 @@ Activation, installation, runtime and identity remain unknown; arithmetic readin
 and import completeness remain false. The function does not manufacture a native
 `installed_skills` inventory or supply missing damage inputs.
 
-This is an intermediate importer API. The ordinary `import-log` command does not
-yet attach catalog candidates automatically. Complete character import and exact
-Carino DPS still require further acquisition and semantic bindings.
+## Ordinary journal import
+
+The optional `--skill-catalog` argument attaches these lookups to the JSON and HTML
+produced by `import-log` version `0.3.0`:
+
+```powershell
+python -m damage_lab import-log --game-log "UE_game.log" --skill-catalog "skill-catalog.json" --output local-reports/log-with-catalog
+```
+
+The input is a saved UTF-8 JSON object with `format` equal to
+`tli-log-skill-catalog-input-v1`, `version` equal to `0.1.0`, and `records` and
+`catalog` holding the existing cache collector's outputs. It contains catalog
+facts, not manually entered character values. Acquisition of those outputs is a
+separate local producer step; the command does not download or discover a catalog.
+
+`damage_lab.logcatalogfile.read` bounds the file to 16 MiB and rejects duplicate
+JSON keys, nonfinite numbers, unsupported versions and invalid catalog metadata.
+The report's `skill_catalog_source` records the acquired file's SHA-256 and size.
+That hash identifies the input bytes; it does not authenticate their producer or
+prove that their records derive from the declared member hashes.
+
+Each selected event gets its own `skill_catalog` result. `--event` still selects
+only strict character shapes and suppresses partial projections. Without
+`--skill-catalog`, the command reads no catalog file. Invalid input refuses the
+whole operation before publishing its new result directory; existing outputs are
+not replaced. Older reports without catalog fields remain renderable.
+
+These additions do not select a level-specific profile or complete the character
+import. Exact Carino DPS still requires further acquisition and semantic bindings.

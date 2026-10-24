@@ -34,6 +34,10 @@ def render(data):
         f'отклонено таблиц: {_text(data["acquisition"]["rejected_events"])}</p>']
     for gap in data["gaps"]:
         parts.append(f'<p>{_text(gap)}</p>')
+    if data.get("skill_catalog_source") is not None:
+        parts.extend(['<h2>Сохранённый каталог навыков</h2>',
+                      f'<pre>{_json(data["skill_catalog_source"])}</pre>',
+                      '<p>Хеш локального файла не подтверждает актуальную версию игры или персонажа.</p>'])
     if "context" in data:
         parts.extend(['<p>Complete контекста означает сохранение запрошенных окон строк, включая отклонённые деревья; это не полнота разбора или импорта.</p>',
                       f'<p>Контекст сохранён локально: {_text(data["context"]["status"])}; '
@@ -48,6 +52,8 @@ def render(data):
         if partial:
             parts.extend(['<p>bag elided: экипировка неизвестна, а не пуста</p>',
                           f'<pre>{_json(event["structure"])}</pre>'])
+        if "skill_catalog" in event:
+            parts.extend(_catalog(event["skill_catalog"]))
         for name, domain in event["domains"].items():
             parts.extend([f'<h3>{_text(name)}: {_text(domain["status"])}</h3>',
                           f'<p>Видимых записей: {_text(domain["visible_entries"] if domain["visible_entries"] is not None else "—")}; общее число неизвестно</p>'])
@@ -79,6 +85,21 @@ def render(data):
     return "\n".join(parts) + "\n</html>\n"
 
 
+def _catalog(catalog):
+    parts = ['<h3>Кандидаты каталога навыков</h3>',
+             '<p>Наблюдаемые уровни не выбирают gem level или effective level; активация и установка неизвестны.</p>',
+             '<table><tr><th>Строка</th><th>GUID</th><th>Категория</th><th>Статус</th><th>Пробел</th><th>Уровень</th></tr>']
+    for row in catalog["rows"]:
+        identity = row["identity"]
+        parts.append(f'<tr><td>{_text(row["alias"])}</td>'
+                     f'<td>{_text(identity["guid"] if identity else "—")}</td>'
+                     f'<td>{_text(identity["category"] if identity else "—")}</td>'
+                     f'<td>{_text(row["status"])}</td><td>{_text(row["reason"] if row["reason"] else "—")}</td>'
+                     '<td>неизвестен</td></tr>')
+    parts.append('</table>')
+    return parts
+
+
 def _installation(graph, index):
     parts = ['<h3>Условные позиции навыков</h3>',
              '<p>Кандидаты по сохранённому коду и предполагаемым константам; роли, установка, активация и уровни не подтверждены.</p>',
@@ -100,6 +121,7 @@ def parser():
     interface.add_argument("--output", required=True, type=Path, help="Новый каталог результата")
     interface.add_argument("--event", type=int, help="Необязательный индекс одного подходящего события; по умолчанию все отдельно")
     interface.add_argument("--context", action="store_true", help="Сохранить ограниченный приватный контекст всех напечатанных событий")
+    interface.add_argument("--skill-catalog", type=Path, help="Явный сохранённый каталог для отдельных напечатанных навыков")
     return interface
 
 
@@ -109,6 +131,12 @@ def main(argv=None, *, reader=None, builder=None):
     try:
         if arguments.output.exists():
             raise FileExistsError("Output already exists")
+        catalog_source = None
+        if arguments.skill_catalog is not None:
+            from . import logcatalog
+            from .logcatalogfile import read
+
+            records, catalog, catalog_source = read(arguments.skill_catalog)
         if reader is None:
             from .buildlog import snapshot
             reader = snapshot
@@ -133,8 +161,16 @@ def main(argv=None, *, reader=None, builder=None):
             graph = builder.partial_installation_graph(snapshot, index, source["sha256"])
             partial_events.append({**builder.project_partial(snapshot, index, source["sha256"]),
                                    "skill_references": graph["skill_references"], "installation_graph": graph})
+        if catalog_source is not None:
+            for event in events:
+                event["skill_catalog"] = logcatalog.project(snapshot, event["event"]["index"],
+                    source["sha256"], records, catalog)
+            for event in partial_events:
+                event["skill_catalog"] = logcatalog.project(snapshot, event["event"]["index"],
+                    source["sha256"], records, catalog, partial=True)
         data = {
-            "format": "tli-log-import-v1", "version": "0.2.0", "status": "diagnostic", "scope": "separate_printed_events",
+            "format": "tli-log-import-v1", "version": "0.3.0", "status": "diagnostic", "scope": "separate_printed_events",
+            "skill_catalog_source": catalog_source,
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",
             "selected_skill": "unknown", "build_code": "unknown",
             "source": {"kind": "ordinary_log", "path": str(arguments.game_log.resolve()), "sha256": source["sha256"],

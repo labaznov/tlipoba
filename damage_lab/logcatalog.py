@@ -10,6 +10,13 @@ from .supportcatalog import project as provenance
 FORMAT = "tli-log-skill-catalog-candidates-v1"
 
 
+def validate(records, catalog):
+    """Validate declared record identity/provenance without an installation or byte acquisition."""
+    catalog = provenance(catalog)
+    _records(records, catalog)
+    return catalog
+
+
 def _records(records, catalog):
     if (type(records) is not dict or len(records) > catalog["records"]
             or sum(value is not None for value in records.values()) > catalog["skills"]):
@@ -42,8 +49,7 @@ def project(snapshot, event_index, source_sha256, records, catalog, *, partial=F
     if type(partial) is not bool:
         raise ValueError("Printed catalog selection requires an explicit boolean partial mode")
     projection = (logbuild.project_partial if partial else logbuild.project)(snapshot, event_index, source_sha256)
-    catalog = provenance(catalog)
-    _records(records, catalog)
+    catalog = validate(records, catalog)
     domain = projection["domains"]["skill_items"]
     rows = []
     for observed in domain["rows"]:

@@ -74,7 +74,7 @@ class LogCliTests(unittest.TestCase):
                         reader=lambda path: partial_document())
             data = json.loads((output / "log-import.json").read_text(encoding="utf-8"))
             self.assertEqual((code, data["version"], len(data["events"]), len(data.get("partial_events", []))),
-                             (0, "0.2.0", 0, 1))
+                             (0, "0.3.0", 0, 1))
 
     def test_partial_html_shows_unknown_equipment_and_same_event_reference_targets(self):
         from test_logbuild import partial_document
@@ -190,7 +190,7 @@ class LogCliTests(unittest.TestCase):
             self.assertEqual((code, data["version"], graph["slots"][0]["tab_candidate"],
                               graph["slots"][0]["position_candidate"], graph["skill_references"], graph["import_complete"],
                               "PRIVATE-GRAPH-CANARY" in json.dumps(data)),
-                             (0, "0.2.0", 2, 6, data["events"][0]["skill_references"], False, False))
+                             (0, "0.3.0", 2, 6, data["events"][0]["skill_references"], False, False))
 
     def test_ordinary_import_keeps_memory_catalog_and_affix_ids_separate(self):
         from test_logtables import event
@@ -452,3 +452,63 @@ class LogCliTests(unittest.TestCase):
             main(["--game-log", str(source), "--context", "--output", str(root / "result")])
             page = (root / "result/index.html").read_text(encoding="utf-8")
             self.assertIn("Complete контекста означает сохранение запрошенных окон строк", page)
+
+    def test_explicit_catalog_file_enriches_only_separate_selected_partial_event(self):
+        from test_logbuild import partial_document
+        from test_logcatalogfile import envelope
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            catalog = root / "catalog.json"
+            catalog.write_text(json.dumps(envelope()), encoding="utf-8")
+            code = main(["--game-log", str(root / "placeholder.log"), "--skill-catalog", str(catalog),
+                         "--output", str(root / "result")], reader=lambda path: partial_document())
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            self.assertEqual((code, data["version"], data["skill_catalog_source"]["kind"],
+                              data["partial_events"][0]["skill_catalog"]["rows"][0]["identity"]["tlidb_id"]),
+                             (0, "0.3.0", "saved_skill_catalog", 9001))
+
+    def test_invalid_catalog_is_refused_even_before_an_empty_source_is_projected(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
+            root = Path(folder)
+            catalog = root / "invalid.json"
+            catalog.write_text('{"format":"invalid"}', encoding="utf-8")
+            calls = []
+            code = main(["--game-log", str(root / "placeholder.log"), "--skill-catalog", str(catalog),
+                         "--output", str(root / "result")], reader=lambda path: calls.append(path))
+            self.assertEqual((code, calls, (root / "result").exists()), (1, [], False))
+
+    def test_catalog_enrichment_keeps_explicit_strict_selection_and_suppresses_partial(self):
+        from test_logbuild import reference_document, partial_document
+        from test_logcatalogfile import envelope
+
+        data = reference_document([("1", [("BaseId", "9001")])], None)
+        second = copy.deepcopy(partial_document()["events"][0])
+        offset = data["events"][0]["end_line"] + 3
+        second["start_line"] += offset
+        second["end_line"] += offset
+        data["events"].append(second)
+        data["source"]["lines"] = second["end_line"] + 8
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            catalog = root / "catalog.json"
+            catalog.write_text(json.dumps(envelope()), encoding="utf-8")
+            main(["--game-log", str(root / "placeholder.log"), "--skill-catalog", str(catalog), "--event", "0",
+                  "--output", str(root / "result")], reader=lambda path: data)
+            report = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            candidate = report["events"][0]["skill_catalog"]
+            self.assertEqual((candidate["event"]["index"], candidate["source"]["sha256"],
+                              report["partial_events"], report["partial_selection"]["selected"]),
+                             (0, data["source"]["sha256"], [], []))
+
+    def test_catalog_candidate_html_escapes_labels_and_keeps_levels_unknown(self):
+        data = snapshot(Path(__file__))
+        event = Builder.project(data, 0, data["source"]["sha256"])
+        event["skill_references"] = Builder.skill_references(data, 0, data["source"]["sha256"])
+        event["skill_catalog"] = {"rows": [{"alias": "<script>label</script>", "identity": None,
+                                            "status": "gap", "reason": "<img src=x>"}]}
+        page = render({"source": {"sha256": "a" * 64, "bytes_read": 9},
+                       "acquisition": {"parsed_events": 1, "rejected_events": 0}, "gaps": [], "events": [event],
+                       "skill_catalog_source": {"kind": "saved_skill_catalog", "sha256": "b" * 64, "bytes": 19}})
+        self.assertEqual(("<script>label" in page, "&lt;script&gt;label&lt;/script&gt;" in page,
+                          "&lt;img src=x&gt;" in page, "неизвестен" in page), (False, True, True, True))

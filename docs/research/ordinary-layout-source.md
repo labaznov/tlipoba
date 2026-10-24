@@ -26,8 +26,8 @@ The saved source supplies the reference:
 
 Thus the inspected lookup uses an item-instance reference. It is separate
 from `BaseId`, which identifies a catalog definition. The ordinary lexical
-projection deliberately omits both instance fields. A future within-event
-comparison can emit coordinate aliases without exporting their raw tokens.
+projection deliberately omits both instance fields. The within-event
+observation layer emits coordinate aliases without exporting their raw tokens.
 Such an observed token match must preserve missing and elided peers and
 duplicate ambiguity; it cannot establish the selected installed item or a
 complete support group. The printer's lexical classes are not original wire types.
@@ -41,17 +41,61 @@ initialization helper or struct defaults may already supply a value, and the
 data inspector alone does not verify the game's custom control-flow semantics.
 An empty or unequipped slot is therefore not established by the literal sentinel.
 
-## Position and alias gaps
+## Position and initializer
 
-`CreateSkillLayout` passes the printed `key` unchanged into
+`CreateSkillLayout` passes the entry `key` unchanged into
 `SkillConstantMgr:CalSkillTabIndex`. The two returned values index the
-output dictionary. Its body was not inspected here: quotient/remainder,
-slot roles and UI grouping must not be invented from observed key ranges.
+output dictionary. A follow-up checked this body and the initializer in two
+exact installed-file scripts: 58,575 bytes including headers and the source
+footer, followed by saved-data inspection at unchanged parser limits. Their
+58,242 payload bytes parsed as 127 functions and 3,077 instructions without
+executing game code. Both complete payload SHA-1 values matched their own
+captured headers; equal file metadata observations do not prove atomicity or
+current runtime selection.
 
 The helper stores the return of `SkillMgr.InitSkillSlotItemData(struct, entry)`
-before assigning `struct.SkillData`. Whether that returned object is the same
-struct remains unverified. The lookup itself is visible; its presence on the
-stored layout record requires this additional alias binding.
+before assigning `struct.SkillData`. The inspected initializer's successful
+path returns its original R0 argument. No instruction reassigns R0, and its
+only call writes results into R2 and R3. Thus the source path stores the same
+struct that it subsequently mutates, conditional on successful execution and
+the inspected method bindings. This is object identity, not immutability,
+activation or snapshot coherence.
+
+The coordinate helper captures locations initially holding 100, 1000 and 6.
+Its companion position helper also captures a location initially holding 5.
+Assuming those values remain unchanged, the mathematical reading below applies
+to modest, exactly represented integer inputs under the inspected instruction
+conventions; the primary check used int32 inputs. These captured locations do
+not establish immutable values or current runtime binding.
+
+```text
+F(k) = CalSkillTabIndex(k)
+k < 100:          (k, 1)
+100 <= k < 1000:  (t, k - 100*t + 1), t = floor(k/100)
+k >= 1000:        (floor((k-1001)/6) + 6, r),
+                  r = (k-1000) mod 6, replacing r=0 with 6
+
+G(a,b) = CalSkillPos(a,b)
+a > 5:           1000 + 6*(a mod 6) + b
+a <= 5, b = 1:   a
+otherwise:       100*a + b - 1
+```
+
+The modulo in `G` is a literal source operation. These functions are not
+global inverses: `F(1) = F(100) = (1,1)`, while `F(1000) = (5,6)` and
+`G(5,6) = 505`. Another collision is `F(6) = F(1001) = (6,1)`.
+These are mathematical examples, not player keys. A future coordinate layer
+must preserve visible collisions rather than merge records or invent a winner.
+Valid UI domains, slot roles, ordinary-log wire types and runtime binding
+remain unverified; the current lexical reference layer does not apply these
+coordinate formulas.
+
+The initializer writes literal `IsActive=true`, including for the sentinel
+reference. That constant is initialization, not evidence that an effect is
+active. Neither inspected layout body explicitly reads `value.status`.
+Struct defaults, metatable behavior, enum values and later readers remain
+external dependencies. In particular, the string-sentinel path still does
+not prove a missing `SkillData` value or an unequipped slot.
 
 The source iterates with `pairs`. Duplicate item IDs and duplicate output
 coordinates overwrite in traversal order, which a printed list does not
@@ -74,6 +118,18 @@ Function paths and zero-based PCs refer to the saved diagnostic listing.
 | Initialized object stored at returned coordinates | `main.12` PC 20–26 |
 | String sentinel and dictionary lookup | `main.12` PC 27–32 |
 
-The next source bindings are the two external helper bodies. Effective skill
-level, activation and the unresolved [raw damage calculation](attribute-calculation-source.md)
-remain separate requirements; this trace supplies no numeric DPS.
+The follow-up helper listings use independent function-tree coordinates:
+
+| Binding | Location |
+|---|---|
+| Coordinate/position method assignments | `SkillConstantMgr` main PC 24–29 |
+| Captured initial constants | `SkillConstantMgr` main PC 20–23 and `main.6` / `main.7` upvalue descriptors |
+| Key-to-coordinate branches | `SkillConstantMgr` `main.6`, 42 words |
+| Position helper, including literal modulo | `SkillConstantMgr` `main.7`, 21 words |
+| Initializer method assignment | `SkillMgr` main PC 45–47 |
+| Direct return of original R0 | `SkillMgr` `main.14` PC 38 |
+
+The next source boundary is support grouping and the later readers of these
+initialized fields. Effective skill level, activation and the unresolved
+[raw damage calculation](attribute-calculation-source.md) remain separate
+requirements; this trace supplies no numeric DPS.

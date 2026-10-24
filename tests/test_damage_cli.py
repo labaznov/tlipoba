@@ -16,6 +16,10 @@ from examples.make_fixture import fixture
 class DamageCliTests(unittest.TestCase):
     """Check CLI outputs with isolated archives and synthetic packages."""
 
+    def test_conditional_command_routes_to_its_automatic_import_interface(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(main(['conditional-combat', '--help']), 0)
+
     def test_fixed_implicit_proof_survives_calculation_json_and_sqlite_without_reapplying_damage(self):
         from test_damage_archive import facts, observations, package
         from test_staticbundle import fixed_bundle

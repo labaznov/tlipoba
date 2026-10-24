@@ -54,6 +54,9 @@ def main(argv=None, *, archiver=None):
     if commands and commands[0] == "combat-upgrades":
         from .combatupgradecli import main as upgrading
         return upgrading(commands[1:])
+    if commands and commands[0] == 'conditional-combat':
+        from .conditionalcli import main as conditional
+        return conditional(commands[1:])
     if commands and commands[0] == "native-diff":
         from .wirediffcli import main as comparing
         return comparing(commands[1:])

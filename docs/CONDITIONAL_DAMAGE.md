@@ -44,3 +44,33 @@ check does not authorize the real corroded variant. Gate confirmations are calle
 assertions; the adapter does not detect a curse, infer uptime, read the game or
 turn an inclusive panel DPS into a raw baseline. Exact Carino DPS remains blocked
 while its material raw inputs and applicability evidence are unavailable.
+
+## Command using an automatic import
+
+```powershell
+python -m damage_lab conditional-combat --import local-reports/import/import.json --skill "gem[1]" --context examples/conditional-context.json --output local-reports/conditional
+```
+
+Use the selected gem alias from the automatic import. The command reads the
+imported record and its static ledger, then calls the existing input assembler.
+Damage pools, critical parameters, casting parameters and effective level are
+never taken from the context file or replaced with defaults. Missing groups stay
+null and keep the result blocked. If the selected skill has no supported raw
+context or the import has no static ledger, the command refuses the operation.
+
+The context contains only explicit combat choices and evidence: `format`,
+`topology`, `target`, `uptime`, `gates`, `missing`, `notes`, `condition` and
+`coverage`. Its format is `tli-conditional-combat-context-v1`. Extra fields such as
+`spell`, `ledger` or damage rolls are rejected. The example is illustrative;
+its unknown gates and unknown Cursed state are deliberate, not confirmations.
+
+The import file is limited to 4 MiB and the context to 1 MiB. Duplicate keys,
+nonfinite numbers, underflow, malformed JSON and invalid contracts are refused.
+Each input gets its own acquired SHA-256 and byte count. These hashes identify
+the bytes, not the current actor or freshness.
+
+A fresh output directory receives `conditional-combat.json` and an escaped
+`index.html`. The report distinguishes detected conditional inventory from rows
+actually applied by the calculation, and shows all blocking gaps. Existing output
+paths are not replaced. This command does not read the game, obtain market prices,
+infer an active curse or require manually entered character statistics.

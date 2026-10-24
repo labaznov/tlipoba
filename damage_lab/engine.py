@@ -17,7 +17,7 @@ def critical(chance, multiplier, *, lucky, more=0):
     bounded(chance, 0, 1, "Critical chance")
     bounded(multiplier, 0, 100, "Critical multiplier")
     bounded(more, -1, 100, "Critical-only more damage")
-    probability = 1 - (1 - chance) ** 2 if lucky else chance
+    probability = chance * (2 - chance) if lucky else chance
     return (1 - probability) + product((probability, multiplier, 1 + more), name="Critical damage")
 
 

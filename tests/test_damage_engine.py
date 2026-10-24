@@ -74,6 +74,9 @@ class DamageEngineTests(unittest.TestCase):
     def test_lucky_critical_strike_uses_two_rolls(self):
         self.assertAlmostEqual(critical(0.37, 4.2, lucky=True), 2.92992)
 
+    def test_lucky_preserves_a_tiny_positive_chance_in_the_damage_expectation(self):
+        self.assertEqual(critical(1e-17, 100, lucky=True, more=100), 1.000000000000202)
+
     def test_extra_attachments_do_not_create_extra_tangles(self):
         self.assertEqual(topology(3, 2, 3, 7, 0.2), {"attached": 3, "shotgun": 2.2, "factor": 6.6})
 

@@ -248,6 +248,13 @@ class RawSpellTests(unittest.TestCase):
         document["critical"]["lucky"] = True
         self.assertAlmostEqual(evaluate(document)["critical_factor"], 2.1375)
 
+    def test_lucky_cannot_lower_the_expected_hit_for_a_tiny_positive_critical_chance(self):
+        document = scenario()
+        document["critical"].update(chance=1e-17, multiplier=100, more=100)
+        baseline = evaluate(document)["expected_hit"]
+        document["critical"]["lucky"] = True
+        self.assertGreater(evaluate(document)["expected_hit"], baseline)
+
     def test_cast_speed_uses_base_interval_and_complete_additional_pool(self):
         document = scenario()
         document["casting"]["more"] = [modifier("first", "speed", .2), modifier("second", "speed", .3)]

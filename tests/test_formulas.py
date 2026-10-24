@@ -1,10 +1,51 @@
 """Synthetic examples for explicitly selected combat arithmetic."""
 
 import unittest
+from fractions import Fraction
 
 
 class FormulasTests(unittest.TestCase):
     """Verify public formula contracts with independent numeric examples."""
+
+    def test_additional_preserves_a_positive_pool_after_baseline_cancellation(self):
+        from damage_lab.formulas import additional
+
+        self.assertEqual(additional([
+            {"id": "wand", "affix": "spell", "value": 1e-17, "stacks": 1, "mode": "add"},
+            {"id": "ring", "affix": "spell", "value": -1, "stacks": 1, "mode": "add"},
+        ]), 1e-17)
+
+    def test_additional_pool_overflow_is_a_value_error(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "finite"):
+            additional([
+                {"id": "wand", "affix": "spell", "value": 1e308, "stacks": 1, "mode": "add"},
+                {"id": "ring", "affix": "spell", "value": 1e308, "stacks": 1, "mode": "add"},
+            ])
+
+    def test_additional_stack_product_overflow_is_a_value_error(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "finite"):
+            additional([
+                {"id": "wand", "affix": "spell", "value": 1e308, "stacks": 2, "mode": "add"},
+            ])
+
+    def test_additional_preserves_an_exact_fractional_pool(self):
+        from damage_lab.formulas import additional
+
+        self.assertEqual(additional([
+            {"id": "wand", "affix": "spell", "value": -1 + Fraction(1, 2 ** 1000), "stacks": 1, "mode": "add"},
+        ]), float(Fraction(1, 2 ** 1000)))
+
+    def test_positive_fractional_pool_cannot_underflow_to_zero(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "underflow"):
+            additional([
+                {"id": "wand", "affix": "spell", "value": -1 + Fraction(1, 2 ** 2000), "stacks": 1, "mode": "add"},
+            ])
 
     def test_positive_additional_power_cannot_underflow_to_zero(self):
         from damage_lab.formulas import additional

@@ -15,6 +15,10 @@ class DamageEngineTests(unittest.TestCase):
         self.assertEqual(cold(0, 0, 43, 1, 1e-17, 0, -1, []),
                          float(43 * Fraction.from_float(1e-17)))
 
+    def test_converted_hit_preserves_an_exact_fractional_pool(self):
+        self.assertEqual(cold(37, 0, 0, 1, -1 + Fraction(1, 2 ** 1000), 0, 0, []),
+                         float(Fraction(37, 2 ** 1000)))
+
     def test_observed_spell_burst_counts_do_not_change_conditional_arithmetic(self):
         panel = {"spell_dps": 379, "hit_min": 119, "hit_max": 237, "cast_rate": 1.3,
                  "crit_chance": .2, "crit_multiplier": 3, "max_tangles": 2,

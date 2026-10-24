@@ -2,6 +2,7 @@
 
 import math
 import operator
+from fractions import Fraction
 
 
 def _finite(value, name):
@@ -38,7 +39,7 @@ def product(values, *, name="Product"):
 
 
 def additional(rows):
-    """Pool supplied additional fractions by explicit affix identity."""
+    """Pool additional fractions by affix, retaining exact additive sums until multiplication."""
     pools = {}
     identities = set()
     modes = {}
@@ -78,8 +79,12 @@ def additional(rows):
                 raise ValueError("Additional power cannot underflow to zero")
             result = product((result, power), name="Additional product")
         else:
-            pools[row["affix"]] = pools.get(row["affix"], 0) + row["value"] * row["stacks"]
-    return product((result, *(_factor(1 + value) for value in pools.values())), name="Additional product")
+            pools.setdefault(row["affix"], []).append(row["value"] * row["stacks"])
+    try:
+        return product((result, *(_factor(sum(map(Fraction, (1, *terms)))) for terms in pools.values())),
+                       name="Additional product")
+    except OverflowError:
+        raise ValueError("Additional product must be finite") from None
 
 
 def tangle_rate(rate, frequency=None):

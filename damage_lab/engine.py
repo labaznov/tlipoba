@@ -1,6 +1,7 @@
 """Pure damage arithmetic; all combat conditions are explicit inputs."""
 
 import math
+from fractions import Fraction
 
 from .formulas import additional, product
 
@@ -37,7 +38,10 @@ def topology(maximum, extra, active, hits, retention):
 
 
 def cold(base, physical, flat, effectiveness, increased, origin, destination, modifiers):
-    """Calculate one noncritical hit after complete Physical to Cold conversion."""
+    """Calculate one noncritical hit after complete Physical to Cold conversion.
+
+    Keep scope sums exact through clamping so Fraction inputs retain their residuals.
+    """
     for name, value in (("Base damage", base), ("Added physical damage", physical),
                         ("Added cold damage", flat), ("Added effectiveness", effectiveness)):
         bounded(value, 0, 1e15, name)
@@ -62,8 +66,8 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
     converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])
     native_factor = additional(pools["all"] + pools["cold"])
     converted = product((base + product((physical, effectiveness), name="Added physical hit"),
-                         max(0, math.fsum((1, increased, origin, destination)))), name="Converted hit")
-    native = product((flat, effectiveness, max(0, math.fsum((1, increased, destination)))), name="Native Cold hit")
+                         max(0, sum(map(Fraction, (1, increased, origin, destination))))), name="Converted hit")
+    native = product((flat, effectiveness, max(0, sum(map(Fraction, (1, increased, destination))))), name="Native Cold hit")
     result = product((converted, converted_factor), name="Cold hit") + product((native, native_factor), name="Cold hit")
     if not math.isfinite(result):
         raise ValueError("Cold hit must be finite")

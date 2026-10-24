@@ -62,8 +62,8 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
     converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])
     native_factor = additional(pools["all"] + pools["cold"])
     converted = product((base + product((physical, effectiveness), name="Added physical hit"),
-                         max(0, 1 + increased + origin + destination)), name="Converted hit")
-    native = product((flat, effectiveness, max(0, 1 + increased + destination)), name="Native Cold hit")
+                         max(0, math.fsum((1, increased, origin, destination)))), name="Converted hit")
+    native = product((flat, effectiveness, max(0, math.fsum((1, increased, destination)))), name="Native Cold hit")
     result = product((converted, converted_factor), name="Cold hit") + product((native, native_factor), name="Cold hit")
     if not math.isfinite(result):
         raise ValueError("Cold hit must be finite")

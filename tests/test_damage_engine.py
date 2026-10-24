@@ -1,10 +1,19 @@
 import unittest
+from fractions import Fraction
 
 from damage_lab.engine import calculate, cold, critical, topology
 
 
 class DamageEngineTests(unittest.TestCase):
     """Check damage expectations against independently calculated examples."""
+
+    def test_converted_hit_preserves_a_positive_pool_after_baseline_cancellation(self):
+        self.assertEqual(cold(37, 0, 0, 1, 1e-17, -1, 0, []),
+                         float(37 * Fraction.from_float(1e-17)))
+
+    def test_native_cold_hit_preserves_a_positive_pool_after_baseline_cancellation(self):
+        self.assertEqual(cold(0, 0, 43, 1, 1e-17, 0, -1, []),
+                         float(43 * Fraction.from_float(1e-17)))
 
     def test_observed_spell_burst_counts_do_not_change_conditional_arithmetic(self):
         panel = {"spell_dps": 379, "hit_min": 119, "hit_max": 237, "cast_rate": 1.3,

@@ -34,8 +34,13 @@ DOMAINS = {
     "influence": ("talentBlockInfluence", {"effect_talents": "value.EffectTalentIds.#", "devoured": "value.TalentIdDevour.#",
                   "influenced_talents": "value.TalentIdInfluence.#"}),
     "pacts": ("ContractInfosV2.ContractDatas", {"area_id": "areaId", "servant_id": "servantId"}),
-    "skill_layout": ("skillLayout.slots", None), "skill_items": ("skills.skills", None),
-    "dressed_skill_items": ("bag.dressSkillItems", None), "pact_points": ("ContractInfosV2.pointDatas", None),
+    "skill_layout": ("skillLayout.slots", None),
+    "skill_items": ("skills.skills", {"base_id": "BaseId", "level": "Level",
+                    "skill_item_level": "SkillItemLevel", "rarity": "RareValue"}),
+    "dressed_skill_items": ("bag.dressSkillItems", {"page_id": "PageId", "index": "Index",
+                            "base_id": "Item.BaseId", "level": "Item.Level",
+                            "skill_item_level": "Item.SkillItemLevel", "rarity": "Item.RareValue"}),
+    "pact_points": ("ContractInfosV2.pointDatas", None),
     "pact_roster": ("ServantInfos.servantData", None), "talents": ("geniusInfos", None), "stats": ("attrInfo", None),
     "season": ("SP3Base.TalentTree", None)}
 

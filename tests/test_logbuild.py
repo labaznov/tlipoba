@@ -28,6 +28,13 @@ def document(entries=None):
                         "header_trailing_space": False, "tree": tree}], "rejected": []}
 
 
+def skill_document(items, dressed):
+    """Build a synthetic candidate with independently printed skill collections."""
+    return document([("bag", [("wearItems", None), ("dressSkillItems", dressed)]),
+                     ("heroCharacterv3OverView", None), ("skillLayout", None),
+                     ("skills", [("skills", items)])])
+
+
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
 
@@ -37,6 +44,107 @@ class LogBuildTest(unittest.TestCase):
         self.assertEqual((row["alias"], row["fields"]["page_id"]["values"][0]["text"],
                           row["fields"]["prefix_args"]["values"][0]["text"], row["conditions"], result["import_complete"]),
                          ("equipment[0]", "007", "11.50", {"condition": "not_printed", "filter": "not_printed", "behavior": "not_printed"}, False))
+
+    def test_printed_skill_levels_remain_distinct_lexical_fields(self):
+        data = skill_document([("1", [("BaseId", "8153"), ("Level", "019"),
+                                       ("SkillItemLevel", "6"), ("RareValue", "03")])], None)
+        rows = project(data, 0, "a" * 64)["domains"]["skill_items"]["rows"]
+        self.assertEqual([{field: [(value["text"], value["class"]) for value in result["values"]]
+                           for field, result in row["fields"].items()} for row in rows],
+                         [{"base_id": [("8153", "int")], "level": [("019", "text")],
+                           "skill_item_level": [("6", "int")], "rarity": [("03", "text")]}])
+
+    def test_dressed_skills_keep_slot_and_nested_lexical_fields(self):
+        data = skill_document(None, [("1", [("PageId", "003"), ("Index", "02"),
+            ("Item", [("BaseId", "8153"), ("Level", "019"), ("SkillItemLevel", "6"), ("RareValue", "4")])])])
+        rows = project(data, 0, "a" * 64)["domains"]["dressed_skill_items"]["rows"]
+        self.assertEqual([{field: [value["text"] for value in result["values"]]
+                           for field, result in row["fields"].items()} for row in rows],
+                         [{"page_id": ["003"], "index": ["02"], "base_id": ["8153"],
+                           "level": ["019"], "skill_item_level": ["6"], "rarity": ["4"]}])
+
+    def test_skill_collections_strip_identifiers_and_unapproved_fields(self):
+        fields = [("Id", "PRIVATECANARY"), ("key", "PRIVATECANARY"), ("Lock", "PRIVATECANARY"),
+                  ("Exp", "PRIVATECANARY"), ("DropSource", "PRIVATECANARY"), ("Other", "PRIVATECANARY")]
+        data = skill_document([("1", [("BaseId", "8153"), *fields])],
+                              [("1", [("PageId", "3"), *fields, ("Item", [("BaseId", "8153"), *fields])])])
+        self.assertNotIn("PRIVATECANARY", json.dumps(project(data, 0, "a" * 64)))
+
+    def test_an_unprinted_skill_field_keeps_its_missing_path(self):
+        data = skill_document([("1", [("Level", "019"), ("Other", "ignored")])], None)
+        self.assertEqual(project(data, 0, "a" * 64)["domains"]["skill_items"]["rows"][0]["fields"]["skill_item_level"],
+                         {"status": "not_printed", "values": [], "missing_paths": [["skills", "skills", "1", "SkillItemLevel"]],
+                          "elided_paths": [], "empty_paths": []})
+
+    def test_an_empty_printed_skill_field_does_not_become_a_number(self):
+        data = skill_document([("1", [("SkillItemLevel", None)])], None)
+        self.assertEqual(project(data, 0, "a" * 64)["domains"]["skill_items"]["rows"][0]["fields"]["skill_item_level"],
+                         {"status": "complete", "values": [], "missing_paths": [], "elided_paths": [],
+                          "empty_paths": [["skills", "skills", "1", "SkillItemLevel"]]})
+
+    def test_skill_collections_do_not_fill_each_others_missing_levels(self):
+        data = skill_document([("1", [("BaseId", "8153"), ("Level", "019")])],
+                              [("1", [("Item", [("BaseId", "8153"), ("SkillItemLevel", "6")])])])
+        result = project(data, 0, "a" * 64)["domains"]
+        self.assertEqual((result["skill_items"]["rows"][0]["fields"]["skill_item_level"]["status"],
+                          result["dressed_skill_items"]["rows"][0]["fields"]["level"]["status"]),
+                         ("not_printed", "not_printed"))
+
+    def test_skill_item_elision_retains_thirty_visible_rows_without_a_total(self):
+        entries = [(str(index), [("Level", str(index))]) for index in range(1, 31)] + [("31", ELIDED)]
+        result = project(skill_document(entries, None), 0, "a" * 64)["domains"]["skill_items"]
+        self.assertEqual((result["status"], result["visible_entries"], result["total_entries"], len(result["rows"]),
+                          result["rows"][0]["fields"]["level"]["values"][0]["text"],
+                          result["rows"][-1]["path"], result["rows"][-1]["fields"]["level"]["values"][0]["text"],
+                          result["gaps"]),
+                         ("elided", 30, None, 30, "1", ["skills", "skills", "30"], "30",
+                          [{"path": ["skills", "skills"], "reason": "subtree_elided"}]))
+
+    def test_dressed_skill_elision_retains_thirty_visible_rows_without_a_total(self):
+        entries = [(str(index), [("Item", [("Level", str(index))])]) for index in range(1, 31)] + [("31", ELIDED)]
+        result = project(skill_document(None, entries), 0, "a" * 64)["domains"]["dressed_skill_items"]
+        self.assertEqual((result["status"], result["visible_entries"], result["total_entries"], len(result["rows"]),
+                          result["rows"][0]["fields"]["level"]["values"][0]["text"],
+                          result["rows"][-1]["path"], result["rows"][-1]["fields"]["level"]["values"][0]["text"],
+                          result["gaps"]),
+                         ("elided", 30, None, 30, "1", ["bag", "dressSkillItems", "30"], "30",
+                          [{"path": ["bag", "dressSkillItems"], "reason": "subtree_elided"}]))
+
+    def test_missing_skill_collections_do_not_fabricate_rows(self):
+        result = project(document(), 0, "a" * 64)["domains"]
+        self.assertEqual([(result[name]["status"], result[name]["rows"])
+                          for name in ("skill_items", "dressed_skill_items")],
+                         [("not_printed", []), ("not_printed", [])])
+
+    def test_empty_skill_collections_do_not_fabricate_rows(self):
+        result = project(skill_document(None, None), 0, "a" * 64)["domains"]
+        self.assertEqual([(result[name]["status"], result[name]["rows"], result[name]["gaps"][0]["reason"])
+                          for name in ("skill_items", "dressed_skill_items")],
+                         [("complete", [], "empty_container_type_unknown"), ("complete", [], "empty_container_type_unknown")])
+
+    def test_wholly_elided_skill_collections_do_not_fabricate_rows(self):
+        entries = [("bag", [("wearItems", None)] + tables(29) + [("dressSkillItems", ELIDED)]),
+                   ("skills", tables(30) + [("skills", ELIDED)]),
+                   ("heroCharacterv3OverView", None), ("skillLayout", None)]
+        result = project(document(entries), 0, "a" * 64)["domains"]
+        self.assertEqual([(result[name]["status"], result[name]["rows"])
+                          for name in ("skill_items", "dressed_skill_items")], [("elided", []), ("elided", [])])
+
+    def test_skill_items_cannot_use_a_nonarray_container(self):
+        with self.assertRaises(ValueError):
+            project(skill_document([("wrong", [("Level", "019")])], None), 0, "a" * 64)
+
+    def test_dressed_skill_items_cannot_use_a_nonarray_container(self):
+        with self.assertRaises(ValueError):
+            project(skill_document(None, [("wrong", [("Item", [("Level", "019")])])]), 0, "a" * 64)
+
+    def test_skill_facts_do_not_promote_the_snapshot_or_change_diagnostic_domains(self):
+        result = project(skill_document([("1", [("Level", "019")])], None), 0, "a" * 64)
+        self.assertEqual((result["format"], result["counts"]["domains"], result["scope"], result["import_complete"],
+                          result["identity"], result["runtime"], result["freshness"], result["selected_skill"],
+                          result["build_code"], result["domains"]["skill_layout"]["rows"], result["domains"]["stats"]["rows"]),
+                         ("tli-log-build-domains-v1", 14, "printed_subtree_only", False,
+                          "unknown", "unknown", "unknown", "unknown", "unknown", [], []))
 
     def test_envelope_source_index_and_candidate_context_are_validated(self):
         for field, value in (("format", "other"), ("version", "0.1.1"), ("scope", "whole_build"),

@@ -11,12 +11,38 @@ Build an independent local Torchlight Infinite planner, inspired by the capabili
 - Never edit a file owned by an active agent; coordinate scope changes explicitly
 - On ambiguity, state the interpretation and resolve material unknowns; do not hide assumptions
 
+## Local resource budget
+
+The owner reported severe slowdown and rebooted after accumulated worker processes. Keep parallel reasoning within this shared Windows budget
+
+- Use the coordinator, one Claude queue worker and at most one Codex subagent at a time; do not nest delegation
+- Run at most one heavy local job across both repositories: a test suite, capture, catalog scan, bulk download or build
+- The coordinator owns this shared slot and explicitly assigns it in the helper task before launch, including previously queued work; unassigned tasks may only do small scoped reads or edits
+- While an assigned job runs, the coordinator edits or reads small scoped files instead of starting another heavy job
+- Reuse returned terminal session IDs and existing verified watchers/servers; do not start replacement loops or servers while an earlier instance may still run
+- Keep commands in the foreground with bounded timeouts; account for owned children when a command fails or times out
+- Before starting and after finishing a long job, check that its owned processes ended; identify them by PID, start time and task ownership, never just an image name
+- Never kill all Python, Node, shell or Claude processes; preserve unrelated applications and needed helper sessions
+- Hash only the task's declared inputs and outputs; do not recursively inventory historical captures, catalogs, caches or Git objects for routine edits
+- If the owner reports slowdown or workers accumulate, stop launching jobs and inspect ownership before continuing
+
+## Game experiment windows
+
+- Control the game UI only during a user-authorized window when the owner is not playing; input inactivity alone is not authorization
+- The owner permits passive read-only memory acquisition while playing; keep it bounded within the shared resource budget and never take mouse or keyboard focus
+- Prefer saved inputs for development; a new passive scan must answer a concrete missing-data question rather than run continuously
+- Map character/build roots, field types, links and relocation/validation rules; do not treat a cached address or completed reads as proof of global uniqueness or an atomic live snapshot
+- Start with read-only navigation and stat acquisition; reversible build changes need a saved baseline, one changed variable and verified restoration
+- Pause on user return, focus loss, ambiguity or unexpected dialogs; record incomplete restoration instead of silently assuming success
+- Do not buy, sell, craft, spend currency or delete items as part of a routine experiment
+- Use ordinary UI and the existing read-only exporter; do not write to game memory
+
 ## External Claude helper
 
 The user provides Claude Code Opus 5.5 Extra through the file queue in the separate exporter repository. The protocol is `C:/Repos/tli-build-exporter/handoff/README.md`; read it before first use and follow its exact templates and permission boundaries.
 
 - Before substantial work, check the modification time of `C:/Repos/tli-build-exporter/handoff/.claude-alive`
-- When the heartbeat is no older than 2 minutes, actively delegate as much useful independent work as possible, including difficult research, implementation, diagnosis and review
+- When the heartbeat is no older than 2 minutes, delegate useful independent work, including difficult research, implementation, diagnosis and review, within the local resource budget
 - Supply complete tasks with exact paths, context, expected outputs, ownership and verification commands
 - Keep ready independent tasks queued when useful; the external watcher processes its queue serially, so order tasks by dependency and priority
 - Continue local work while Claude runs; read reports at dependency boundaries and verify their claims
@@ -36,9 +62,11 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Implementation and tests
 
+- Run checks locally on the user's Windows machine; do not configure or trigger GitHub Actions runners or Linux/macOS checks unless the user changes this preference
+- Run `python scripts/test.py` once with the configured Python executable for the full local test suite; it invokes `python -m unittest discover -s tests -v`, so do not repeat discovery separately without a new change or failure
 - Use Python 3.13 or newer and the standard library unless a dependency is justified and authorized
 - Follow TDD for functional changes: first demonstrate the behavior with a failing test, then implement the smallest passing change
-- Run `python -m unittest discover -s tests -v` before reporting a functional change complete
+- Complete that full suite before reporting a functional change complete; do not install a self-hosted runner service as a substitute
 - Keep tests deterministic and independent of the game, Internet and user exports; use synthetic inputs and temporary directories
 - Map test files to feature files, keep each test focused on one behavior, and prefer short tests with one assertion
 - Prefer fakes over mocks and real temporary filesystem inputs over filesystem mocking
@@ -48,10 +76,17 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Calculation integrity
 
+- Automatic import is a product requirement: acquire the complete build and available stats through a verified game API, build export or local read-only game adapter
+- Never make screenshots or manually transcribed character values a required player workflow; optional development evidence does not replace an importer
+- Treat missing hero ranks, rolls and stats as importer coverage gaps to investigate; do not declare the feature complete by asking players to fill them in
+- Investigate code/ID import first and verify the actual endpoint contract; do not invent server routes or send real build codes to unrelated services
+
 - Separate observed character values, source facts and scenario assumptions
 - Keep season, source URL and verification date with facts; preserve conflicting evidence instead of silently choosing it
 - Unknown mappings or mechanics must produce an explicit omission, conditional result or error
 - Never fabricate rolls, identifiers, skill levels, combat rotations, effect uptime or unsupported formula semantics
+- Resolve skill values from the exact level/rank table and verified parameter bindings; rendered descriptions can contain level-one or stale numbers
+- Parse catalog rational cells as numbers without evaluating expressions; preserve unresolved levels and flat progression tails as explicit gaps
 - Do not apply item or support multipliers again when a panel aggregate already includes them
 - Never fit a hidden coefficient to reproduce a benchmark; measurements validate the model
 - Show modifier coverage and a calculation trace; do not claim exact total DPS while material effects remain unsupported

@@ -1,0 +1,1083 @@
+{
+  "format": "tli-help-review-chunk-v1",
+  "checkedAt": "2026-10-21T20:50:19+00:00",
+  "source": "https://tlidb.com/en/Help (Help_Handbook positions 1-24)",
+  "sourceClassification": "unofficial-game-help-datamine-mirror; client/version correspondence not verified",
+  "articles": [
+    {
+      "url": "https://tlidb.com/en/Character_Build",
+      "title": "Character Build - Life - Help",
+      "positions": [
+        1
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Character Build - Life - Help",
+        "Character Build - Life Regeneration Speed - Help",
+        "Character Build - Life Regain - Help",
+        "Character Build - Life Instant Restoration - Help",
+        "Character Build - Energy Shield - Help",
+        "Character Build - Energy Shield Charge - Help",
+        "Character Build - Energy Shield Regain - Help",
+        "Character Build - Energy Shield Instant Restoration - Help",
+        "Character Build - Mana - Help",
+        "Character Build - Mana Regeneration Speed - Help",
+        "Character Build - Mana Instant Restoration - Help",
+        "Character Build - Resistance - Help",
+        "Character Build - Effective Resistance - Help",
+        "Character Build - Resistance Penetration - Help",
+        "Character Build - Ignore Resistance - Help",
+        "Character Build - Armor - Help",
+        "Character Build - Evade - Help",
+        "Character Build - Block - Help",
+        "Character Build - Chance to Avoid Damage - Help",
+        "Character Build - Damage Mitigation - Help",
+        "Character Build - Injury Buffer - Help",
+        "Character Build - Damage Conversion - Help",
+        "Character Build - Tenacity Blessing - Help",
+        "Character Build - Agility Blessing - Help",
+        "Character Build - Focus Blessing - Help",
+        "Character Build - Fervor - Help",
+        "Character Build - Barrier - Help",
+        "Character Build - Blur - Help",
+        "Character Build - Focus - Help",
+        "Character Build - Hardened - Help",
+        "Character Build - Paralysis - Help",
+        "Character Build - Slow - Help",
+        "Character Build - Damage Form - Help",
+        "Character Build - Hit Damage - Help",
+        "Character Build - Damage Over Time - Help",
+        "Character Build - Secondary Damage - Help",
+        "Character Build - Damage Type - Help",
+        "Character Build - Damage Calculation - Help",
+        "Character Build - Attack Speed - Help",
+        "Character Build - Cast Speed - Help",
+        "Character Build - Critical Strike - Help",
+        "Character Build - Damage Conversion - Help",
+        "Character Build - Resistance Penetration - Help",
+        "Character Build - Double Damage - Help",
+        "Character Build - Amplified Damage Over Time - Help",
+        "Character Build - Damage Over Time Reaping - Help",
+        "Character Build - Ailments - Help",
+        "Character Build - Ailment Damage - Help",
+        "Character Build - Ailment Determination - Help",
+        "Character Build - Ignite - Help",
+        "Character Build - Frostbite and Freeze - Help",
+        "Character Build - Shock - Help",
+        "Character Build - Trauma - Help",
+        "Character Build - Wilt - Help",
+        "Character Build - Spell Burst - Help",
+        "Character Build - Multistrike - Help",
+        "Character Build - Command - Help",
+        "Character Build - Growth - Help"
+      ],
+      "summary": "58-card stat primer: life, shield, mana, resistances, defenses, buffs, statuses, damage forms, ailments, Spell Burst, Multistrike, Command, Growth.",
+      "findings": [
+        "Resistance cap 75%, raisable to 95%; every resistance loses 20% at Lv.48, 58 and 80.",
+        "Armor reduction tops out at 80%; non-physical gets 60% of it.",
+        "Evasion rate clamped 0-75%; hero hits never miss monsters.",
+        "Block chance cap 100%; block ratio 35% base, 75% max; mitigation per source caps at 90%.",
+        "Attack and cast speed each cap at 30 per second."
+      ],
+      "unknowns": [
+        "No patch/version stated; correspondence to the current client is unverified.",
+        "Affliction card is self-contradictory: +1% DoT taken per point with a 100-point cap, yet a 50% ceiling at 100 points.",
+        "Spell evasion 'drops by an additional 40%': multiplicative (x0.6) or flat points is not stated.",
+        "Life/Mana base lines do not say whether the per-level term counts level 1, nor how flat gains order against % bonuses.",
+        "Critical-chance formula divides rating by 100 without stating the unit (percent vs fraction).",
+        "Multistrike per-attack increment: additive or compounding is not stated.",
+        "Command decay wording (13/s, +7/s per 10 Command) is ambiguous about step boundaries.",
+        "Resistance Penetration and Damage Conversion each appear twice (defender and attacker views); the Mana card carries an orphan heading about Max Energy Shield rules with no content.",
+        "Monster accuracy ceiling stated as 1,247 here; the Monster page attr tab tops out at 680 'hit', relationship unresolved."
+      ],
+      "formulas": [
+        {
+          "expression": "maxLifeFlat = 50 + 13*levelsGained + 0.2*STR",
+          "domain": "hero Max Life before % and additional % bonuses",
+          "assumptions": [
+            "Combined from three separate statements",
+            "levelsGained = level - 1 is an interpretation",
+            "Ordering versus Max Life % / additional % not stated"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "maxManaFlat = 40 + 5*levelsGained + 0.5*INT",
+          "domain": "hero Max Mana before % bonuses",
+          "assumptions": [
+            "Combined from three separate statements",
+            "Same level-term interpretation as Max Life"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "armorDR = min(0.80, A / (0.9*A + 30000)); armorDR_nonPhysical = 0.6 * armorDR",
+          "domain": "hero Armor damage reduction vs Hit/Secondary/Reflect",
+          "assumptions": [
+            "Whether the 0.6 factor applies before or after the 80% cap is not stated",
+            "Double Armor uses 2*A in this formula only"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "evasionRate = clamp(1 - 1.15*acc / (acc + 0.5*eva^0.75), 0, 0.75)",
+          "domain": "chance to evade a hit",
+          "assumptions": [
+            "acc = attacker Accuracy, eva = defender Evasion",
+            "Spell hits reduce evasion by an extra 40% (form unresolved)",
+            "Monster accuracy max 1,247"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "final = base * (1 + sum(increased)/100) * prod(1 + more_i/100)",
+          "domain": "damage, attack speed, cast speed, critical strike rating",
+          "assumptions": [
+            "'more' = each 'additional' bonus multiplies separately"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "attackSpeed = weaponAPS * multipliers (cap 30/s); castSpeed = (1/baseCastInterval) * multipliers (cap 30/s)",
+          "domain": "action rate",
+          "assumptions": [
+            "Dual wield weaponAPS = mean of both weapons",
+            "Some mobility attacks get an undocumented downward correction at high bonuses"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "critChance = finalCritRating / 100",
+          "domain": "hit critical chance",
+          "assumptions": [
+            "Result unit (percent vs fraction) not stated; base rating from weapon for attacks, from the spell for spells"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "effectiveRes = min(currentRes, maxRes); maxRes = 75 (+Max Resistance %, up to 95)",
+          "domain": "hero resistances",
+          "assumptions": [
+            "Penetration is subtracted from defender's effective resistance during damage calc without changing the stat"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "damageTakenFactor = prod_i(1 - min(m_i, 0.90))",
+          "domain": "independent damage mitigation sources",
+          "assumptions": [
+            "Each source capped at 90% per the page; product form follows from 'multiplies independently'"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "dotTakenBonus = afflictionPoints * 1% (points <= 100) vs stated max 50% at 100",
+          "domain": "Affliction",
+          "assumptions": [
+            "Page states both; cannot both hold unless a 0.5 factor or different cap applies"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "extraAttacks = floor(c) + Bernoulli(c - floor(c)), c = multistrikeChance/100%",
+          "domain": "Multistrike count",
+          "assumptions": [
+            "Derived from the >100% and <100% statements",
+            "During Multistrike +20% attack speed by default"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "attack k damage gets (k-1) * increment * (1 + incrementBonus)",
+          "domain": "Multistrike damage ramp",
+          "assumptions": [
+            "Additive vs multiplicative application not stated"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "tenacity DR = 4%*stacks; agility speed = 6%*stacks; focus double-damage chance = 4%*stacks; base max 4 stacks, 10 s",
+          "domain": "blessings",
+          "assumptions": [
+            "At 4 stacks: 16% DR, 24% speed, 16% double-damage chance (computed)"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "fervorCritRating = +2% * fervorPoints, fervorPoints <= 100 (max +200%)",
+          "domain": "Fervor",
+          "assumptions": [
+            "+1 point per hit on an Elite while active; max computed"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "blur: evasion% and avoidance% = +0.3% * blurPoints, blurPoints <= 100 (max +30% each)",
+          "domain": "Blur",
+          "assumptions": [
+            "After reaching 100, loses 10 points per second (10% of max)"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "frostbiteRating += 2 per 0.2% of (maxLife + maxES) removed by the cold hit; freeze 0.2 s when rating > 100; effect and freeze duration +1% per rating",
+          "domain": "Frostbite/Freeze",
+          "assumptions": [
+            "Legendary bosses generally freeze-immune with a capped rating"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "baseShockDamage = 3% of lightning hit damage; <= 12 triggers per shock; 1 effective stack (highest)",
+          "domain": "Shock",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "barrier = 0.20 * (maxLife + maxES), base absorption 50%, 10 s",
+          "domain": "Barrier",
+          "assumptions": [
+            "Meaning of 'absorption 50%' (share of each hit absorbed) is an interpretation"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "lifeRegain/esRegain <= 30% of max per hit, base interval 0.5 s; ES charge 20%/s after 2 s without damage",
+          "domain": "recovery",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "growthStage = min(5, floor(growth/100)); per stage +5% physique, +10% additional skill area",
+          "domain": "Spirit Magus Growth",
+          "assumptions": [
+            "Stage mapping computed from 100 Growth per stage starting at Stage 1 = 100"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "commandDamage = +2% * max(0, command), command in [-100, 100]",
+          "domain": "Synthetic Troop minions",
+          "assumptions": [
+            "Decay toward 0: 13 per second, +7 per second per 10 Command (step rule ambiguous)"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Skill",
+      "title": "Skill - Support Skill - Help",
+      "positions": [
+        2,
+        25
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Skill - Path of Progression /48 [data tab]",
+        "Skill - Support Skill - Help",
+        "Skill - Distribute Energy - Help",
+        "Skill - Passive - Help",
+        "Skill - Sealed Mana|Life - Help",
+        "Skill - Aura - Help",
+        "Skill - Curse - Help",
+        "Skill - Empower - Help",
+        "Skill - Triggered - Help",
+        "Skill - Cast Skill - Help",
+        "Skill - Help"
+      ],
+      "summary": "Two Help tabs: nine support-skill cards (energy, passives, sealing, auras, curses, empower, triggers, casting) and a general skill-slot rule list; position 25 is that second tab.",
+      "findings": [
+        "An active skill takes at most 5 supports.",
+        "Energy from levels and non-trinket gear unlocks slots; each tab's first slot opens itself at the energy cap.",
+        "One curse per monster unless gear or talents lift it.",
+        "Sealing reserves mana or life without lowering the maximum.",
+        "Equipping two identical skills: only one works."
+      ],
+      "unknowns": [
+        "No energy amounts, slot costs or seal percentages given.",
+        "How Mana Cost Multiplier and Sealed Mana % combine is not explained.",
+        "Path of Progression /48 tab is a reward data list, not Help text.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "supportLinks(activeSkill) <= 5",
+          "domain": "skill linking",
+          "assumptions": [
+            "More links require spending energy"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Talent",
+      "title": "Talent - Help",
+      "positions": [
+        3
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Profession /32 [data tab]",
+        "Core Talent Node /163 [data tab]",
+        "Talent /1236 [data tab]",
+        "Talent - Help",
+        "Core Talent Node - Help",
+        "Talents - Help"
+      ],
+      "summary": "Three data tabs (professions, core nodes, talents) plus two Help tabs on talent points, node kinds, panel selection and resets.",
+      "findings": [
+        "Four panels: first from six basic, second from that basic's four advanced, last two unrestricted.",
+        "One point per level, plus key quests or Hunter's Forge.",
+        "A core slot opens after enough nodes in that panel; the active core is switchable anytime.",
+        "Resets are free before Lv.80 per one card, before Lv.90 per the other; Elixir of Oblivion supplies Oblivion Points."
+      ],
+      "unknowns": [
+        "Free-reset level conflicts (80 vs 90) between the two Help tabs.",
+        "Node taxonomy differs: Micro/Medium/Lv.1 Core/Lv.2 Core vs Minor/Medium/Legendary Medium/Core.",
+        "Point thresholds for core slots and total point counts are not given.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "talentPoints = 1*level + questBonus (+ Hunter's Forge)",
+          "domain": "talent point income",
+          "assumptions": [
+            "Quest and Hunter's Forge amounts not given"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "resetCost = 0 below level L, L in {80, 90}",
+          "domain": "talent reset",
+          "assumptions": [
+            "Two cards disagree on L"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Core_Talent_Node",
+      "title": "Core Talent Node - Help",
+      "positions": [
+        4
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Core Talent Node - Help"
+      ],
+      "summary": "Single short card; same text as the core-node card on the Talent page.",
+      "findings": [
+        "Activation needs enough points invested in its own panel; the chosen core can be swapped at any time."
+      ],
+      "unknowns": [
+        "Required point threshold not given.",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "import",
+        "dps"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hero_Trait",
+      "title": "Hero Trait - Help",
+      "positions": [
+        5
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Hero Trait - Help"
+      ],
+      "summary": "One short card: traits set a hero's fighting style; branches open by level, and clicking a trait icon fires its special ability.",
+      "findings": [
+        "Branch choice is gated by level requirements."
+      ],
+      "unknowns": [
+        "No level thresholds, trait ranks, trait-level scaling or +Hero Trait Level rules are given.",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "trait_rank",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Reward",
+      "title": "Reward - Help",
+      "positions": [
+        6
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Reward - Help"
+      ],
+      "summary": "One card: rewards differ by map and mode and fall into five rarity tiers.",
+      "findings": [
+        "Tier order, lowest first: Common, Fine, Precious, Rare, Ultimate."
+      ],
+      "unknowns": [
+        "No drop rates, quantities, multipliers or tier-selection rules.",
+        "Fourth tier is 'Rare' here but 'Matchless' in the Gear page's Legendary rarity list.",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Gear",
+      "title": "Gear - Item Level - Help",
+      "positions": [
+        7
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Gear - Path of Progression /54 [data tab]",
+        "Gear - Item Level - Help",
+        "Gear - Affix Tier - Help",
+        "Gear - Energy - Help",
+        "Gear - Legendary Gear Rarity - Help"
+      ],
+      "summary": "Help tab with four cards (item level, affix tier, energy, Legendary rarity) plus a progression-rewards data tab.",
+      "findings": [
+        "Map level rises through the story; higher maps drop higher item level, which improves odds of rare crafted affixes.",
+        "A stronger affix grade unlocks every 10 item levels.",
+        "Energy needs enough item level; weapons and chests give most, trinkets none.",
+        "Legendary rarity: Common, Fine, Precious, Matchless, Ultimate, shown by drop-frame color."
+      ],
+      "unknowns": [
+        "Item-level boundaries for affix grades and the Energy threshold are not given.",
+        "No probability numbers for rare affixes.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "affixGradeUnlocked steps up once per 10 item levels",
+          "domain": "gear affix tiers",
+          "assumptions": [
+            "Offset (e.g. 1-10 vs 0-9) and tier count not given"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "dps"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Monster",
+      "title": "Monster - Monster Rarity - Help",
+      "positions": [
+        8
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Monster - Monster Rarity - Help",
+        "attr /200 [data tab]",
+        "rarity /25 [data tab]"
+      ],
+      "summary": "One Help card on monster rarity plus two raw data tabs (per-level attributes, per-rarity multipliers).",
+      "findings": [
+        "Five rarities: Normal, Magic, Rare, Legendary boss, Supreme boss.",
+        "Elites are Rare plus both boss kinds; bosses are Legendary plus Supreme.",
+        "Data tab, not Help text: experience column reads 1, 3.5, 5.5, 100, 100 for rarity ids 1-5; no drop columns."
+      ],
+      "unknowns": [
+        "Rarity ids in the data tab are not mapped to names on the page; column semantics (multiplier vs bonus) undocumented.",
+        "attr tab (levels 1-200: hit, dodge, physical_damage) plateaus from about Lv.89-90; dodge drops to 114 there, unexplained.",
+        "Help text gives no loot or XP numbers.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "xpMultiplier(rarityId) = {1:1, 2:3.5, 3:5.5, 4:100, 5:100}",
+          "domain": "monster experience by rarity id (data tab)",
+          "assumptions": [
+            "Name mapping of ids and whether the value is a multiplier are not stated"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Enchant",
+      "title": "Enchant - Help",
+      "positions": [
+        9
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Enchant /334 [data tab]",
+        "Enchant - Help"
+      ],
+      "summary": "One short Help card plus a 334-row enchant data tab.",
+      "findings": [
+        "Enchanting adds effects to gear through fixed recipes and consumables.",
+        "Recipes unlock with level.",
+        "Data tab, not Help text: rows carry quality grades with material costs and level unlocks."
+      ],
+      "unknowns": [
+        "Help text gives no costs, slots or limits.",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "dps",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Gear_Empowerment",
+      "title": "Gear Empowerment - Help",
+      "positions": [
+        10,
+        32
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Gear Empowerment - Help",
+        "Gear Empowerment - Help [SystemHelp/coverPage tab]"
+      ],
+      "summary": "Two Help tabs about re-rolling a gear piece's Energy value.",
+      "findings": [
+        "Only gear with an Energy bar qualifies; each attempt spends Energy Cores.",
+        "Result lands inside the item's Energy range; higher item level favors higher values.",
+        "Items already at the range maximum cannot be empowered further."
+      ],
+      "unknowns": [
+        "Core cost, Energy ranges and roll distribution are not given.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "newEnergy in [energyMin(item), energyMax(item)]; blocked when energy == energyMax",
+          "domain": "gear Energy empowerment",
+          "assumptions": [
+            "Distribution skews upward with item level (no numbers)"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Trade_House",
+      "title": "Trade House - Help",
+      "positions": [
+        11
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Trade House - Help",
+        "Trade House - Booth - Help",
+        "Trade House - Advanced research - Help"
+      ],
+      "summary": "Three cards: buying with several currencies, seller booths, and advanced search.",
+      "findings": [
+        "Selling requires an unlocked booth; booth count is capped.",
+        "Advanced search covers non-Legendary gear only."
+      ],
+      "unknowns": [
+        "Booth cap, fees and accepted currencies are not given.",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Fluorescent_Memory",
+      "title": "Fluorescent Memory - Exchange - Help",
+      "positions": [
+        12
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Fluorescent Memory /32 [data tab]",
+        "Fluorescent Memory [rule card]",
+        "Fluorescent Memory - Exchange - Help"
+      ],
+      "summary": "Exchange Help card, a rule card, and a 32-row exchange data tab.",
+      "findings": [
+        "Memories drop in Netherrealm; enough copies trade for items at the Trader.",
+        "Boss drop rates vary per Netherrealm map and are viewable before entering.",
+        "Exclusive kinds: plane-exclusive (in each stage's exclusive drop list) and five named gameplay-exclusive ones."
+      ],
+      "unknowns": [
+        "No drop-rate numbers.",
+        "Required counts in the data tab are an unfilled %s placeholder.",
+        "Rule card repeats one line twice (likely render artifact).",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hero_Relic",
+      "title": "Hero Relic",
+      "positions": [
+        13
+      ],
+      "status": "blocked",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "blockedReason": "HTTP 404 with an empty (0-byte) body on a single GET; no Help body available. Title taken from the index because the page showed none.",
+      "sections": [],
+      "summary": "Not reviewed: the request returned HTTP 404 with no content.",
+      "findings": [],
+      "unknowns": [
+        "Whether the article moved or was removed is unknown; not retried per task rules."
+      ],
+      "formulas": [],
+      "relevance": [
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hero_Memories",
+      "title": "Hero_Memories",
+      "positions": [
+        14
+      ],
+      "status": "blocked",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "blockedReason": "Page loaded (HTTP 200, 398678 bytes) but contains no Help body: only data tabs (Affix /234, Hero Memories /3, Base Stats /15, Fixed Affix /231, Random Affix /432, Path of Progression /36). Title from the HTML <title>.",
+      "sections": [
+        "Affix /234 [data tab]",
+        "Hero Memories /3 [data tab]",
+        "Base Stats /15 [data tab]",
+        "Fixed Affix /231 [data tab]",
+        "Random Affix /432 [data tab]",
+        "Hero Memories - Path of Progression /36 [data tab]"
+      ],
+      "summary": "Not reviewed as Help: the page holds only data tabs, no Help card.",
+      "findings": [
+        "Data tab only: Fixed Affix rows list +2 Hero Trait Level for all three memory types (tier 1, level 86, weight 103)."
+      ],
+      "unknowns": [
+        "No Help explanation of memory slots, affix rolling or how trait-level affixes stack."
+      ],
+      "formulas": [],
+      "relevance": [
+        "trait_rank",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Corrosion_Craft",
+      "title": "Corrosion Craft - Help",
+      "positions": [
+        15
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Corrosion Craft - Help",
+        "Corrosion Craft - Materials - Help"
+      ],
+      "summary": "Two cards on Corrosion Craft and its seasonal materials.",
+      "findings": [
+        "Targets Legendary or Rare gear with at least 4 affixes; once per item.",
+        "Uses Aemberon Cores or Familiar Nexuses from seasonal content; the story grants one free try.",
+        "Corroded Rare gear stays craftable and enchantable, but crafting costs double.",
+        "Defiled (two affixes +1-2 rank) requires Familiar Cores."
+      ],
+      "unknowns": [
+        "Materials card says Familiar Cores while the main card says Familiar Nexuses.",
+        "Outcome list and probabilities absent; seems to describe an older seasonal system than the Corrosion page.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "craftCost(corroded Rare) = 2 * craftCost(normal)",
+          "domain": "crafting after Corrosion Craft",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Netherrealm",
+      "title": "Netherrealm - Help",
+      "positions": [
+        16,
+        30
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Unlock /8 [data tab]",
+        "Drops everywhere in Netherrealm /900 [data tab]",
+        "Area /6 [data tab]",
+        "Netherrealm - Help",
+        "Netherrealm - Beacon - Help",
+        "Netherrealm - Map Affix - Help",
+        "Netherrealm - Plane Watcher - Help",
+        "Netherrealm - Exclusive Drop - Help",
+        "Netherrealm - Plane Difficulty - Help",
+        "Netherrealm - Unlock Plane - Help",
+        "Netherrealm - Netherrealm Compass - Help",
+        "Netherrealm - Chaos Invasion - Help",
+        "Netherrealm - Trait Card - Help",
+        "Netherrealm - Confusion Card - Help",
+        "Netherrealm - Card Inheritance - Help",
+        "Netherrealm - Card Awakening - Help",
+        "Netherrealm - Traveler - Help",
+        "Netherrealm - Help [SystemHelp/coverPage tab]",
+        "Netherrealm - Path of Achievements /39 [data tab]",
+        "Netherrealm - Path of Achievements /48 [data tab]"
+      ],
+      "summary": "Help tab with 14 cards plus a system card, and data tabs (unlocks, 900 drops, areas, achievements).",
+      "findings": [
+        "Base map affix count changes drop quantity and rarity.",
+        "Plane boss or Traveler kill guarantees one exclusive Legendary; harder planes add exclusives at higher rates.",
+        "Compass slots at 18 Cinders; Traveler at 35, re-challenge after four plane bosses.",
+        "Beacon rank follows plane Timemark, capped at stage level.",
+        "Progress shared per account and season."
+      ],
+      "unknowns": [
+        "No numeric drop-quantity or rarity effect per base affix.",
+        "Reward multiplier from Inheritance cards, awakening chance and difficulty reward scaling are unquantified.",
+        "Data tab (not Help): plane unlocks at 0, 3, 8, 15, 24 Cinders; the drops tab lists items without rates.",
+        "Four-phase structure may not match the current season; no version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "dropQuantity, dropRarity = f(numberOfBaseMapAffixes)",
+          "domain": "Netherrealm stage loot",
+          "assumptions": [
+            "Function shape and values not given"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "exclusiveLegendaryDrops(planeBoss or Traveler kill) >= 1",
+          "domain": "Netherrealm boss loot",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "beaconRank = min(planeTimemark, stageLevel)",
+          "domain": "Beacon drops",
+          "assumptions": [
+            "Page says 'typically', so exceptions may exist"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "compassSlots unlock at cinders >= 18; Traveler unlock at cinders >= 35",
+          "domain": "Netherrealm progression",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Gameplay",
+      "title": "Gameplay - Chest Mimic - Help",
+      "positions": [
+        17
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Gameplay - Chest Mimic - Help",
+        "Gameplay - Trial: God of War - Help",
+        "Gameplay - Trial: God of Might - Help",
+        "Gameplay - Trial: God of Machines - Help",
+        "Gameplay - Trial: Goddess of Hunting - Help",
+        "Gameplay - Path of Achievements /42 [data tab]"
+      ],
+      "summary": "Five cards on Netherrealm side events, Mystery Chest/Chest Mimic and four god Trials, plus an achievements data tab.",
+      "findings": [
+        "Each event can appear in any Netherrealm stage; a stage may hold one Trial of a given kind.",
+        "Rewards scale with kills before time runs out (War, kills add time), survival time (Might), defended waves (Machines) or chosen trial rarity (Hunting).",
+        "Each mode names four exclusive Legendaries it may drop."
+      ],
+      "unknowns": [
+        "No spawn chances, reward-level steps or drop chances.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "rewards = increasing f(kills | survivalTime | wavesDefended | trialRarity)",
+          "domain": "Netherrealm Trials",
+          "assumptions": [
+            "Only monotonic direction is stated"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Exchange",
+      "title": "Exchange - Help",
+      "positions": [
+        18
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Exchange - Help",
+        "Exchange - Black Market - Help"
+      ],
+      "summary": "Two cards: gear salvage and the Black Market.",
+      "findings": [
+        "Unneeded gear converts to Flame Residue at the Trader; enough Residue becomes Flame Dust.",
+        "Exchange Proofs buy Rare gear; a Black Gold refresh rerolls the list and grants 2 Proofs."
+      ],
+      "unknowns": [
+        "Residue-to-Dust ratio, refresh cost and Proof prices not given.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "refresh(Black Gold) -> new list + 2 Exchange Proofs",
+          "domain": "Black Market",
+          "assumptions": [
+            "Black Gold cost not given"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "economy",
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hero_Ranking",
+      "title": "Hero Ranking",
+      "positions": [
+        19
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Hero Ranking",
+        "Hero Ranking - Help"
+      ],
+      "summary": "Two cards on the in-game Hero Ranking board.",
+      "findings": [
+        "Opened from the menu; shows strong players' skills, talents and gear, filterable by hero, skill and gear.",
+        "Intended to reflect hero and school popularity."
+      ],
+      "unknowns": [
+        "Ranking criteria, refresh cadence and any data/export interface are not documented; no server routes are implied.",
+        "No version stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "import",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Xbox_Controls",
+      "title": "Xbox Controls - Help",
+      "positions": [
+        20
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Xbox Controls - Help"
+      ],
+      "summary": "Controller layout card listing action labels only.",
+      "findings": [
+        "Same 18 actions on all three controller pages: skills 1-5, trait skill/cancel, pick up, interact, movement, cursor move/select, function wheel, quest tracking, level-up reminders, season gameplay, inventory, minimap, menu.",
+        "No game mechanics."
+      ],
+      "unknowns": [
+        "Button glyphs are unrendered inline image IDs (last digit differs per controller family), so the physical button for each action cannot be read from the text.",
+        "No version or platform build stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "controls"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/DualSense_Controls",
+      "title": "DualSense Controls - Help",
+      "positions": [
+        21
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "DualSense Controls - Help"
+      ],
+      "summary": "Controller layout card listing action labels only.",
+      "findings": [
+        "Same 18 actions on all three controller pages: skills 1-5, trait skill/cancel, pick up, interact, movement, cursor move/select, function wheel, quest tracking, level-up reminders, season gameplay, inventory, minimap, menu.",
+        "No game mechanics."
+      ],
+      "unknowns": [
+        "Button glyphs are unrendered inline image IDs (last digit differs per controller family), so the physical button for each action cannot be read from the text.",
+        "No version or platform build stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "controls"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/SteamDeck_Controls",
+      "title": "SteamDeck Controls - Help",
+      "positions": [
+        22
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "SteamDeck Controls - Help"
+      ],
+      "summary": "Controller layout card listing action labels only.",
+      "findings": [
+        "Same 18 actions on all three controller pages: skills 1-5, trait skill/cancel, pick up, interact, movement, cursor move/select, function wheel, quest tracking, level-up reminders, season gameplay, inventory, minimap, menu.",
+        "No game mechanics."
+      ],
+      "unknowns": [
+        "Button glyphs are unrendered inline image IDs (last digit differs per controller family), so the physical button for each action cannot be read from the text.",
+        "No version or platform build stated."
+      ],
+      "formulas": [],
+      "relevance": [
+        "controls"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Craft",
+      "title": "Craft",
+      "positions": [
+        23
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Gear [gear-type / drop-source filter card]",
+        "Affix /2526 [data tab]",
+        "Craft"
+      ],
+      "summary": "Craft Help card plus a gear-type filter card and a 2,526-row affix data tab.",
+      "findings": [
+        "Non-Legendary gear only, at Arms Dealer Geely after story unlock.",
+        "Adds or replaces an affix in a chosen slot from a chosen pool, paying Embers and Flame Fuel.",
+        "Pools: Basic, Advanced, Ultimate; Ultimate needs Priceless gear; at most 2 Advanced and 2 Ultimate per item.",
+        "Truth Embers reroll all random affix values."
+      ],
+      "unknowns": [
+        "'Priceless' is not defined against the rarity names on other pages.",
+        "Costs and affix weights are not in the Help text.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "advancedAffixes <= 2 and ultimateAffixes <= 2 per item",
+          "domain": "crafting limits",
+          "assumptions": [
+            "Ultimate only on Priceless gear"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Corrosion",
+      "title": "Corrosion",
+      "positions": [
+        24
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:50:19+00:00",
+      "sections": [
+        "Corrosion Effect /19 [data tab]",
+        "Corrosion Base Affix /188 [data tab]",
+        "Corrosion"
+      ],
+      "summary": "Corrosion Help card plus effect and base-affix data tabs.",
+      "findings": [
+        "Once per item, at The Lightless Zenoth; Darkness or Darkest variants.",
+        "Outcomes: Mutate (random Aember base affixes), Chaos (value reroll, tiers kept), Arrogant (one affix +1-2 tiers), Void (no change); Darkest adds Desecration (two affixes +1-2 tiers).",
+        "Vorax gear has five own outcomes; Chaos, Void or Fester bind the item."
+      ],
+      "unknowns": [
+        "Outcome probabilities absent.",
+        "Effect data tab differs: Arrogance and Desecration upgrade by 1 tier there, plus Mutation/Chaos variants not in the Help text.",
+        "No version stated."
+      ],
+      "formulas": [
+        {
+          "expression": "corrosionsPerItem <= 1; affected affix tier += U{1,2}",
+          "domain": "Corrosion outcomes",
+          "assumptions": [
+            "Distribution of 1 vs 2 not stated",
+            "Data tab says +1 tier for Arrogance/Desecration"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "economy"
+      ]
+    }
+  ]
+}

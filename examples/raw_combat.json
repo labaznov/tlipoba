@@ -1,0 +1,126 @@
+{
+  "format": "tli-raw-cold-combat-v1",
+  "spell": {
+    "format": "tli-raw-cold-spell-v1",
+    "context": {
+      "source_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "catalog_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "skill_id": "synthetic-cold-spell",
+      "effective_level": 13,
+      "gates": {
+        "version": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:version"
+          ]
+        },
+        "level": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:level"
+          ]
+        },
+        "base": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:base"
+          ]
+        },
+        "conversion": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:conversion"
+          ]
+        }
+      }
+    },
+    "damage": {
+      "base": {
+        "min": 100,
+        "max": 100
+      },
+      "physical": {
+        "min": 0,
+        "max": 0
+      },
+      "cold": {
+        "min": 0,
+        "max": 0
+      },
+      "effectiveness": 1,
+      "increased": {
+        "all": 0,
+        "physical": 0,
+        "cold": 0
+      },
+      "more": [],
+      "roll_model": "midpoint"
+    },
+    "critical": {
+      "chance": 0.25,
+      "multiplier": 3,
+      "lucky": false,
+      "more": 0
+    },
+    "casting": {
+      "interval": 0.5,
+      "increased": 0,
+      "more": [],
+      "frequency": null
+    },
+    "missing": [],
+    "notes": [
+      "Synthetic complete spell pools"
+    ]
+  },
+  "topology": {
+    "maximum": 3,
+    "extra": 1,
+    "active": 3,
+    "hits": 3,
+    "retention": 0.25
+  },
+  "target": {
+    "cold_resistance": 0.4,
+    "cold_penetration": 0.1,
+    "armor": 0,
+    "armor_effectiveness": 1,
+    "armor_penetration": 0,
+    "armor_penetration_order": "after_effectiveness",
+    "increased_taken": 0.2,
+    "more_taken": [
+      {
+        "id": "target-more",
+        "affix": "exposure",
+        "value": 0.1,
+        "stacks": 1,
+        "mode": "add"
+      }
+    ]
+  },
+  "uptime": 0.5,
+  "gates": {
+    "inheritance": {
+      "status": "confirmed",
+      "evidence": [
+        "synthetic:inheritance"
+      ]
+    },
+    "hit_topology": {
+      "status": "confirmed",
+      "evidence": [
+        "synthetic:hit_topology"
+      ]
+    },
+    "target_state": {
+      "status": "confirmed",
+      "evidence": [
+        "synthetic:target_state"
+      ]
+    }
+  },
+  "missing": [],
+  "notes": [
+    "Synthetic topology and target assertions"
+  ]
+}

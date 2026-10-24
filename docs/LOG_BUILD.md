@@ -1,0 +1,155 @@
+# Printed build-domain projection
+
+`damage_lab.logbuild.project(snapshot, event_index, source_sha256)` is a pure consumer of
+`damage_lab.buildlog.snapshot` version 0.1.2. It reads no files and does not choose or combine events.
+The caller selects one accepted event by its zero-based index and supplies the expected ordinary-log
+prefix SHA-256. The prefix hash is declared provenance, not proof of the tree's derivation or identity.
+
+The selected event must contain table-shaped `bag.wearItems`, `heroCharacterv3OverView`, and
+`skillLayout`. These are observed player-state candidate requirements, not a general game protocol.
+An unfamiliar future event schema is explicitly refused; refusal does not mean that a build is absent.
+
+`candidates(snapshot, source_sha256) -> list[int]` validates the saved envelope and parser trees, then
+enumerates indexes satisfying the same structural requirements. It chooses no event, joins no values,
+and returns an empty list when no accepted event matches. Each candidate must be projected independently.
+
+## Output
+
+The format is `tli-log-build-domains-v2`, with `scope: printed_subtree_only`, `import_complete: false`,
+and `identity`, `runtime`, `freshness`, `selected_skill`, and `build_code` always `unknown`.
+Safe source metadata includes SHA-256 and prefix bytes; event metadata includes its index, physical line
+range, boundary, and the lexical client-log header. Header time has unknown timezone and is not data age.
+The original source path and all `player` fields are excluded.
+
+Each fixed domain has `path`, `status`, `node_kind`, `visible_entries`, `total_entries: null`, `rows`,
+and `gaps`. Status is `complete`, `elided`, or `not_printed`: completeness describes the printed subtree
+only. Root elision does not make an already printed child elided. A missing child is `not_printed`,
+never proof of absence. Bare empty tables retain an explicit empty-container ambiguity gap.
+
+Rows use coordinate aliases and source paths. Their `fields` are fixed names, each holding a coverage
+status, lexical `values: [{path, text, class}]`, and explicit `missing_paths`, `elided_paths`, and
+`empty_paths`. Classes are the parser's `bool`, `int`, `float`, or `text`; no scalar is converted to a
+number or boolean. Missing fields do not become zero, false, or empty arrays. The `values` collection
+enumerates observed tokens, not a reconstructed source array.
+
+Top-level `counts` contains `domains`, `rows`, and `lexical_values`. Header keys are `logTimeText`,
+`frame`, and `timezone`. All other projection property names use snake_case. Rows never contain rank,
+compiled-modifier, or damage results.
+
+| Domain | Exact tree path | Records / allowlisted fields |
+|---|---|---|
+| equipment | `bag.wearItems` | `PageId`, `Index`, `Item.{BaseId,Level,RareValue,Corrode,AffixNum}` and listed affix tokens |
+| memories | `heroCharacterv3OverView.reminiscenceOverView.reminiscence` | `index`, `state`, `detail.{BaseId,Level,ReminiscenceFixedLevel,ReminiscenceFixedLevelFromEnhance,ReminiscenceLevel}` and listed affix tokens |
+| traits | `heroCharacterv3OverView.pointOverView.activeId` | each printed scalar token; no rank |
+| slates | `bag.dressingTalentBlocks` | `PageId`, `Index`, `Item.{BaseId,Level,RareValue,ShapeId,Direction,EnhanceId,EnhancedTimes,InfluenceId}`, `BaseTalentList`, `EnchantTalentList`, `talentSlotList.{color,talentId}` |
+| influence | `talentBlockInfluence` | `value.{EffectTalentIds,TalentIdDevour,TalentIdInfluence}`; its instance-key join is excluded |
+| pacts | `ContractInfosV2.ContractDatas` | `areaId`, `servantId`; no activation, star level, or chosen scheme inferred |
+| skill_layout | `skillLayout.slots` | `key` as lexical `slot_key`; no slot role or skill reference inferred |
+| skill_items | `skills.skills` | `BaseId`, `Level`, `SkillItemLevel`, `RareValue` and six listed affix families; no instance IDs or effective level |
+| dressed_skill_items | `bag.dressSkillItems` | `PageId`, `Index`, `Item.{BaseId,Level,SkillItemLevel,RareValue}` and six listed affix families under `Item`; no instance IDs or joins |
+
+The equipment affix lists are exactly `BaseAttrAffix`, `FixedBaseAffix`, `BaseAffix`, `Prefix`, `Suffix`,
+`SlotAffix`, `EnchantAffixs` and `ChipAffix`. Skills and dressed skills allow exactly `BaseAffix`,
+`Prefix`, `Suffix`, `SlotAffix`, `EnchantAffixs` and `ChipAffix`; their base-attribute and fixed lists
+are excluded. Memories keep their prior six lists without `SlotAffix` or `ChipAffix`.
+Only `.Id`, `.Version`, `.source`, and flat `.DynArgs.#`
+tokens are retained. Nested arrays must have contiguous one-based coordinate keys; an elision is not
+an invented extra record. Affix `Condition`, `Filter`, and `Behavior` remain `not_printed` or
+`printed_unmapped` on equipment and memory rows, never `[]`. Skill affix fields remain lexical
+observations without a compiled condition or effect. No row is compiled as an unconditional effect.
+
+All four item domains use `base_affix_id`, `base_affix_version`, `base_affix_source` and
+`base_affix_args` for `BaseAffix`, keeping catalog `base_id` separate. In particular, memory
+`base_id` now refers only to `detail.BaseId`; memory `BaseAffix` values remain separate lexical
+observations under their own source paths. An unprinted catalog ID never falls back to an affix ID.
+
+Version 2 corrects a version-1 memory field collision: its affix `base_id` overwrote the catalog
+mapping, while `base_version`, `base_source` and `base_args` described the affix. Those ambiguous
+aliases are not duplicated in version 2. Re-run `import-log` from the saved input into a fresh output
+directory to obtain the corrected projection. A version-1 summary can lack the catalog ID entirely;
+renaming fields in that summary cannot recover it. The outer `tli-log-import-v1` envelope and separate
+`tli-log-skill-references-v1` result retain their meanings; inspect each event's projection format.
+This correction does not establish a complete, current or active memory configuration.
+
+This extension preserves the current flat-array importer subset. The
+[actual command conversion](research/affix-command-source.md) can also encounter nested tables and
+uses `pairs`; this projection does not emulate that flattening or ordering. Deeper tables or
+noncontiguous keys in newly exposed lists can cause refusal of an entire event, including reference
+observations that first validate the projection. Such a refusal identifies an importer coverage gap,
+not invalid game data. Missing and elided fields remain explicit; new fields never supply zero rolls.
+
+The following paths are coverage diagnostics only, without rows or skill-instance joins:
+
+| Domain | Path |
+|---|---|
+| pact_points | `ContractInfosV2.pointDatas` |
+| pact_roster | `ServantInfos.servantData` |
+| talents | `geniusInfos` |
+| stats | `attrInfo` |
+| season | `SP3Base.TalentTree` |
+
+The two item-level fields remain separate lexical facts. A complete printed
+field does not prove complete skill inventory, an active link, or an effective
+level. Layout `value.skillId` and item `Id` are omitted from the lexical fields.
+
+## Within-event skill-reference observations
+
+`skill_references(snapshot, event_index, source_sha256)` first calls the public
+`project()` above, including its validation of all other mapped domains. It
+then compares the printed `value.skillId` and item `Id` tokens internally in
+that same event. The separate `tli-log-skill-references-v1` result keeps
+coordinate aliases and source paths; it never exports the identifiers, their
+hashes, prefixes, lengths, classes or matching-peer lists. Existing `project()`,
+its approved lexical allowlists and the fourteen-domain count are shared by both public seams.
+
+A single visible match points to `skill_items[j]`, whose printed catalog and
+level fields remain available separately. Multiple equal visible item tokens
+produce `ambiguous_visible_duplicates`, without a first or last winner. An
+unseen or unreadable peer can hide another equal token, so visible matching
+does not establish the item chosen by the runtime dictionary. A closed printed
+subtree can establish uniqueness within that printed subtree only.
+
+Missing, elided, printed-empty and unsupported reference shapes retain separate
+statuses and `reference_detail` paths. A missing item list, a printed empty
+container, an incomplete list with no visible match and a closed printed subtree
+with no match also remain distinct. None proves global absence. An empty parent
+does not become an empty reference leaf. Duplicate layout keys remain separate
+rows rather than being merged into a reconstructed slot.
+
+The exact printed token `0` receives `sentinel_observed` by observation policy,
+with no match lookup. The printer loses the distinction between the declared
+string sentinel and numeric zero; this status does not mean an empty or
+unequipped slot. Other tokens are compared without trimming, coercion or
+numeric normalization. Events are never joined.
+
+Installation, activation, effective level, inventory completeness, identity and
+selection stay `unknown`; `import_complete` stays false. The `pending` coordinate
+and record markers denote layers not applied by this observation format. The
+[static helper trace](research/ordinary-layout-source.md) supplies further source
+facts, but does not turn the observed token equality into an active support graph.
+
+Token indexing and lookup use two linear passes over at most thirty visible
+rows per side, with counts and one alias per distinct internal token. Path
+navigation also rebuilds dictionaries over visited path and row entries. The
+whole seam runs all existing tree/domain validation; it is not an O(rows)-only operation.
+The normal CLI currently calls both public seams, so this validation is repeated.
+The event remains bounded by the existing node, depth, line and table limits.
+At most thirty reference records are returned; path byte lengths are variable
+within those input bounds. No live reads, retries, global cache or game access
+are introduced by this layer.
+
+## Gates and limits
+
+The consumer validates the supported envelope, source hash, index, line bounds, declared reader limits,
+fixed unknown flags, parser version, lexical classes, unique keys, table cap, elision placement, node
+counts, and parser counts. Hard ceilings match the saved reader: 1 GiB prefix, 20 million physical lines,
+512 events, 32 MiB retained event bytes, 20,000 event lines, 512-byte lines, depth 32, and 200,000 nodes
+per selected event. Malformed known shapes or inconsistent metadata raise a fixed `ValueError` without
+input text. Unknown extra properties are discarded; unknown instance/account fields are not projected.
+
+`Item.Id`, `UniqueItmId`, player/account data, names, and raw influence keys are excluded. `BaseId` and
+native affix IDs survive only as source-bound lexical tokens; catalog identity, units, precision of the
+game's original printer, effective skill levels, trait ranks, activation, and combat effects stay unverified.
+`Direction` is not defaulted to zero. No ServerSource, old ProBuild join, compiled modifier, panel multiplier,
+or DPS result is produced. Snapshot-boundary events retain that boundary warning rather than claiming a
+verified message terminator. The ordinary log hash and exact re-rendering do not prove missing-line freedom.

@@ -1,0 +1,17 @@
+{
+  "reference": {
+    "damage": [{"id": "example-source", "affix": "example-damage", "value": 0.17, "stacks": 1, "mode": "add"}],
+    "cast": [],
+    "taken": []
+  },
+  "target": {
+    "damage": [{"id": "example-source", "affix": "example-damage", "value": 0.17, "stacks": 3, "mode": "add"}],
+    "cast": [],
+    "taken": []
+  },
+  "tick_frequency": null,
+  "armor": 19000,
+  "nonphysical": true,
+  "missing": ["Реальная длительность боевых состояний не моделируется в этом примере"],
+  "notes": ["Все модификаторы вымышлены и проверяют арифметику; это не готовая конфигурация Carino"]
+}

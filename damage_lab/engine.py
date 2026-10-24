@@ -1,6 +1,9 @@
 """Pure damage arithmetic; all combat conditions are explicit inputs."""
 
 import math
+from fractions import Fraction
+
+from .formulas import additional, product
 
 
 def bounded(value, minimum, maximum, name):
@@ -15,8 +18,8 @@ def critical(chance, multiplier, *, lucky, more=0):
     bounded(chance, 0, 1, "Critical chance")
     bounded(multiplier, 0, 100, "Critical multiplier")
     bounded(more, -1, 100, "Critical-only more damage")
-    probability = 1 - (1 - chance) ** 2 if lucky else chance
-    return (1 - probability) + probability * multiplier * (1 + more)
+    probability = chance * (2 - chance) if lucky else chance
+    return (1 - probability) + product((probability, multiplier, 1 + more), name="Critical damage")
 
 
 def topology(maximum, extra, active, hits, retention):
@@ -35,25 +38,40 @@ def topology(maximum, extra, active, hits, retention):
 
 
 def cold(base, physical, flat, effectiveness, increased, origin, destination, modifiers):
-    """Calculate one noncritical hit after complete Physical to Cold conversion."""
+    """Calculate one noncritical hit after complete Physical to Cold conversion.
+
+    Keep scope sums exact through clamping so Fraction inputs retain their residuals.
+    """
     for name, value in (("Base damage", base), ("Added physical damage", physical),
                         ("Added cold damage", flat), ("Added effectiveness", effectiveness)):
         bounded(value, 0, 1e15, name)
     for name, value in (("Global increased", increased), ("Physical increased", origin),
                         ("Cold increased", destination)):
         bounded(value, -1, 1e6, name)
-    factors = {"all": 1, "physical": 1, "cold": 1}
+    pools = {"all": [], "physical": [], "cold": []}
     identities = set()
     for modifier in modifiers:
+        if not all(field in modifier for field in ("id", "affix", "scope", "value", "stacks", "mode")):
+            raise ValueError("Cold modifier requires id, affix, scope, value, stacks and mode")
         if modifier["id"] in identities:
             raise ValueError(f"Duplicate modifier {modifier['id']}")
         identities.add(modifier["id"])
-        if modifier["scope"] not in factors:
+        if modifier["scope"] not in pools:
             raise ValueError(f"Unknown damage scope {modifier['scope']}")
-        factors[modifier["scope"]] *= 1 + bounded(modifier["value"], -1, 1e6, "More damage")
-    converted = (base + physical * effectiveness) * max(0, 1 + increased + origin + destination)
-    native = flat * effectiveness * max(0, 1 + increased + destination)
-    return (converted * factors["physical"] + native) * factors["all"] * factors["cold"]
+        pools[modifier["scope"]].append({
+            "id": modifier["id"], "affix": modifier["affix"],
+            "value": bounded(modifier["value"], -1, 1e6, "More damage"),
+            "stacks": modifier["stacks"], "mode": modifier["mode"],
+        })
+    converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])
+    native_factor = additional(pools["all"] + pools["cold"])
+    converted = product((base + product((physical, effectiveness), name="Added physical hit"),
+                         max(0, sum(map(Fraction, (1, increased, origin, destination))))), name="Converted hit")
+    native = product((flat, effectiveness, max(0, sum(map(Fraction, (1, increased, destination))))), name="Native Cold hit")
+    result = product((converted, converted_factor), name="Cold hit") + product((native, native_factor), name="Cold hit")
+    if not math.isfinite(result):
+        raise ValueError("Cold hit must be finite")
+    return result
 
 
 def calculate(panel, condition):
@@ -92,8 +110,9 @@ def calculate(panel, condition):
             "assumptions": [
                 "Исходная величина трактуется как один снаряд одного Tangle; семантика Spell DPS не подтверждена",
                 "Попадания, оставшаяся доля shotgun, сопротивление и время боя заданы сценарием",
+                "Сопротивление цели задано после применимых ограничений; пробивание вычитается из эффективного значения",
                 "Внешний taken применяется только если он ещё не учтён в исходной панели",
                 "Число созданных Tangle и прикреплённых к цели Tangle различаются",
                 "Баффы Heat Up, Burning Red, проклятие, Frostbite и Euphoria зависят от состояния боя",
-                "Броня цели и её ослабление пока не моделируются, расчёт предполагает нулевую броню",
+                "Броня учитывается только при явном боевом контексте; пробивание брони не реализовано",
             ]}

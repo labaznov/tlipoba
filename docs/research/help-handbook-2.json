@@ -1,0 +1,1058 @@
+{
+  "format": "tli-help-review-chunk-v1",
+  "checkedAt": "2026-10-21T20:51:19+00:00",
+  "source": "https://tlidb.com/en/Help (Help_Handbook positions 25-48)",
+  "sourceClassification": "unofficial-game-help-datamine-mirror; client/version correspondence not verified",
+  "articles": [
+    {
+      "url": "https://tlidb.com/en/Skill",
+      "title": "Skill - Help | Skill - Support Skill - Help",
+      "positions": [
+        2,
+        25
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:34.169681+00:00",
+      "sections": [
+        "Skill - Path of Progression /48",
+        "Skill - Support Skill - Help",
+        "Skill - Distribute Energy - Help",
+        "Skill - Passive - Help",
+        "Skill - Sealed Mana|Life - Help",
+        "Skill - Aura - Help",
+        "Skill - Curse - Help",
+        "Skill - Empower - Help",
+        "Skill - Triggered - Help",
+        "Skill - Cast Skill - Help",
+        "Skill - Help",
+        "Skill - Help > About Skill Slots",
+        "Skill - Help > About Skills"
+      ],
+      "summary": "Two Help tabs: nine short skill-type tips (position 2) and general slot/link rules (position 25); a third tab is skill goal reward data.",
+      "findings": [
+        "Support links per Active Skill: max 5, opened by allocating energy from levels and non-trinket gear.",
+        "First slot per skill tab unlocks automatically at the energy cap.",
+        "Sealed Mana/Life reserves a share instead of paying cost; Max Mana/Life unchanged.",
+        "Default: one Curse per monster.",
+        "Duplicate equipped skills: only one works."
+      ],
+      "unknowns": [
+        "How Skill Sealed Mana, Mana Cost Multiplier, Sealed Mana % and Additional Sealed Mana % combine is not stated (only listed as relevant stats).",
+        "Energy cap, per-slot energy costs and energy per level are not given.",
+        "Which gear or talents lift the one-Curse limit is not named.",
+        "The Path of Progression /48 tab is a goal/reward data list, not Help text; not reviewed as mechanics.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "supportLinks(activeSkill) <= 5",
+          "domain": "skill linking",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "sealedAmount = f(Skill Sealed Mana, Mana Cost Multiplier, Sealed Mana %, Additional Sealed Mana %)",
+          "domain": "Sealed Mana / Sealed Life",
+          "assumptions": [
+            "Page lists the four stats as relevant but gives no combination rule"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Pactspirit",
+      "title": "Pactspirit - Help",
+      "positions": [
+        26
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:35.542065+00:00",
+      "sections": [
+        "Pactspirit /183",
+        "Pactspirit",
+        "Pactspirit - Help",
+        "Pactspirit - Help > About Pactspirits",
+        "Pactspirit - Help > About Destinies"
+      ],
+      "summary": "Covers Pactspirit installation, Pact Node replacement, follow-and-loot pets and Destinies.",
+      "findings": [
+        "Install limit: 3 Battle plus 3 Drop Pactspirits.",
+        "Drop Pactspirits activate all their nodes on install; Battle ones get own Pact Pages; Rare ones unlock Pact Points early.",
+        "Legendary rarity replaces every Pact Node in the area.",
+        "Any Pactspirit, installed or not, can follow and auto-loot some items.",
+        "Destinies: free to install, only on allocated nodes; Micro and Medium caps unlock via quests; Undetermined Fates add slots outside the cap."
+      ],
+      "unknowns": [
+        "Numeric Destiny caps are deferred to an in-game Installation Limit panel.",
+        "Which items the follower auto-loots is not specified.",
+        "The two removal materials and their different outcomes are not named.",
+        "Change scope for non-Legendary rarities is not quantified.",
+        "Pactspirit /183 tab is a data list, not Help text; not reviewed.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "installed = {Battle <= 3, Drop <= 3}",
+          "domain": "Pactspirit installation",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Talents",
+      "title": "Talents - Help",
+      "positions": [
+        27
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:36.307878+00:00",
+      "sections": [
+        "Talents - Help",
+        "Talents - Help > Basic Rules",
+        "Talents - Help > About Talent Nodes",
+        "Talents - Help > About Forgetting"
+      ],
+      "summary": "Rules for picking Talent Panels, spending Talent Points, Core Talent slots and resets.",
+      "findings": [
+        "Four panels: first from 6 Basic, second from 4 matching Advanced panels, third and fourth unrestricted.",
+        "Points: 1 per level plus key-quest bonuses.",
+        "Tiers: Minor, Medium, Legendary Medium, Core; Medium types usually need the preceding Minor.",
+        "Each Core slot activates one chosen Core Talent, swappable anytime.",
+        "Resets are free until Lv. 90, then cost Oblivion Points from Elixir of Oblivion."
+      ],
+      "unknowns": [
+        "Quest bonus point total is not stated.",
+        "Node count needed to open Core Talent slots is not given.",
+        "Oblivion Point cost per reset is not given.",
+        "Whether Lv. 90 itself is still free is ambiguous; whether level 1 grants a point is not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "talentPoints = levels x 1 + questBonusPoints",
+          "domain": "talent point budget",
+          "assumptions": [
+            "1 point per level is documented; questBonusPoints value and level-1 offset are not documented"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "resetCost = 0 if characterLevel < 90 else OblivionPoints(amount unknown)",
+          "domain": "talent reset",
+          "assumptions": [
+            "Boundary at exactly Lv. 90 inferred from 'until'; cost amount not given"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Path_of_Progression",
+      "title": "Path of Progression - Help",
+      "positions": [
+        28
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:36.734624+00:00",
+      "sections": [
+        "Path of Progression /7",
+        "Path of Progression - Help",
+        "Path of Progression - Help > Intro"
+      ],
+      "summary": "Season-scoped account goals across the whole game, completable by any character that season.",
+      "findings": [
+        "Rewards are account-level: the first completion ever on the account pays the first reward; repeats in later seasons pay only regular rewards.",
+        "Goals and rewards reset each season and may be changed between seasons."
+      ],
+      "unknowns": [
+        "Help text gives no reward amounts; the /7 tab lists per-step item rewards (data, not Help; not reviewed as mechanics).",
+        "Regular versus first reward contents are not compared in the Help text.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "reward(goal) = firstReward if account never claimed it, else regularReward",
+          "domain": "Path of Progression rewards",
+          "assumptions": [
+            "Account-wide; goals reset every season"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Help",
+      "title": "Help - Help",
+      "positions": [
+        29
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:37.174478+00:00",
+      "sections": [
+        "Help /215",
+        "Help /72",
+        "Help - Help"
+      ],
+      "summary": "Index page; besides the 215-entry Help and 72-entry Help_Handbook lists it holds one short Help card.",
+      "findings": [
+        "Help tips unlock when a new or unique mechanic is first triggered and stay viewable afterwards.",
+        "No mechanics, numbers or caps."
+      ],
+      "unknowns": [
+        "Which events unlock which tip is not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Netherrealm",
+      "title": "Netherrealm - Help",
+      "positions": [
+        16,
+        30
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:37.608309+00:00",
+      "sections": [
+        "Unlock /8",
+        "Drops everywhere in Netherrealm /900",
+        "Area /6",
+        "Netherrealm - Help",
+        "Netherrealm - Help > Netherrealm - Beacon - Help",
+        "Netherrealm - Help > Netherrealm - Map Affix - Help",
+        "Netherrealm - Help > Netherrealm - Plane Watcher - Help",
+        "Netherrealm - Help > Netherrealm - Exclusive Drop - Help",
+        "Netherrealm - Help > Netherrealm - Plane Difficulty - Help",
+        "Netherrealm - Help > Netherrealm - Unlock Plane - Help",
+        "Netherrealm - Help > Netherrealm - Netherrealm Compass - Help",
+        "Netherrealm - Help > Netherrealm - Chaos Invasion - Help",
+        "Netherrealm - Help > Netherrealm - Trait Card - Help",
+        "Netherrealm - Help > Netherrealm - Confusion Card - Help",
+        "Netherrealm - Help > Netherrealm - Card Inheritance - Help",
+        "Netherrealm - Help > Netherrealm - Card Awakening - Help",
+        "Netherrealm - Help > Netherrealm - Traveler - Help",
+        "Netherrealm - Help(SystemHelp/coverPage)",
+        "Netherrealm - Help(SystemHelp/coverPage) > About Beacons",
+        "Netherrealm - Help(SystemHelp/coverPage) > About Plane Watcher",
+        "Netherrealm - Help(SystemHelp/coverPage) > About Netherrealm",
+        "Netherrealm - Help(SystemHelp/coverPage) > Others",
+        "Netherrealm - Path of Achievements /39",
+        "Netherrealm - Path of Achievements /48"
+      ],
+      "summary": "Two Help tabs (14 short tips; one overview) on beacons, affixes, planes, cards, Traveler.",
+      "findings": [
+        "More base map affixes raise stage Drop Quantity and Rarity.",
+        "Plane boss or Traveler kill guarantees one exclusive Legendary gear; higher difficulty adds exclusives at better rates.",
+        "Compass slots: 18 Cinders. Traveler: 35 Cinders, then four plane-boss kills per rematch.",
+        "Beacon rank tracks plane Timemark, capped by stage level.",
+        "Some Inheritance card combos multiply rewards.",
+        "Progress shared per account and season."
+      ],
+      "unknowns": [
+        "Per-affix Drop Quantity/Rarity magnitudes are not given.",
+        "Which Inheritance combinations multiply rewards, and by how much, is not stated.",
+        "Card Awakening chance values and per-level increase are not given.",
+        "Starshard thresholds and exclusive drop rates per difficulty are not given.",
+        "The short tips (35-Cinder Traveler gate) and the overview (four phases, a Traveler per phase) may reflect different versions; the page does not reconcile them.",
+        "Drop list, unlock, area and achievement tabs are data lists, not Help text; not reviewed.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "stageDropQuantity, stageDropRarity increase with count(baseMapAffixes)",
+          "domain": "Netherrealm stage loot",
+          "assumptions": [
+            "Only the direction is documented; magnitude and functional form are missing"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "beaconRank = min(planeTimemark, stageLevel)",
+          "domain": "Beacon drops",
+          "assumptions": [
+            "Page says rank typically matches the plane Timemark and never exceeds the dropping stage level; min() is my restatement; exceptions behind 'typically' are unspecified"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "exclusiveLegendaryGear per (plane boss kill or Traveler kill) >= 1",
+          "domain": "Netherrealm boss loot",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "travelerUnlocked iff cinders >= 35; rematch requires 4 plane-boss kills since last Traveler clear",
+          "domain": "Traveler access",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "compassSlotsUnlocked iff cinders >= 18",
+          "domain": "Netherrealm Compass",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hunter_file",
+      "title": "Hunter file - Help",
+      "positions": [
+        31
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:38.507393+00:00",
+      "sections": [
+        "Hunter file",
+        "Hunter file - Help"
+      ],
+      "summary": "Hunter File is a character build profile opened by clicking a player or avatar.",
+      "findings": [
+        "Profiles can be added to the Collection tab of Hero Ranking.",
+        "Data is not real time: recent gear or outfit changes may not appear immediately.",
+        "Some characters' files cannot be viewed."
+      ],
+      "unknowns": [
+        "Refresh delay or update trigger is not stated.",
+        "Which build fields the file contains is not listed.",
+        "Why some files are hidden is not stated.",
+        "Relevant to build import only as a possible source of build info; the page documents no data format or server route.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Gear_Empowerment",
+      "title": "Gear Empowerment - Help",
+      "positions": [
+        10,
+        32
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:38.946066+00:00",
+      "sections": [
+        "Gear Empowerment - Help",
+        "Gear Empowerment - Help(SystemHelp/coverPage)"
+      ],
+      "summary": "Two Help tabs about re-rolling a gear piece's Energy value with Energy Cores.",
+      "findings": [
+        "Only gear showing an Energy bar qualifies.",
+        "The new value lands inside that gear's Energy range; higher item level favors higher Energy.",
+        "Gear already at its range maximum cannot be empowered again."
+      ],
+      "unknowns": [
+        "Energy Core cost per use is not given.",
+        "Energy range bounds per item level and the roll distribution are not given.",
+        "Whether a roll can lower the current Energy is not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "newEnergy in [rangeMin, rangeMax]; empower blocked when energy == rangeMax",
+          "domain": "Gear Empowerment",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "P(high newEnergy) increases with itemLevel",
+          "domain": "Gear Empowerment roll",
+          "assumptions": [
+            "Direction only; distribution missing"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "import",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Void_Sea_Flame",
+      "title": "Void Sea Flame - Help",
+      "positions": [
+        33
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:40.308641+00:00",
+      "sections": [
+        "Void Sea Flame Affix /54",
+        "Void Sea Flame - Help"
+      ],
+      "summary": "Void Pirate stages: some monsters drop Void Sea Flames; feeding them into the post-stage Void Sea Seal summons Void Pirates.",
+      "findings": [
+        "Beating 3 Pirate waves reveals 3 Seal Whispers.",
+        "Flames may add Pirate drops or steer Whisper type.",
+        "Flame-dropping monster count rises with difficulty; Gold Flames only at Netherrealm Timemark 7-8.",
+        "Extra Flame effects are ignored while Whispers remain unchosen or the Terminal is already open."
+      ],
+      "unknowns": [
+        "Number of Flame-dropping monsters per difficulty is not given.",
+        "Gold Flame drop rate is not given.",
+        "Flame affix effects sit in a data tab (Void Sea Flame Affix /54), not Help text; not reviewed as mechanics.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "sealWhispersRevealed = 3 per Seal (after 3 Pirate waves)",
+          "domain": "Void Sea Seal",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Void_Sea_Terminal",
+      "title": "Void Sea Terminal - Help",
+      "positions": [
+        34
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:40.749789+00:00",
+      "sections": [
+        "Whisper of Wealth /72",
+        "Whisper of Armament /40",
+        "Whisper of Wonder /40",
+        "Void Sea Terminal - Area /17",
+        "Void Sea Terminal - Help"
+      ],
+      "summary": "Chosen Seal Whispers stack affixes onto the Void Sea Terminal, which is then challenged for Void Sea Treasures.",
+      "findings": [
+        "Whisper types: Wealth, Armament, Wonder; without active Flames each reveal holds one of each.",
+        "Terminal opens after 6 Whispers are added.",
+        "Unchosen Whispers block further reveals until chosen."
+      ],
+      "unknowns": [
+        "How many of the 3 revealed Whispers may be picked per reveal is not stated, so the number of Seals per Terminal is unresolved.",
+        "The Help text gives no stacking rule for multiple Whisper drop-quantity affixes (data tabs list values such as +9% to +72% Void Sea Treasure Base Drop Quantity, not reviewed as Help).",
+        "Whisper data tabs are data lists, not Help text.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "terminalOpens iff addedWhispers >= 6",
+          "domain": "Void Sea Terminal",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "sealsNeeded = 6 / whispersPickedPerReveal",
+          "domain": "Void Sea Terminal",
+          "assumptions": [
+            "Each Seal reveals 3 Whispers (Void Sea Flame page); picks per reveal not documented"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Cube_of_Rapacity",
+      "title": "Cube of Rapacity - Help",
+      "positions": [
+        35
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:41.208311+00:00",
+      "sections": [
+        "Cube of Rapacity - Help"
+      ],
+      "summary": "Seasonal Cube: spend Desire Crystals on demands, then claim the rewards on a reward screen.",
+      "findings": [
+        "Rewards must be claimed again on that screen; claiming destroys the Cube and ends the round.",
+        "Cube resets each new stage; at most 40 unused Desire Crystals carry over.",
+        "With a Cube of Craving, a Greed button appears: success doubles every demanded reward, failure destroys the Cube and loses everything."
+      ],
+      "unknowns": [
+        "Greed success probability is not given.",
+        "Desire Crystal cost per demand is not given.",
+        "Cube of Craving trigger chance is not given.",
+        "Season availability unverified; the related Avarice Code page calls it a Season 3 feature.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "carriedCrystals = min(unusedCrystals, 40)",
+          "domain": "Desire Crystal carry-over",
+          "assumptions": [
+            "Page states 'up to 40'; min() form is my restatement"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "Greed outcome: rewards x2 with probability p, else 0",
+          "domain": "Cube of Craving Greed",
+          "assumptions": [
+            "p is not documented"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "E[Greed] = 2p x R; Greed beats claiming in expectation iff p > 0.5",
+          "domain": "Cube of Craving Greed",
+          "assumptions": [
+            "Risk-neutral expected value",
+            "R = value of demanded rewards",
+            "p unknown",
+            "No other Greed costs considered"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Avarice_Code",
+      "title": "Avarice Code - Help",
+      "positions": [
+        36
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:41.643616+00:00",
+      "sections": [
+        "Avarice Code - Help",
+        "Avarice Code /16",
+        "Avarice Code"
+      ],
+      "summary": "Season talent board steering the Cube of Rapacity; new decrees unlock after destroying the Cube a set number of times in Netherrealm stages.",
+      "findings": [
+        "Both reward claims and failed Greed count as Cube destruction.",
+        "Decrees reset anytime at no cost.",
+        "A non-Help text tab presents it as a Season 3 feature."
+      ],
+      "unknowns": [
+        "Destruction counts per decree unlock are not given.",
+        "Current-season availability is not verified (page text dates it to Season 3).",
+        "The /16 node list and the season text are not Help text; not reviewed as mechanics.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "cubeDestructions += 1 on (reward claim OR Greed failure)",
+          "domain": "Avarice Code decree unlock",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hunters_Forge",
+      "title": "Hunter's Forge - Help",
+      "positions": [
+        37
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:42.083431+00:00",
+      "sections": [
+        "Hunter's Forge - Help"
+      ],
+      "summary": "Multi-floor illusion: kill each floor's Aember Incarnations, then use its Aember Crystal for self-enhancing rewards.",
+      "findings": [
+        "Illusions are repeatable but pay rewards only on the first clear."
+      ],
+      "unknowns": [
+        "Reward contents and magnitudes are not stated.",
+        "Floor count and difficulty are not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "rewards(illusion) = firstClearReward once; later clears = 0",
+          "domain": "Hunter's Forge",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Blessings_from_Gods",
+      "title": "Blessings from Gods - Help",
+      "positions": [
+        38
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:42.498415+00:00",
+      "sections": [
+        "Blessings from Gods - Help",
+        "Lv1 - 100 /16"
+      ],
+      "summary": "A shop paid in Divinity Stones, used to buy items or refresh the stock.",
+      "findings": [
+        "Each item shown after a refresh is purchasable once.",
+        "Purchases cannot be returned or refunded."
+      ],
+      "unknowns": [
+        "Refresh cost and item prices are not given in the Help text.",
+        "The Lv1 - 100 /16 tab lists item weights (some rows lack names), but slot count and draw procedure are not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "P(item i in one draw) = weight_i / sum(weights)",
+          "domain": "shop refresh odds (Lv1 - 100 /16 data tab)",
+          "assumptions": [
+            "Assumes a standard single weighted draw; slot count, replacement rule and unnamed rows are undocumented"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "economy",
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Select_Ruins_of_Aeterna",
+      "title": "Select Ruins of Aeterna - Help",
+      "positions": [
+        39
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:42.919340+00:00",
+      "sections": [
+        "Select Ruins of Aeterna - Help"
+      ],
+      "summary": "Picking a grid count generates a randomly shaped Ruins of Aeterna; timed Candelabrum challenges activate grids.",
+      "findings": [
+        "On exit, win or lose, a same-shaped Mark of the Ruins is created; its completeness follows the activated grid count and it later joins the Aeterna Map.",
+        "The left option needs Psalms of Aeterna clearance."
+      ],
+      "unknowns": [
+        "Time limit and allowed grid counts are not given.",
+        "Exact completeness formula and its reward effect are not given.",
+        "Pros and cons of the two options are not specified.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "markCompleteness = f(activatedGrids)",
+          "domain": "Mark of the Ruins",
+          "assumptions": [
+            "Page only says completeness corresponds to activated grids; ratio vs count not stated"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Aeterna_Map",
+      "title": "Aeterna Map - Help",
+      "positions": [
+        40
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:43.346244+00:00",
+      "sections": [
+        "Aeterna Map - Help"
+      ],
+      "summary": "Marks of the Ruins are placed on revealed tiles to construct the City of Aeterna, whose layout copies the finished map.",
+      "findings": [
+        "Best rewards: cover many reward rooms and connect them to the start.",
+        "Leftover gaps can take Aeterna Tiles once all Marks are placed.",
+        "Weak Marks can be reset and the previous Ruins replayed for better ones."
+      ],
+      "unknowns": [
+        "Whether unconnected reward rooms pay anything is not stated.",
+        "Reward per room is not given.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "cityRewards increases with count(rewardRooms covered and connected to start)",
+          "domain": "City of Aeterna",
+          "assumptions": [
+            "Direction only"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Psalms_of_Aeterna",
+      "title": "Psalms of Aeterna - Help",
+      "positions": [
+        41
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:43.777910+00:00",
+      "sections": [
+        "Psalms of Aeterna /49",
+        "Talent Tree",
+        "Psalms of Aeterna",
+        "Psalms of Aeterna - Help"
+      ],
+      "summary": "Node tree upgraded with Pages of Aeterna, raising City and Ruins of Aeterna rewards and unlocking features.",
+      "findings": [
+        "Nodes stay hidden until a connected node is upgraded.",
+        "Pages drop mainly from City of Aeterna bosses.",
+        "Conflict: one tab says resets are all-at-once, down to Lv. 1 only, partial refund; the Help tab says most nodes revert with full refund, some never."
+      ],
+      "unknowns": [
+        "Which reset rule is current is unresolved.",
+        "Node costs are not given.",
+        "Node effects are in the /49 data tab, not Help text; not reviewed.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "sum(maxLevel) = 15x1 + 12x3 + 22x5 = 161 over 49 nodes",
+          "domain": "Psalms of Aeterna tree size",
+          "assumptions": [
+            "Counted the 0/N counters on the Talent Tree tab and assumed N is each node's max level"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Trait_Decks_and_Card_Library",
+      "title": "Trait Decks and Card Library - Help",
+      "positions": [
+        42
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:44.244128+00:00",
+      "sections": [
+        "Trait Decks and Card Library - Help"
+      ],
+      "summary": "The Trait Deck applies every card's affixes to each Netherrealm stage opened in its plane.",
+      "findings": [
+        "Deck cap: 10 cards.",
+        "Exempt stages: Plane Watcher, Traveler, Great Void.",
+        "Each Chaos Invasion round end: add one card or upgrade one; Confusion progress offers extra picks.",
+        "Some cards need higher Timemarks.",
+        "Library under 10: new cards auto-join next round; above 10: choose any 10, edits apply next round."
+      ],
+      "unknowns": [
+        "Behaviour at exactly 10 library cards is not described.",
+        "Upgrade levels or caps per card are not given.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "deckSize <= 10",
+          "domain": "Trait Deck",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Confusion_Deck_and_Card_Library",
+      "title": "Confusion Deck and Card Library - Help",
+      "positions": [
+        43
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:44.659858+00:00",
+      "sections": [
+        "Confusion Deck and Card Library - Help"
+      ],
+      "summary": "Each Chaos Invasion round draws 3 random Confusion Cards and assigns them to random Netherrealm stages in the plane.",
+      "findings": [
+        "Opening an assigned stage fires that card.",
+        "New cards unlock by defeating Plane Watchers or Travelers across planes and Timemarks; higher plane/Timemark yields more valuable cards."
+      ],
+      "unknowns": [
+        "Draw weights, deck size and replacement rule are not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "confusionCardsDrawnPerRound = 3",
+          "domain": "Chaos Invasion",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Twinightmare",
+      "title": "Twinightmare - Help",
+      "positions": [
+        44
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:45.096714+00:00",
+      "sections": [
+        "Twinightmare",
+        "Twinightmare - Help",
+        "Twinightmare - Help > Basic Rules",
+        "Twinightmare - Help > Dream Bubble",
+        "Twinightmare - Help > Dream Omen",
+        "Twinightmare - Help > Nightmare Trial"
+      ],
+      "summary": "Sweet Dreams build reward Dream Bubbles; surviving a Nightmare makes them real.",
+      "findings": [
+        "Nightmare chance rises per Sweet Dream floor until forced.",
+        "Each Nightmare death loses floor(total/6) bubbles; fractions accumulate, adding one extra loss after reaching 1; losses settle on exit.",
+        "Nightmare inherits 1 base drop buff (not Resonance, Compass, cards); level = average round map level.",
+        "Timemark 7+: Orange+ bubbles may drop Profound Dream Talking.",
+        "Each Sweet Omen brings a Nightmare Omen; omens can waste on capped targets."
+      ],
+      "unknowns": [
+        "Whether 'total' is fixed at entry or shrinks between deaths is ambiguous (deductions settle at exit).",
+        "Which bubbles (quality) are randomly lost is not specified.",
+        "Nightmare chance per floor, Vision size and Profound Dream Talking rate are not given.",
+        "Which base drop buff is inherited when several exist is not stated.",
+        "An untitled card in the Twinightmare tab shows Pactspirit-style data, not Help text.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "lossAtDeath_k = floor(B/6) + [acc_(k-1) >= 1]; acc_k = acc_(k-1) - [acc_(k-1) >= 1] + frac(B/6); acc_0 = 0",
+          "domain": "Nightmare death penalty",
+          "assumptions": [
+            "B = total Dream Bubbles, assumed constant because deductions settle at exit",
+            "Extra bubble is taken on the death after the remainder reaches 1, as the page orders it"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "totalLoss(n deaths) = min(B, n*floor(B/6) + floor((n-1)*frac(B/6)))",
+          "domain": "Nightmare death penalty",
+          "assumptions": [
+            "Closed form of the previous recurrence; cap at B assumed",
+            "Example B=10: losses after 1..4 deaths = 1, 2, 4, 6"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "nightmareStageLevel = mean(levels of all maps in this round)",
+          "domain": "Nightmare stage",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "inheritedBaseDropBuffs = 1, excluding Netherrealm Resonance, Compass and card buffs",
+          "domain": "Nightmare stage loot",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Dream_Interpretation",
+      "title": "Dream Interpretation - Help",
+      "positions": [
+        45
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:45.549981+00:00",
+      "sections": [
+        "Dream Interpretation - Help"
+      ],
+      "summary": "Gear crafting that appends one Sweet Dream affix plus one Nightmare affix to a chosen gear's base affixes.",
+      "findings": [
+        "The two affixes are an inseparable pair.",
+        "It cannot be stopped midway; discarding the result still spends materials and Readability.",
+        "Any gear slot qualifies, but at most 3 equipped pieces may carry Dream affixes simultaneously."
+      ],
+      "unknowns": [
+        "Affix pools, values and Readability amounts are not given.",
+        "Whether a new pair replaces an existing pair is not stated.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "count(equipped gear with Dream affixes) <= 3",
+          "domain": "Dream affixes on gear",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Dream_Cloud_Atlas",
+      "title": "Dream Cloud Atlas - Help",
+      "positions": [
+        46
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:46.010589+00:00",
+      "sections": [
+        "Dream Cloud Atlas /18",
+        "Dream Cloud Atlas - Help"
+      ],
+      "summary": "Twinightmare node board paid with Lotus Seeds; nodes unlock or alter features or raise mode rewards.",
+      "findings": [
+        "Inner/outer alternation: each inner point requires 2 outer points before the next inner point; exempt are the first 2 inner and last 10 outer points.",
+        "Each passed Sweet Dream trial adds 1 Lotus Seed Progress; a full bar grants 1 Seed.",
+        "Unlimited free resets with full refund; changes apply after the next Dream reset."
+      ],
+      "unknowns": [
+        "Progress bar length per Seed is not stated.",
+        "The 'vice versa' clause, read literally, would also demand 2 inner points per outer point; intent is unclear.",
+        "Node costs and total Seeds needed are not given in the Help text; the /18 tab is node data, not reviewed.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "lotusSeeds = floor(passedSweetDreamTrials / progressPerSeed)",
+          "domain": "Lotus Seed income",
+          "assumptions": [
+            "progressPerSeed not documented"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "allocate inner point i (i > 2) only if outerPoints >= 2*(i-2)",
+          "domain": "Dream Cloud Atlas allocation",
+          "assumptions": [
+            "My reading of the alternation rule; 'vice versa' and the last-10-outer exemption make the exact rule ambiguous"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Mistville_Exploration",
+      "title": "Mistville Exploration - Help",
+      "positions": [
+        47
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:46.442821+00:00",
+      "sections": [
+        "Mistville Exploration /73",
+        "Tile /40",
+        "Encounter /129",
+        "Blank Stele /13",
+        "Mistville Exploration - Help"
+      ],
+      "summary": "Grid exploration: spend Sanity to clear mist from Cells and reach the Clock Tower for a new day; Sanity at zero ends the round.",
+      "findings": [
+        "Odd days: Advent of Folklores at the Clock Tower; winning gives a Chest of Folklores, finishing in time restores some Sanity.",
+        "Even days: the Clock Tower restores Sanity and advances directly.",
+        "Old Stuff lasts the whole run; Food is limited."
+      ],
+      "unknowns": [
+        "Sanity costs, restoration amounts and time limit are not given.",
+        "Chest of Folklores contents are not given.",
+        "Mistville, Tile, Encounter and Blank Stele tabs are data lists, not Help text; not reviewed.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Trial_of_Divinity",
+      "title": "Trial of Divinity - Help",
+      "positions": [
+        48
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:48.844861+00:00",
+      "sections": [
+        "Trial of Divinity - Help"
+      ],
+      "summary": "Level-climbing trial whose end-of-trial Drop Quantity grows with levels advanced.",
+      "findings": [
+        "Pactspirit Drop Quantity bonuses do not apply.",
+        "Every 10 levels steeply raises difficulty and Drop Quantity.",
+        "Exclusive Legendary gear and related Fluorescent Memory Shard chances scale with final Drop Quantity.",
+        "Six Gods Divinity Emblem chance does use Drop Quantity bonuses.",
+        "Leaving keeps progress rewards; no attempts left forfeits all; claiming ends the challenge."
+      ],
+      "unknowns": [
+        "Per-level and per-10-level increments are not given.",
+        "Which non-Pactspirit Drop Quantity bonuses apply is not stated.",
+        "The exact link between Trial of Divinity and Six Gods is not explained.",
+        "Site footer says its data comes from beta testing, not the final release; correspondence to the current client/version is not verified."
+      ],
+      "formulas": [
+        {
+          "expression": "endDropQuantity = g(levelsAdvanced), increasing per level with larger steps every 10 levels; Pactspirit Drop Quantity excluded",
+          "domain": "Trial of Divinity loot",
+          "assumptions": [
+            "Shape documented, values missing"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "P(exclusive Legendary or related Fluorescent Memory Shard) increases with endDropQuantity",
+          "domain": "Trial of Divinity loot",
+          "assumptions": [
+            "Direction only"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    }
+  ]
+}

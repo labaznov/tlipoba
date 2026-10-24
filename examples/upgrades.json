@@ -1,0 +1,111 @@
+{
+  "format": "tli-upgrade-scenario-v1",
+  "panel": {
+    "spell_dps": 1000,
+    "cast_rate": 11,
+    "max_tangles": 2,
+    "extra_attachments": 0,
+    "cold_penetration": 0
+  },
+  "condition": {
+    "basis": "panel",
+    "active": 1,
+    "hits": 1,
+    "retention": 0.25,
+    "lucky": false,
+    "critical_more": 0,
+    "resistance": 0,
+    "taken": 0,
+    "uptime": 1
+  },
+  "combat": {
+    "reference": {
+      "damage": [
+        {
+          "id": "old-a",
+          "affix": "fictional-amplification",
+          "value": 0.25,
+          "stacks": 1,
+          "mode": "add"
+        },
+        {
+          "id": "old-b",
+          "affix": "fictional-amplification",
+          "value": 0.15,
+          "stacks": 1,
+          "mode": "add"
+        }
+      ],
+      "cast": [],
+      "taken": []
+    },
+    "target": {
+      "damage": [
+        {
+          "id": "old-a",
+          "affix": "fictional-amplification",
+          "value": 0.25,
+          "stacks": 1,
+          "mode": "add"
+        },
+        {
+          "id": "old-b",
+          "affix": "fictional-amplification",
+          "value": 0.15,
+          "stacks": 1,
+          "mode": "add"
+        }
+      ],
+      "cast": [],
+      "taken": []
+    },
+    "tick_frequency": null,
+    "armor": 0,
+    "nonphysical": true,
+    "missing": [],
+    "notes": [
+      "Fictional modifier pools and prices; no player or market data"
+    ]
+  },
+  "currency": "synthetic token",
+  "candidates": [
+    {
+      "id": "budget",
+      "name": "Fictional replacement A",
+      "target": {
+        "damage": [
+          {
+            "id": "new-a",
+            "affix": "fictional-amplification",
+            "value": 0.75,
+            "stacks": 1,
+            "mode": "add"
+          }
+        ],
+        "cast": [],
+        "taken": []
+      },
+      "cost": 17,
+      "missing": []
+    },
+    {
+      "id": "larger",
+      "name": "Fictional replacement B",
+      "target": {
+        "damage": [
+          {
+            "id": "new-b",
+            "affix": "fictional-amplification",
+            "value": 1.1,
+            "stacks": 1,
+            "mode": "add"
+          }
+        ],
+        "cast": [],
+        "taken": []
+      },
+      "cost": 49,
+      "missing": []
+    }
+  ]
+}

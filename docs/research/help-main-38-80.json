@@ -1,0 +1,980 @@
+{
+  "format": "tli-help-review-chunk-v1",
+  "checkedAt": "2026-10-21T20:49:10Z",
+  "articles": [
+    {
+      "url": "https://tlidb.com/en/Skill_Type",
+      "title": "Skill Type",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Навыки разделяются на активные, пассивные и поддержки; последние две группы имеют обычные и Precise варианты.",
+      "findings": [
+        "Поддержка масштабирует стоимость активного навыка и резервирование пассивного своим Mana Multiplier",
+        "В связке разрешена одна одноимённая поддержка; активные навыки могут повторяться"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены"
+      ],
+      "formulas": [
+        {
+          "expression": "C_linked = C_base * M",
+          "domain": "Одна применимая поддержка и Mana Cost либо Sealed Mana",
+          "assumptions": [
+            "M — Mana Multiplier в долях"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Skill_Speed",
+      "title": "Skill Speed",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Attack Speed управляет навыками Attack, Cast Speed — Spell с действием; скорость выражает число применений в секунду.",
+      "findings": [
+        "Обычные бонусы суммируются, дополнительные факторы перемножаются"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет определения панельного Spell DPS, серверного шага или коэффициента S/A"
+      ],
+      "formulas": [
+        {
+          "expression": "v = v_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Skill Speed для навыка с действием",
+          "assumptions": [
+            "Проценты переведены в доли",
+            "Совпадающие affix pools требуют отдельного правила группировки"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Cooldown",
+      "title": "Cooldown",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Повторное применение разрешается после окончания перезарядки; скорость восстановления сокращает её длительность.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет общей формулы взаимодействия cooldown с движением, зарядами и автоматическим применением"
+      ],
+      "formulas": [
+        {
+          "expression": "T = T_base / ((1 + sum(b_i)) * product(1 + m_j))",
+          "domain": "Cooldown Recovery Speed",
+          "assumptions": [
+            "Бонусы в долях",
+            "Положительный знаменатель"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Charges",
+      "title": "Charges",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Каждое применение расходует заряд. Обычные заряды возвращаются по одному за время перезарядки, пока запас не полон.",
+      "findings": [
+        "Charging Progress заменяет обычную схему восстановления; достаточный прогресс может вернуть несколько зарядов сразу"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет универсального генератора Charging Progress или гарантированного sustained DPS"
+      ],
+      "formulas": [
+        {
+          "expression": "r_charge = 1 / T_cooldown",
+          "domain": "Неполный запас обычных зарядов без Charging Progress",
+          "assumptions": [
+            "Непрерывное восстановление без иных источников"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Skill_cost",
+      "title": "Skill cost",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Активный навык обычно требует Mana и не применяется при недостаточном ресурсе; часть стоимости может заменяться расходом Life.",
+      "findings": [
+        "Расход Life не считается полученным уроном",
+        "При замене не менее 100% остаётся только соответствующая стоимость Life"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Бесплатный по Mana навык не получает эту конверсию; sustain конкретной связки здесь не вычисляется"
+      ],
+      "formulas": [
+        {
+          "expression": "C_life = p * C_mana_base; C_mana = 0",
+          "domain": "Замена Mana на Life при p >= 1",
+          "assumptions": [
+            "p — доля замены",
+            "Исходная стоимость Mana положительна"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Seal",
+      "title": "Seal",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Пассивные и Triggered навыки резервируют часть Mana; зарезервированный ресурс нельзя расходовать или резервировать повторно.",
+      "findings": [
+        "Недостаток свободной Mana запрещает активацию",
+        "При конверсии резервирования не менее 100% резервируется только Life"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Формула полного бюджета нескольких резервирований и округление не приведены"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Skill_Slots",
+      "title": "Skill Slots",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Справка описывает пять активных, четыре пассивных и по пять окружающих слотов поддержки.",
+      "findings": [
+        "Навык в первом активном слоте называется Main Skill"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Разметка интерфейса не подтверждает выбранный навык в RoleAttrMgr и не задаёт стабильные внутренние slot IDs"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Skill_Level",
+      "title": "Skill Level",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "После уровня 20 база навыка и прислужников перестаёт расти; текст отдельно описывает множители за последующие уровни.",
+      "findings": [
+        "В зеркале указаны 10% за уровни 21–30 и 8% за каждый следующий уровень, с перемножением",
+        "Для Burst of Anger отмечено исключение роста базы"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Текущая сезонная версия ставок не подтверждена; применять бонус поверх готовой панели нельзя",
+        "Пример сравнения Lv.21 с Lv.1 в тексте не объясняет базу расчёта"
+      ],
+      "formulas": [
+        {
+          "expression": "M(L) = 1.10^min(L-20,10) * 1.08^max(L-30,0)",
+          "domain": "Целый L > 20; множитель относительно уровня 20",
+          "assumptions": [
+            "Только профиль ставок, описанный этим зеркалом",
+            "Не дополнительный множитель панельных агрегатов"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Attack",
+      "title": "Attack",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "База Attack обычно зависит от доли Weapon Damage; базовые Attack Speed и Critical Strike Rating берутся из оружия.",
+      "findings": [
+        "При двух оружиях попадания чередуют оружие; база урона и крита относится к использованному оружию",
+        "Базовая скорость — средняя скорость двух оружий"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Это общее правило Attack, а не доказательство формулы Chromatic Shot или панельного Spell DPS"
+      ],
+      "formulas": [
+        {
+          "expression": "AS_base = (AS_left + AS_right) / 2",
+          "domain": "Dual wield Attack",
+          "assumptions": [
+            "Указанное правило относится к базовой скорости"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Spell",
+      "title": "Spell",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "У Spell обычно фиксированы базовый урон и Cast Speed; типичный базовый Critical Strike Rating указан как 500.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Слова «обычно» не подтверждают параметры каждого навыка",
+        "Нет формулы Spell DPS, среднего попадания или связи с Attack Damage"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Channeled",
+      "title": "Channeled",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Удержание поддерживает канал; каждый раунд применения даёт стек. Потеря стеков при прерывании зависит от навыка.",
+      "findings": [
+        "Max Channeled Stacks ограничивает накопление",
+        "Min Channeled Stacks добавляется при раунде, начинающемся с нулевого числа стеков"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Не задаёт универсальный урон стека или частоту тиков"
+      ],
+      "formulas": [
+        {
+          "expression": "stacks_first_round = 1 + minimum_stack_bonus",
+          "domain": "Первый раунд при текущем числе стеков 0",
+          "assumptions": [
+            "До применения максимального ограничения"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Area",
+      "title": "Area",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Area навыки действуют на единицы в пределах области; размер области масштабируется отдельными бонусами.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Текст не задаёт преобразование Area в радиус и вероятность перекрытия нескольких взрывов"
+      ],
+      "formulas": [
+        {
+          "expression": "A = A_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Skill Area",
+          "assumptions": [
+            "Бонусы в долях"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Melee",
+      "title": "Melee",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Melee объединяет Slash-Strike, Demolisher и Shadow Strike.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Классификация не задаёт общий коэффициент урона или бонус Chromatic Shot"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Slash-Strike",
+      "title": "Slash-Strike",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Есть формы Sweep Slash и Steep Strike; базовой считается Sweep Slash.",
+      "findings": [
+        "Шанс может заменить применение на Steep Strike",
+        "При наличии Steep Strike attempt расходуется одна попытка и применяется эта форма"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Не описана общая формула урона форм и распределение попыток"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Demolisher",
+      "title": "Demolisher",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Навык накапливает Demolisher Charge и расходует его для усиленного применения.",
+      "findings": [
+        "Время восстановления учитывается только при отсутствии заряда"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Размер усиления задаётся конкретным навыком; связь с Carino не установлена"
+      ],
+      "formulas": [
+        {
+          "expression": "T_charge = T_base / (1 + sum(b_i))",
+          "domain": "Demolisher Charge Restoration Speed",
+          "assumptions": [
+            "Источник показывает только обычные бонусы",
+            "Положительный знаменатель"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Shadow_Strike",
+      "title": "Shadow Strike",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Тени применяют тот же Attack, что игрок, и по умолчанию отсутствуют; поиск целей отдаёт приоритет ещё не поражённым врагам.",
+      "findings": [
+        "В одновременном ударе нескольких теней по одной цели каждая тень после первой получает 70% less damage",
+        "Базовый радиус поиска 9,5 м использует только специальные бонусы"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Этот штраф не является правилом shotgun для Projectile или Tangle"
+      ],
+      "formulas": [
+        {
+          "expression": "D_shadows = D_shadow * (1 + 0.30 * (N - 1))",
+          "domain": "N >= 1 одинаковых теней одновременно поражают одну цель",
+          "assumptions": [
+            "Без попадания самого игрока в сумме",
+            "Одинаковый базовый урон теней"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Projectile",
+      "title": "Projectile",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Projectile включает горизонтальные, параболические и вертикальные снаряды.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Само наличие тега не доказывает множественное попадание в одну цель или общий штраф shotgun"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Horizontal",
+      "title": "Horizontal",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Дополнительные снаряды имеют общий источник и разлетаются под углом. Help допускает повторный урон одной цели с интервалом 0,25 с.",
+      "findings": [
+        "Приоритет событий: Penetrate, затем Jump, затем Return",
+        "Возврат сбрасывает Penetration и Jump counts; Jump не выбирает уже посещённую цель"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Область ограничения 0,25 с не определена: один снаряд, волна или все источники",
+        "Нет доказательства применения интервала к Tangle или коэффициента S/A"
+      ],
+      "formulas": [
+        {
+          "expression": "delta_t_same_enemy = 0.25 s",
+          "domain": "Описанное повторное повреждение Horizontal Projectile",
+          "assumptions": [
+            "Scope ограничения не установлен; не использовать как общий DPS cap"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Parabolic",
+      "title": "Parabolic",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Бонус Projectile Quantity не увеличивает число параболических снарядов: каждый +1 вместо этого даёт +20% Skill Area.",
+      "findings": [
+        "Split создаёт новые снаряды после попадания; вторичное Split не происходит",
+        "Расстояние посадки split-снаряда от исходного — 4 м"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Не задана вероятность перекрытия взрывов и общий shotgun factor"
+      ],
+      "formulas": [
+        {
+          "expression": "area_bonus_from_quantity = 0.20 * added_quantity",
+          "domain": "Бонус к области Parabolic от добавленного Projectile Quantity",
+          "assumptions": [
+            "Это вклад бонуса области, а не число снарядов или готовый итоговый множитель"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Vertical",
+      "title": "Vertical",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Дополнительные Vertical Projectile появляются в случайных местах соответствующей области; Quantity увеличивает их число.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет распределения точек, размеров цели или вероятности попаданий; умножение single-target DPS на число снарядов не доказано"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Terra",
+      "title": "Terra",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Terra накапливает стеки заряда и при применении расходует весь накопленный запас; сила применения зависит от числа стеков.",
+      "findings": [
+        "Quantity влияет на максимально доступные стеки"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Не указана универсальная зависимость урона от стека"
+      ],
+      "formulas": [
+        {
+          "expression": "T_charge = T_base / (1 + sum(b_i))",
+          "domain": "Восстановление одного Terra Charge",
+          "assumptions": [
+            "Источник перечисляет только обычные бонусы",
+            "Положительный знаменатель"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Barrage",
+      "title": "Barrage",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Навык повторяет эффект в одной области через Barrage Wave Interval.",
+      "findings": [
+        "Barrage Waves включает первоначальное применение; Quantity меняет число волн"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет универсальной длительности волны и вероятности попаданий по движущейся цели"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Chain",
+      "title": "Chain",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Chain перескакивает между врагами, расходуя один Jump на переход.",
+      "findings": [
+        "Повторно выбрать прежнюю цель можно только после двух последующих прыжков"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Не смешивать это правило с Horizontal Jump, который отдельно запрещает уже посещённые цели"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Beam",
+      "title": "Beam",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Количество лучей масштабируется Quantity; дополнительные лучи выходят из того же источника под углом.",
+      "findings": [
+        "Refraction выбирает ещё не поражённых врагов",
+        "Для проникающего луча ответвление создаётся в середине, иначе у точки назначения"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет общего числа попаданий одной цели или формулы периодического урона"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Sentry",
+      "title": "Sentry",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Sentry неподвижны, автоматически применяют навыки и наследуют показатели игрока. Их действия приписываются игроку.",
+      "findings": [
+        "Базовое ограничение карты — четыре Sentry",
+        "Частоту задаёт Cast Frequency, а не Attack/Cast Speed",
+        "По общему Help Sentry не активируют Spell Burst или Multistrike"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Специальные исключения требуют отдельного источника",
+        "Текст не подтверждает классификацию Tangle как Sentry или полное наследование Tangle"
+      ],
+      "formulas": [
+        {
+          "expression": "f = f_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Sentry Cast Frequency",
+          "assumptions": [
+            "Перенос формы вычисления скорости прямо указан Help",
+            "Применимы бонусы Cast Frequency, не общая Cast Speed"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Summon",
+      "title": "Summon",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Прислужники имеют собственные показатели; действуют только эффекты, явно адресованные Minion. Урон и попадания отделены от игрока.",
+      "findings": [
+        "Однотипные призывы делят максимальный лимит, а не складывают лимиты навыков",
+        "Убийства учитываются для наград игрока"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Наследование Tangle из этого текста не следует"
+      ],
+      "formulas": [
+        {
+          "expression": "N_cap(type) = min(N_map, max_i(N_skill_i))",
+          "domain": "Навыки, призывающие один тип Minion",
+          "assumptions": [
+            "Сравниваются лимиты одного типа"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Synthetic_Troop",
+      "title": "Synthetic Troop",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Synthetic Troop обычно вызываются активными навыками; базовый предел карты — шесть.",
+      "findings": [
+        "Command ограничен от −100 до 100, стартует с 0 и возвращается к 0",
+        "Положительный Command даёт бонусы урона, защиты, скорости и поиска",
+        "Отрицательный Command может привести к гибели через 5 с"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Текст не устанавливает безопасную общую pooling-формулу для всех Command-бонусов; коэффициенты нельзя переносить на Carino"
+      ],
+      "formulas": [
+        {
+          "expression": "-100 <= Command <= 100",
+          "domain": "Диапазон Command",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Spirit_Magus",
+      "title": "Spirit Magus",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Spirit Magus обычно является пассивным призывом, с базовым пределом двух на карте.",
+      "findings": [
+        "Growth ограничен 100–1000; стадии повышаются через 100 Growth до пятой",
+        "Стадии изменяют навыки, область и характеристики; Full Bloom связан с Iris"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Конкретные Enhanced/Ultimate параметры требуют таблиц навыка; эти правила не относятся к Carino"
+      ],
+      "formulas": [
+        {
+          "expression": "stage = min(5, floor(Growth / 100))",
+          "domain": "Growth от 100 до 1000",
+          "assumptions": [
+            "Стадии, описанные данным Help"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Warcry",
+      "title": "Warcry",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Warcry даёт отрицательные эффекты врагам и преимущественно усиливает Melee; число затронутых врагов влияет на положительный эффект.",
+      "findings": [
+        "Использует собственную Warcry Cast Speed",
+        "Warcry Effect масштабирует положительные значения"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нет универсального линейного множителя от количества врагов"
+      ],
+      "formulas": [
+        {
+          "expression": "E = E_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Положительный Warcry Effect",
+          "assumptions": [
+            "Бонусы в долях"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Curse",
+      "title": "Curse",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Curse усиливает уязвимость врагов отрицательными эффектами; обычно не имеет действия применения.",
+      "findings": [
+        "Базовый предел — один тип Curse на цели от одного источника",
+        "Сверх предела новый тип заменяет самый ранний; Quantity изменяет предел"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Включённость конкретного Curse в наблюдаемую панель требует отдельной проверки"
+      ],
+      "formulas": [
+        {
+          "expression": "E = E_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Значение отрицательного Curse Effect",
+          "assumptions": [
+            "Бонусы в долях"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Empower",
+      "title": "Empower",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Empower Skills дают положительные эффекты усиления урона и обычно не имеют действия применения.",
+      "findings": [
+        "Empower Effect масштабирует значения положительных эффектов"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "На странице присутствует одноимённая система изменения Energy предметов; это другой механизм",
+        "Нет общей длительности или uptime эффекта"
+      ],
+      "formulas": [
+        {
+          "expression": "E = E_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Положительный Empower Effect",
+          "assumptions": [
+            "Не система gear Energy empowerment"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Mobility",
+      "title": "Mobility",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Mobility повышает мобильность; его применение прерывает другие используемые навыки.",
+      "findings": [
+        "Attack Mobility получает меньший бонус Attack Speed, чем обычный Attack; база скорости не затрагивается"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Величина уменьшения не указана; подбирать коэффициент нельзя",
+        "Это не формула времени автоматического Tangle"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Restoration",
+      "title": "Restoration",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Восстановление Life/Mana обычно действует некоторое время; продление Restoration Duration не увеличивает общий объём.",
+      "findings": [
+        "Restoration Duration отделена от Skill Effect Duration",
+        "При полном ресурсе соответствующий эффект прекращается; другая активная часть может сохраняться"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Charging Progress и реальные условия sustain требуют конкретного навыка"
+      ],
+      "formulas": [
+        {
+          "expression": "R_total = R_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Общий Restoration Effect",
+          "assumptions": [
+            "Не скорость в секунду"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "R_per_second = R_total / T_restoration",
+          "domain": "Равномерное восстановление за длительность",
+          "assumptions": [
+            "Общий объём не меняется",
+            "До досрочного прекращения при полном ресурсе"
+          ],
+          "status": "derived"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Defensive",
+      "title": "Defensive",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Defensive Skills дают положительные эффекты выживаемости и обычно не имеют действия применения.",
+      "findings": [
+        "Defensive Effect масштабирует значения положительных эффектов"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Из общего текста не следует uptime или дополнительный урон конкретной защиты"
+      ],
+      "formulas": [
+        {
+          "expression": "E = E_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Положительный Defensive Effect",
+          "assumptions": [
+            "Бонусы в долях"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Aura",
+      "title": "Aura",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Ауры действуют на игрока и союзников в области; Aura Effect меняет значения положительных эффектов.",
+      "findings": [
+        "Одноимённые ауры не складываются",
+        "Приоритет: Precise, затем более высокий уровень, затем больший Effect bonus"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Наличие ауры в экспорте не подтверждает её активность и повторный учёт поверх панели"
+      ],
+      "formulas": [
+        {
+          "expression": "E = E_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Положительный Aura Effect",
+          "assumptions": [
+            "Одна выбранная одноимённая аура"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Activation_Medium",
+      "title": "Activation Medium",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Особая поддержка устанавливается только в первый слот поддержки активного навыка и автоматизирует его применение по условию.",
+      "findings": [
+        "Текст различает срабатывание trigger и попытку автоматически использовать навык",
+        "Отдельное описание связывает выпадение с сезонным Folklores"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Конкретный dispatch Activation Medium: Tangle, его частота, стоимость и участие в Spell Burst здесь не раскрыты"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Focus",
+      "title": "Focus",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Focus Skills дают пассивные усиления, накапливают очки по условиям и запускают дополнительный эффект при пороге, обычно 100.",
+      "findings": [
+        "Focus Effect масштабирует положительный эффект, но не запускаемую часть",
+        "Focus Damage Enhancement суммирует вклады affix",
+        "Одноимённый статус Focus имеет пять стеков и длительность 5 с с обновлением"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Одноимённые talent/status карточки нельзя принимать за универсальные параметры Focus Skill"
+      ],
+      "formulas": [
+        {
+          "expression": "E = E_base * (1 + sum(b_i)) * product(1 + m_j)",
+          "domain": "Положительный Focus Effect, не triggered effect",
+          "assumptions": [
+            "Бонусы в долях"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "M_focus_enhancement = 1 + sum(e_i)",
+          "domain": "Урон и Ailment Damage Focus Skills",
+          "assumptions": [
+            "Один явно указанный Enhancement pool"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Combo",
+      "title": "Combo",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Обычная последовательность содержит два Starter и Finisher; Starter даёт очки, Finisher расходует их.",
+      "findings": [
+        "Другие не мгновенные и не Mobility навыки сбрасывают последовательность; пауза до 1,5 с допускает продолжение",
+        "Дополнительный Finisher наследует очки Starter",
+        "Combo Spell не активирует Spell Burst; Enhancement affix суммируются"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Нельзя переносить Combo Damage Enhancement или схему очков на Chromatic Shot без тега"
+      ],
+      "formulas": [
+        {
+          "expression": "D_finisher = D_base * (1 + P_consumed * A_finisher)",
+          "domain": "Hit Damage Combo Finisher",
+          "assumptions": [
+            "A в долях"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "M_combo_enhancement = 1 + sum(e_i)",
+          "domain": "Урон и Ailment Damage Combo Skills",
+          "assumptions": [
+            "Вклады Enhancement принадлежат одному pool"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Modularization",
+      "title": "Modularization",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Модульные навыки призывают Synthetic Troop с отдельными способностями монстров и 1–3 случайными affix.",
+      "findings": [
+        "Help связывает выпадение с определёнными Netherrealm Boss и узлами Profound Constellation",
+        "Указан минимум Timemark 8; три affix — Profound Timemark 8"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Версионные ограничения выпадения не являются формулой DPS; случайные affix нельзя восстанавливать по названию"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Exclusive_Support_Skill_Magnificent",
+      "title": "Exclusive Support Skill (Magnificent)",
+      "status": "blocked",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Тело статьи недоступно: web сообщает недоступный URL, обычный GET вернул HTTP 403.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Содержание и правила эксклюзивных поддержек не проверены; обход блокировки не выполнялся"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Exclusive_Support_Skill_Noble",
+      "title": "Exclusive Support Skill (Noble)",
+      "status": "blocked",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Тело статьи недоступно: web сообщает недоступный URL, обычный GET вернул HTTP 403.",
+      "findings": [],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Содержание и правила эксклюзивных поддержек не проверены; обход блокировки не выполнялся"
+      ],
+      "formulas": []
+    },
+    {
+      "url": "https://tlidb.com/en/Multistrike",
+      "title": "Multistrike",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "Attack может автоматически повторяться без рекурсивного Multistrike. Каждое применение требует ресурс; движение или прерывающий навык обрывает серию.",
+      "findings": [
+        "Полные сотни процентов шанса гарантируют повторы, остаток определяет ещё один",
+        "По умолчанию серия получает +20% Attack Speed",
+        "Damage Increment применяется всё больше к последующим ударам"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Вид суммирования или перемножения Damage Increment не закреплён явной формулой",
+        "Не относится к Spell Chromatic Shot без отдельного исключения"
+      ],
+      "formulas": [
+        {
+          "expression": "E[N_attacks] = 1 + q",
+          "domain": "q >= 0 — Multistrike Chance в долях",
+          "assumptions": [
+            "Серия не прервана; нет специальных модификаторов начального count"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "I_effective = I_base * (1 + additional_increment)",
+          "domain": "Additional Multistrike Damage Increment",
+          "assumptions": [
+            "Это масштабирование Increment, не всех попаданий"
+          ],
+          "status": "documented"
+        }
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Spell_Burst",
+      "title": "Spell Burst",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:49:10Z",
+      "summary": "При полной зарядке расходуются стеки и автоматически применяется Spell; инициирующее применение также считается cast by Spell Burst.",
+      "findings": [
+        "Повторные Burst casts не вызывают рекурсию; есть исключённые типы навыков",
+        "Базовая полная зарядка занимает 2 с; требуется Max Spell Burst не меньше 1"
+      ],
+      "unknowns": [
+        "TLIDB — неофициальное зеркало игровых текстов; версия клиента и применимость текста к SS14 не подтверждены",
+        "Неясна группировка дополнительных speed-факторов в печатной формуле времени",
+        "На странице смешаны Help и исторический season 3 текст с противоречивым упоминанием Channeled",
+        "Нет доказательства классификации Tangle, формулы панельного DPS или S/A=50/39"
+      ],
+      "formulas": [
+        {
+          "expression": "T_full_base = 2 s",
+          "domain": "Полная зарядка Spell Burst без бонусов",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "N_automatic_uses = N_consumed_stacks",
+          "domain": "Активация полностью заряженного Spell Burst",
+          "assumptions": [
+            "Не отождествлять с устойчивой частотой попаданий",
+            "Планирование и учёт инициирующего применения требуют проверки"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "T_full = 2 / ((1 + c) * product(1 + a_i))",
+          "domain": "Возможная группировка формулы Spell Burst Charge Speed",
+          "assumptions": [
+            "Кандидат чтения по смыслу ускорения, но скобки в исходной печати неоднозначны",
+            "Не реализовывать как подтверждённое правило"
+          ],
+          "status": "unresolved"
+        }
+      ]
+    }
+  ]
+}

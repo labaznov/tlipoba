@@ -27,6 +27,17 @@ def supportevidence():
             "installed_support_catalog": catalog(raw)}
 
 
+class ConditionalDamageReportTests(unittest.TestCase):
+    """Keep conditional activation visible when rendering the static inventory."""
+
+    def test_conditional_row_shows_its_unknown_target_state(self):
+        from damage_lab.staticcombat import project
+        from test_staticcombat import conditional
+
+        page = staticdetails({'static_combat': project(conditional(), 'a' * 64)})
+        self.assertEqual(('target_cursed' in page, '&quot;state&quot;: &quot;unknown&quot;' in page), (True, True))
+
+
 class RawAttributeReportTests(unittest.TestCase):
     """Revalidate private-safe structural evidence even when reports are rendered directly."""
 

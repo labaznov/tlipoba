@@ -1,7 +1,8 @@
 # Conditional damage against Cursed enemies
 
-Checked 2026-10-24. This identifies a concrete next compiler rule; no conditional
-damage implementation or current-character activation is claimed by this note.
+Checked 2026-10-24. This records the catalog evidence for the
+[conditional damage operator](../CONDITIONAL_DAMAGE.md). Current-character
+activation is not established by this source note.
 
 An exact saved SS14 catalog member contains the normal legendary modifier
 `51423041`, with template `+#% additional damage against Cursed enemies`.

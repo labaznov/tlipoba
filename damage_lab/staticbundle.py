@@ -9,7 +9,7 @@ from .staticcombat import VERSIONS as COMPILERS, project, summary as ledger_summ
 
 
 FILE = "static-combat-modifiers.json"
-VERSIONS = ("0.1.0", "0.1.1", "0.1.2", "0.1.3")
+VERSIONS = ("0.1.0", "0.1.1", "0.1.2", "0.1.3", "0.1.4")
 COUNTS = ("catalogDocuments", "compiled", "omitted", "structuralGaps")
 CLAIMS = ("runtimeVerified", "importComplete", "identityVerified")
 FIELDS = ("logicalPath", "address", "cacheFile", "cacheFileSha256", "member", "byteRange", "memberSha256", "encoding")
@@ -57,7 +57,7 @@ def _provenance(data, ledger, *, canonical=False):
         _fields(row, names.values())
         entry = {_name(field): row[name] for field, name in names.items()}
         path = entry["logical_path"]
-        english = (path == "gear/one_handed/wand/i18n/en" and ledger["version"] in ("0.4.2", "0.4.3")
+        english = (path == "gear/one_handed/wand/i18n/en" and ledger["version"] in ("0.4.2", "0.4.3", "0.4.4")
                    and ledger["catalog"]["documents"].get(path, {}).get("role") == "english")
         if not english:
             _pattern(path, r"(?:gear|legendaries)/[a-z0-9_-]{1,64}(?:/[a-z0-9_-]{1,64}){0,4}/master")
@@ -123,6 +123,8 @@ def read(package, bundle, source, *, max_bytes=64 * 1024 * 1024):
         raise ValueError("Static combat fixed implicit bundles require their matching compiler version")
     if (bundle["version"] == "0.1.3") != (bundle["compilerVersion"] == "0.4.3"):
         raise ValueError("Static combat Lucky critical bundles require their matching compiler version")
+    if (bundle['version'] == '0.1.4') != (bundle['compilerVersion'] == '0.4.4'):
+        raise ValueError('Static conditional damage bundles require their matching compiler version')
     _false(bundle, CLAIMS)
     _hash(bundle["sha256"])
     path = Path(package) / FILE

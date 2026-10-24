@@ -7,7 +7,7 @@ from .fixedimplicit import ENGLISH, MASTER
 
 
 FORMAT = "tli-static-combat-modifiers-v1"
-VERSIONS = ("0.3.2", "0.4.0", "0.4.1", "0.4.2", "0.4.3")
+VERSIONS = ("0.3.2", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4")
 CRITICAL = {"critical_rating_increased": "rating_increase", "critical_damage_modifier": "unresolved",
             "lucky_critical_damage_modifier": "unresolved"}
 EVIDENCE_ISSUES = ("evidence_definition_shape", "evidence_spec_invalid", "evidence_value_invalid")
@@ -32,7 +32,8 @@ COMBINATIONS = {
                         (("attack_speed", "cast_speed"), "any", "minion")},
     "critical_rating_increased": {(("critical_rating",), "any", "player")},
     "critical_damage_modifier": {(("critical_damage",), scope, "player") for scope in ("any", "spell")},
-    "lucky_critical_damage_modifier": {(("critical_damage",), "any", "player")}}
+    "lucky_critical_damage_modifier": {(("critical_damage",), "any", "player")},
+    "conditional_damage_more": {(("damage",), "any", "player")}}
 
 
 def _name(value):
@@ -78,7 +79,7 @@ def _catalog(catalog, version):
             raise ValueError("Static combat logical catalog paths exceed the producer limit")
         _pattern(row["sha256"], "[0-9a-f]{64}")
         if "role" in row or path.endswith("/i18n/en"):
-            if version not in ("0.4.2", "0.4.3") or path != ENGLISH or row.get("role") != "english":
+            if version not in ("0.4.2", "0.4.3", "0.4.4") or path != ENGLISH or row.get("role") != "english":
                 raise ValueError("Static combat English roles require the supported paired wand member and compiler version")
         _enum(row["status"], ("ok", "invalid"))
         if row["status"] == "ok":
@@ -160,9 +161,24 @@ def _modifier(row, canonical, version):
                                    ("templateSource", "tier", "tierId", "variant", "implicit"))
     result["pool"] = _select(result["pool"], ("id", "status", "basis"), canonical)
     _enum(result["family"], tuple(COMBINATIONS))
+    if result['family'] == 'conditional_damage_more':
+        _object(row, ('condition',))
+        condition = row['condition']
+        if (version != '0.4.4' or type(condition) is not dict
+                or condition != {'kind': 'target_cursed', 'state': 'unknown'}
+                or result['native_id'] != 51423041 or result['list'] != 'PrefixInfoList'
+                or result['definition']['catalog'] != 'legendaries/helmet/int_helmet/master'
+                or result['definition'].get('variant') != 'normal'
+                or result['definition'].get('template_source') != 'descriptionTemplate'
+                or result['template_sign'] != '+'
+                or result['pool'] != {'id': result['definition']['id'], 'status': 'exact', 'basis': 'legendary_mod'}):
+            raise ValueError('Conditional damage requires its pinned normal source and unknown target condition')
+        result['condition'] = dict(condition)
+    elif 'condition' in row:
+        raise ValueError('A target condition requires its conditional damage family')
     if result["family"] in CRITICAL:
         compound = result["family"] == "lucky_critical_damage_modifier"
-        if version not in ("0.4.0", "0.4.1", "0.4.2", "0.4.3"):
+        if version not in ("0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4"):
             raise ValueError("Static critical inventory requires a supported critical compiler version")
         if result["template_sign"] != (None if compound else "+"):
             raise ValueError("Static critical inventory requires its family's exact template sign")
@@ -176,7 +192,7 @@ def _modifier(row, canonical, version):
                 or semantics["arithmetic_ready"] is not False
                 or (compound and semantics["lucky_critical_strike"] is not True)):
             raise ValueError("Static critical inventory cannot choose an operator or enable arithmetic")
-        if compound and (version != "0.4.3" or result["native_id"] != 51434430
+        if compound and (version not in ("0.4.3", "0.4.4") or result["native_id"] != 51434430
                 or result["list"] != "PrefixInfoList"
                 or result["definition"]["catalog"] != "legendaries/gloves/dex_gloves/master"
                 or result["definition"].get("variant") != "corroded"
@@ -186,7 +202,7 @@ def _modifier(row, canonical, version):
     elif "semantics" in row:
         raise ValueError("Static critical semantics cannot be attached to another modifier family")
     if fixed in row:
-        if version not in ("0.4.2", "0.4.3"):
+        if version not in ("0.4.2", "0.4.3", "0.4.4"):
             raise ValueError("Static fixed implicit proofs require a supported fixed implicit compiler version")
         from .fixedimplicit import project, summary
 
@@ -276,7 +292,7 @@ def _omission(row, canonical, version):
         raise ValueError("Static fixed implicit proofs cannot be attached to omitted rows")
     issue = "evidence_issue" if canonical else "evidenceIssue"
     if "evidence" in row or issue in row:
-        if version not in ("0.4.1", "0.4.2", "0.4.3"):
+        if version not in ("0.4.1", "0.4.2", "0.4.3", "0.4.4"):
             raise ValueError("Static cast evidence requires a supported cast compiler version")
         if "evidence" in row and issue in row:
             raise ValueError("Static cast evidence cannot also contain an evidence issue")
@@ -334,6 +350,10 @@ def _rows(result):
                 if key == "modifiers":
                     if item["identity"]["status"] != "exact":
                         raise ValueError("Static combat compiled modifiers require an exact item identity")
+                    if (row['family'] == 'conditional_damage_more'
+                            and (item['identity']['kind'] != 'legendary'
+                                 or item['identity']['definition'] != 'b4aa6245-131d-57ba-88cf-64f2d452a8d4')):
+                        raise ValueError('Conditional damage requires its pinned helmet definition')
                     _definition(row, item["identity"])
                     if "fixed_implicit" in row:
                         _fixed(row, item, result["catalog"])

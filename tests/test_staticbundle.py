@@ -114,8 +114,31 @@ def lucky_bundle(directory):
     return artifact, bundle
 
 
+def conditional_bundle(directory):
+    """Bind one fictional conditional ledger to the new exact version pair."""
+    from test_staticcombat import conditional
+
+    artifact, bundle = fixture(directory)
+    ledger = conditional()
+    ledger['source']['sha256'] = bundle['sourceSha256']
+    artifact['ledger'] = ledger
+    artifact['version'] = bundle['version'] = '0.1.4'
+    bundle.update(compilerVersion='0.4.4', omitted=0, structuralGaps=0)
+    path = next(iter(ledger['catalog']['documents']))
+    artifact['catalog']['documents'][0].update(logicalPath=path, address='/data/SS14/' + path + '.json', member=path)
+    saved(directory, artifact, bundle)
+    return artifact, bundle
+
+
 class StaticBundleTests(unittest.TestCase):
     """Verify saved diagnostic metadata without accepting it as applied damage."""
+
+    def test_conditional_bundle_keeps_unknown_target_condition(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = package(Path(folder))
+            _, bundle = conditional_bundle(directory)
+            ledger, provenance, origin = read(directory, bundle, bundle['sourceSha256'])
+            self.assertEqual(ledger['modifiers'][0]['condition'], {'kind': 'target_cursed', 'state': 'unknown'})
 
     def test_a_corroded_compound_round_trip_keeps_its_literal_and_own_scalar_source(self):
         with tempfile.TemporaryDirectory() as folder:

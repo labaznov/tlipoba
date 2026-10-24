@@ -488,6 +488,7 @@ def staticdetails(record):
     modifiers = "".join(
         f"<tr><td>{text(row['item'])}<br>{text(row['path'])}</td><td>{text(row['family'])}<br>"
         f"{text(', '.join(row['targets']))}"
+        f"{('<br>condition: ' + text(json.dumps(row['condition'], ensure_ascii=False))) if 'condition' in row else ''}"
         f"{('<br>' + text(json.dumps(row['semantics'], ensure_ascii=False))) if 'semantics' in row else ''}</td>"
         f"<td>{text(row['owner'])} / {text(row['scope'])}</td>"
         f"<td>{text(row['unit'])}<br>{text(json.dumps(row['values'], ensure_ascii=False))}</td>"

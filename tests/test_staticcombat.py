@@ -35,6 +35,26 @@ def document():
                        "structuralGaps": 1, "reconciles": True, "scope": "known_rows_only"}}
 
 
+def conditional():
+    """Declare one fictional conditional row under the pinned public definition."""
+    data = document()
+    data['version'] = '0.4.4'
+    path = 'legendaries/helmet/int_helmet/master'
+    data['catalog']['documents'] = {path: next(iter(data['catalog']['documents'].values()))}
+    data['items'][0]['identity'] = {'status': 'exact', 'kind': 'legendary', 'catalog': path,
+        'definition': 'b4aa6245-131d-57ba-88cf-64f2d452a8d4', 'tlidbId': '112230'}
+    data['modifiers'][0].update(nativeId=51423041, family='conditional_damage_more', targets=['damage'],
+        scope='any', unit='percent', values=[{'exact': '20', 'fraction': '0.2', 'source': 'DynArgs[0]'}],
+        definition={'catalog': path, 'id': '82e70ff7-cec2-538b-a379-44cae35d31a4',
+                    'variant': 'normal', 'templateSource': 'descriptionTemplate'},
+        pool={'id': '82e70ff7-cec2-538b-a379-44cae35d31a4', 'status': 'exact', 'basis': 'legendary_mod'},
+        templateSign='+', condition={'kind': 'target_cursed', 'state': 'unknown'})
+    data['omitted'] = []
+    data['structuralGaps'] = []
+    data['accounting'].update(emptyRows=0, observed=1, compiled=1, omitted=0, structuralGaps=0, scope='all_rows')
+    return data
+
+
 def empty(section):
     data = document()
     data["source"]["section"] = section
@@ -107,6 +127,50 @@ def lucky():
 
 class StaticCombatTest(unittest.TestCase):
     """Validate inventory evidence without applying it to a character or damage model."""
+
+    def test_conditional_more_preserves_unknown_target_state(self):
+        self.assertEqual(project(conditional(), 'a' * 64)['modifiers'][0]['condition'],
+                         {'kind': 'target_cursed', 'state': 'unknown'})
+
+    def test_conditional_source_cannot_promote_or_drop_its_target_state(self):
+        for state in ('confirmed', 'true', True, None):
+            data = conditional()
+            data['modifiers'][0]['condition']['state'] = state
+            with self.subTest(state=state), self.assertRaises(ValueError):
+                project(data, 'a' * 64)
+        data = conditional()
+        del data['modifiers'][0]['condition']
+        with self.assertRaises(ValueError):
+            project(data, 'a' * 64)
+
+    def test_conditional_family_requires_its_normal_source_version_and_pool(self):
+        for field, value in (('nativeId', 51423051), ('templateSign', None),
+                             ('pool', {'id': None, 'status': 'unresolved', 'basis': 'variant_template_differs'})):
+            data = conditional()
+            data['modifiers'][0][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                project(data, 'a' * 64)
+        data = conditional()
+        data['version'] = '0.4.3'
+        with self.assertRaises(ValueError):
+            project(data, 'a' * 64)
+
+    def test_unconditional_family_cannot_carry_a_hidden_condition(self):
+        data = document()
+        data['modifiers'][0]['condition'] = {'kind': 'target_cursed', 'state': 'unknown'}
+        with self.assertRaises(ValueError):
+            project(data, 'a' * 64)
+
+    def test_conditional_family_cannot_move_to_a_different_helmet_definition(self):
+        data = conditional()
+        data['items'][0]['identity']['definition'] = 'other-helmet'
+        with self.assertRaises(ValueError):
+            project(data, 'a' * 64)
+
+    def test_conditional_compiler_version_preserves_prior_cast_evidence(self):
+        data = casted()
+        data['version'] = '0.4.4'
+        self.assertEqual(project(data, 'a' * 64)['omitted'][0]['evidence']['activation'], 'unknown')
 
     def test_a_corroded_critical_row_preserves_one_scalar_and_a_separate_lucky_literal(self):
         result = summary(project(lucky(), "a" * 64))

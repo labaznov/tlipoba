@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import hashlib
 import io
 import json
@@ -19,6 +20,10 @@ def snapshot(path):
 
 class Builder:
     """Provide separate synthetic state candidates without merging their values."""
+
+    @staticmethod
+    def partial_candidates(document, source):
+        return []
 
     @staticmethod
     def candidates(document, source):
@@ -59,6 +64,70 @@ class Builder:
 
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
+
+    def test_default_import_keeps_bag_elided_character_separate_from_full_events(self):
+        from test_logbuild import partial_document
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            output = Path(folder) / "result"
+            code = main(["--game-log", str(Path(folder) / "placeholder.log"), "--output", str(output)],
+                        reader=lambda path: partial_document())
+            data = json.loads((output / "log-import.json").read_text(encoding="utf-8"))
+            self.assertEqual((code, data["version"], len(data["events"]), len(data.get("partial_events", []))),
+                             (0, "0.2.0", 0, 1))
+
+    def test_partial_html_shows_unknown_equipment_and_same_event_reference_targets(self):
+        from test_logbuild import partial_document
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            output = Path(folder) / "result"
+            main(["--game-log", str(Path(folder) / "placeholder.log"), "--output", str(output)],
+                 reader=lambda path: partial_document())
+            data = json.loads((output / "log-import.json").read_text(encoding="utf-8"))
+            page = (output / "index.html").read_text(encoding="utf-8")
+            self.assertEqual(([text in page for text in ("Частично напечатанное состояние", "экипировка неизвестна",
+                              "Видимых записей: —", 'href="#event-0-skill_items[0]"', 'id="event-0-skill_items[0]"')],
+                              data["partial_events"][0]["installation_graph"]["activation"],
+                              data["partial_selection"]["selected"]), ([True] * 5, "unknown", [0]))
+
+    def test_explicit_event_cannot_select_a_partial_shape_as_full(self):
+        from test_logbuild import partial_document
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
+            output = Path(folder) / "result"
+            code = main(["--game-log", str(Path(folder) / "placeholder.log"), "--event", "0", "--output", str(output)],
+                        reader=lambda path: partial_document())
+            self.assertEqual((code, output.exists()), (1, False))
+
+    def test_explicit_full_selection_reports_but_does_not_project_partial_candidates(self):
+        from test_logbuild import document, partial_document
+
+        data = document()
+        second = copy.deepcopy(partial_document()["events"][0])
+        offset = data["events"][0]["end_line"] + 3
+        second["start_line"] += offset
+        second["end_line"] += offset
+        data["events"].append(second)
+        data["source"]["lines"] = second["end_line"] + 8
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            output = Path(folder) / "result"
+            main(["--game-log", str(Path(folder) / "placeholder.log"), "--event", "0", "--output", str(output)],
+                 reader=lambda path: data)
+            report = json.loads((output / "log-import.json").read_text(encoding="utf-8"))
+            self.assertEqual((len(report["events"]), report["partial_events"], report["partial_selection"]),
+                             (1, [], {"mode": "not_requested_for_explicit_full_event", "candidates": [1],
+                                      "selected": [], "merged": False}))
+
+    def test_malformed_partial_schema_does_not_publish_output(self):
+        from test_logbuild import partial_document
+
+        data = partial_document()
+        data["events"][0]["tree"]["elisions"][0]["printedTableEntries"] = 29
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
+            output = Path(folder) / "result"
+            code = main(["--game-log", str(Path(folder) / "placeholder.log"), "--output", str(output)],
+                        reader=lambda path: data)
+            self.assertEqual((code, list(Path(folder).iterdir())), (1, []))
 
     def test_installation_graphs_and_html_targets_stay_in_their_own_log_event(self):
         from test_logtables import event
@@ -121,7 +190,7 @@ class LogCliTests(unittest.TestCase):
             self.assertEqual((code, data["version"], graph["slots"][0]["tab_candidate"],
                               graph["slots"][0]["position_candidate"], graph["skill_references"], graph["import_complete"],
                               "PRIVATE-GRAPH-CANARY" in json.dumps(data)),
-                             (0, "0.1.1", 2, 6, data["events"][0]["skill_references"], False, False))
+                             (0, "0.2.0", 2, 6, data["events"][0]["skill_references"], False, False))
 
     def test_ordinary_import_keeps_memory_catalog_and_affix_ids_separate(self):
         from test_logtables import event
@@ -224,6 +293,7 @@ class LogCliTests(unittest.TestCase):
             """Supply a failed reference projection after an otherwise accepted event."""
 
             candidates = staticmethod(Builder.candidates)
+            partial_candidates = staticmethod(Builder.partial_candidates)
             project = staticmethod(Builder.project)
 
             @staticmethod
@@ -245,6 +315,7 @@ class LogCliTests(unittest.TestCase):
             """Supply two visible matches without selecting an item row."""
 
             candidates = staticmethod(Builder.candidates)
+            partial_candidates = staticmethod(Builder.partial_candidates)
             project = staticmethod(Builder.project)
 
             @staticmethod
@@ -291,6 +362,8 @@ class LogCliTests(unittest.TestCase):
     def test_empty_candidate_list_is_a_diagnostic_without_fabricated_build(self):
         class Empty:
             """Represent a readable log with no supported state table observed."""
+
+            partial_candidates = staticmethod(Builder.partial_candidates)
 
             @staticmethod
             def candidates(document, source):

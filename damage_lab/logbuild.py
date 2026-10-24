@@ -331,13 +331,24 @@ def _domain(root, name, path, fields):
 
 def project(snapshot, event_index, source_sha256):
     """Return only allowlisted lexical facts from one explicitly selected saved event."""
+    return _project(snapshot, event_index, source_sha256, partial=False)
+
+
+def project_partial(snapshot, event_index, source_sha256):
+    """Project visible domains while retaining explicitly elided equipment as unknown."""
+    return _project(snapshot, event_index, source_sha256, partial=True)
+
+
+def _project(snapshot, event_index, source_sha256, *, partial):
     event = _snapshot(snapshot, event_index, source_sha256)
     tree = event["tree"]
     header = _tree(tree, event, snapshot["limits"])
-    if not _candidate(tree["root"]):
+    if not (_partial(tree["root"]) if partial else _candidate(tree["root"])):
         _error()
     domains = {name: _domain(tree["root"], name, path.split("."), fields) for name, (path, fields) in DOMAINS.items()}
-    return {"format": FORMAT, "scope": "printed_subtree_only", "import_complete": False,
+    return {"format": "tli-log-partial-build-domains-v1" if partial else FORMAT,
+            **({"structure": {"kind": "bag_elided_character_shape", "unavailable_paths": [["bag", "wearItems"]]}}
+               if partial else {}), "scope": "printed_subtree_only", "import_complete": False,
             **{key: "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code")},
             "source": {"sha256": snapshot["source"]["sha256"], "snapshot_bytes": snapshot["source"]["snapshotBytes"]},
             "event": {"index": event_index, "start_line": event["start_line"], "end_line": event["end_line"],
@@ -351,6 +362,16 @@ def project(snapshot, event_index, source_sha256):
 def skill_references(snapshot, event_index, source_sha256):
     """Compare private printed tokens within one validated event and return coordinate aliases."""
     projection = project(snapshot, event_index, source_sha256)
+    return _references(snapshot, event_index, projection)
+
+
+def partial_skill_references(snapshot, event_index, source_sha256):
+    """Compare visible skill tokens within one separately validated partial event."""
+    projection = project_partial(snapshot, event_index, source_sha256)
+    return _references(snapshot, event_index, projection)
+
+
+def _references(snapshot, event_index, projection):
     root = snapshot["events"][event_index]["tree"]["root"]
     items = _reference_side(projection["domains"]["skill_items"])
     items["hidden_rows"] = _hidden(_at(root, items["path"]))
@@ -378,6 +399,16 @@ def skill_references(snapshot, event_index, source_sha256):
 def installation_graph(snapshot, event_index, source_sha256):
     """Group visible skill references by conditional saved-helper coordinates."""
     references = skill_references(snapshot, event_index, source_sha256)
+    return _installation(snapshot, event_index, references)
+
+
+def partial_installation_graph(snapshot, event_index, source_sha256):
+    """Group visible partial-event references without reconstructing missing equipment."""
+    references = partial_skill_references(snapshot, event_index, source_sha256)
+    return _installation(snapshot, event_index, references)
+
+
+def _installation(snapshot, event_index, references):
     root = snapshot["events"][event_index]["tree"]["root"]
     path, fields = DOMAINS["skill_layout"]
     allowed = path == "skillLayout.slots" and fields is not None and fields.get("slot_key") == "key"
@@ -515,3 +546,22 @@ def candidates(snapshot, source_sha256):
         if _candidate(event["tree"]["root"]):
             result.append(index)
     return result
+
+
+def partial_candidates(snapshot, source_sha256):
+    """Enumerate only explicitly bag-elided character-shaped printed events."""
+    _envelope(snapshot, source_sha256)
+    result = []
+    for index in range(len(snapshot["events"])):
+        event = _snapshot(snapshot, index, source_sha256)
+        _tree(event["tree"], event, snapshot["limits"])
+        if _partial(event["tree"]["root"]):
+            result.append(index)
+    return result
+
+
+def _partial(root):
+    bag = _at(root, ["bag"])
+    return bag is not None and bag["t"] == "elided" and all(
+        (node := _at(root, [name])) is not None and node["t"] == "table"
+        for name in ("heroCharacterv3OverView", "skillLayout", "player", "skills", "geniusInfos"))

@@ -39,13 +39,18 @@ def render(data):
                       f'<p>Контекст сохранён локально: {_text(data["context"]["status"])}; '
                       f'строк: {_text(data["context"]["retained_lines"])}; '
                       f'пропусков: {_text(data["context"]["omitted_lines"] + data["context"]["unretained_lines"])}</p>'])
-    for event in data["events"]:
+    for partial, event in ([(False, event) for event in data["events"]] +
+                           [(True, event) for event in data.get("partial_events", [])]):
         context = event["event"]
-        parts.extend([f'<section><h2>Событие {_text(context["index"])}</h2>',
+        label = "Частично напечатанное состояние" if partial else "Событие"
+        parts.extend([f'<section><h2>{label} {_text(context["index"])}</h2>',
                       f'<p>Строки {_text(context["start_line"])}–{_text(context["end_line"])}</p>'])
+        if partial:
+            parts.extend(['<p>bag elided: экипировка неизвестна, а не пуста</p>',
+                          f'<pre>{_json(event["structure"])}</pre>'])
         for name, domain in event["domains"].items():
             parts.extend([f'<h3>{_text(name)}: {_text(domain["status"])}</h3>',
-                          f'<p>Видимых записей: {_text(domain["visible_entries"])}; общее число неизвестно</p>'])
+                          f'<p>Видимых записей: {_text(domain["visible_entries"] if domain["visible_entries"] is not None else "—")}; общее число неизвестно</p>'])
             for gap in domain["gaps"]:
                 parts.append(f'<p>{_text(gap)}</p>')
             for row in domain["rows"]:
@@ -113,6 +118,7 @@ def main(argv=None, *, reader=None, builder=None):
         snapshot = reader(arguments.game_log)
         source = snapshot["source"]
         candidates = builder.candidates(snapshot, source["sha256"])
+        partials = builder.partial_candidates(snapshot, source["sha256"])
         selected = list(candidates) if arguments.event is None else [arguments.event]
         if any(index not in candidates for index in selected):
             raise ValueError("Selected event does not match the supported character-state structure")
@@ -121,19 +127,30 @@ def main(argv=None, *, reader=None, builder=None):
             graph = builder.installation_graph(snapshot, index, source["sha256"])
             events.append({**builder.project(snapshot, index, source["sha256"]),
                            "skill_references": graph["skill_references"], "installation_graph": graph})
+        partial_selected = partials if arguments.event is None else []
+        partial_events = []
+        for index in partial_selected:
+            graph = builder.partial_installation_graph(snapshot, index, source["sha256"])
+            partial_events.append({**builder.project_partial(snapshot, index, source["sha256"]),
+                                   "skill_references": graph["skill_references"], "installation_graph": graph})
         data = {
-            "format": "tli-log-import-v1", "version": "0.1.1", "status": "diagnostic", "scope": "separate_printed_events",
+            "format": "tli-log-import-v1", "version": "0.2.0", "status": "diagnostic", "scope": "separate_printed_events",
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",
             "selected_skill": "unknown", "build_code": "unknown",
             "source": {"kind": "ordinary_log", "path": str(arguments.game_log.resolve()), "sha256": source["sha256"],
                        "snapshot_bytes": source["snapshotBytes"], "bytes_read": source["bytesRead"], "lines": source["lines"]},
             "selection": {"mode": "all_candidates" if arguments.event is None else "explicit_event",
                           "candidates": candidates, "selected": selected, "merged": False},
+            "partial_selection": {"mode": "all_partial_shapes" if arguments.event is None else
+                                  "not_requested_for_explicit_full_event", "candidates": partials,
+                                  "selected": partial_selected, "merged": False},
             "acquisition": {"parsed_events": len(snapshot["events"]), "rejected_events": len(snapshot["rejected"]),
                             "ignored_lines": source["ignoredLines"], "oversized_lines": source["oversizedLines"],
                             "incomplete_final_line": source["incompleteFinalLine"]},
             "events": events,
-            "gaps": (["В снимке нет таблиц поддерживаемой структуры; отсутствие билда этим не установлено"]
+            "partial_events": partial_events,
+            "gaps": (["Строгие полные состояния не напечатаны; доступны отдельные частичные состояния с неизвестной экипировкой"
+                      if partials else "В снимке нет таблиц поддерживаемой структуры; отсутствие билда этим не установлено"]
                      if not candidates else [])}
         packet = None
         if arguments.context:
@@ -160,7 +177,7 @@ def main(argv=None, *, reader=None, builder=None):
     except (OSError, ValueError, TypeError, KeyError, RecursionError):
         print("Ошибка импорта журнала: файл или выбранное событие не соответствуют поддерживаемому контракту либо каталог результата недоступен", file=sys.stderr)
         return 1
-    print(f"Диагностика журнала сохранена: {arguments.output}; событий: {len(events)}; полный импорт не подтверждён")
+    print(f"Диагностика журнала сохранена: {arguments.output}; строгих событий: {len(events)}; частичных: {len(partial_events)}; полный импорт не подтверждён")
     return 0
 
 

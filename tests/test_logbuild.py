@@ -56,6 +56,16 @@ def reference_document(items, slots):
                      ("skillLayout", [("slots", slots)]), ("skills", [("skills", items)])])
 
 
+def partial_document():
+    """Render the measured thirty-table root elision with fictional visible domains."""
+    entries = [("heroCharacterv3OverView", [("pointOverView", [("activeId", [("1", "41")])])]),
+               ("skillLayout", [("slots", [("1", [("key", "101"), ("value", [("skillId", "token77")])])])]),
+               ("player", [("synthetic", "1")]),
+               ("skills", [("skills", [("1", [("Id", "token77"), ("BaseId", "9001")])])]),
+               ("geniusInfos", [("synthetic", "1")])]
+    return document(entries + [("filler" + str(index), [("n", "1")]) for index in range(25)] + [("bag", ELIDED)])
+
+
 def refusals(data):
     """Capture both public seams fixed refusals without inspecting private validation helpers."""
     results = []
@@ -71,6 +81,81 @@ def refusals(data):
 
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
+
+    def test_bag_elided_character_shape_is_separate_from_full_candidates(self):
+        data = partial_document()
+        self.assertEqual((candidates(data, "a" * 64), logbuild.partial_candidates(data, "a" * 64)), ([], [0]))
+
+    def test_partial_projection_preserves_unknown_gear_and_visible_traits(self):
+        result = logbuild.project_partial(partial_document(), 0, "a" * 64)
+        equipment = result["domains"]["equipment"]
+        self.assertEqual((result["format"], result["structure"], equipment["status"], equipment["visible_entries"],
+                          equipment["rows"], [value["text"] for value in
+                              result["domains"]["traits"]["rows"][0]["fields"]["trait_id"]["values"]]),
+                         ("tli-log-partial-build-domains-v1",
+                          {"kind": "bag_elided_character_shape", "unavailable_paths": [["bag", "wearItems"]]},
+                          "not_printed", None, [], ["41"]))
+
+    def test_partial_skill_references_and_coordinates_do_not_promote_activation(self):
+        data = partial_document()
+        references = logbuild.partial_skill_references(data, 0, "a" * 64)
+        graph = logbuild.partial_installation_graph(data, 0, "a" * 64)
+        self.assertEqual((references["references"][0]["status"], graph["slots"][0]["tab_candidate"],
+                          graph["slots"][0]["position_candidate"], graph["activation"], graph["effective_level"]),
+                         ("observed_token_match", 1, 2, "unknown", "unknown"))
+
+    def test_partial_mode_never_weakens_full_selection_or_projects_full_shapes(self):
+        for operation in (project, logbuild.skill_references, logbuild.installation_graph):
+            with self.subTest(operation=operation.__name__), self.assertRaises(ValueError):
+                operation(partial_document(), 0, "a" * 64)
+        data = document()
+        self.assertEqual(logbuild.partial_candidates(data, "a" * 64), [])
+        for operation in (logbuild.project_partial, logbuild.partial_skill_references,
+                          logbuild.partial_installation_graph):
+            with self.subTest(operation=operation.__name__), self.assertRaises(ValueError):
+                operation(data, 0, "a" * 64)
+
+    def test_partial_fingerprint_requires_all_five_nonempty_tables_and_elided_bag(self):
+        for name in ("heroCharacterv3OverView", "skillLayout", "player", "skills", "geniusInfos"):
+            for replacement in (None, "17"):
+                data = partial_document()
+                entries = data["events"][0]["tree"]["root"]["entries"]
+                next(row for row in entries if row[0] == name)[1] = (
+                    {"t": "empty"} if replacement is None else {"t": "scalar", "class": "int", "text": "17"})
+                with self.subTest(name=name, replacement=replacement), self.assertRaises(ValueError):
+                    logbuild.project_partial(data, 0, "a" * 64)
+
+    def test_partial_seams_revalidate_grammar_source_and_index(self):
+        malformed = partial_document()
+        malformed["events"][0]["tree"]["elisions"][0]["printedTableEntries"] = 29
+        for operation in (logbuild.project_partial, logbuild.partial_skill_references,
+                          logbuild.partial_installation_graph):
+            for data, index, digest in ((malformed, 0, "a" * 64), (partial_document(), 1, "a" * 64),
+                                       (partial_document(), 0, "b" * 64)):
+                with self.subTest(operation=operation.__name__, index=index, digest=digest), self.assertRaises(ValueError):
+                    operation(data, index, digest)
+        with self.assertRaises(ValueError):
+            logbuild.partial_candidates(malformed, "a" * 64)
+
+    def test_valid_unrelated_fingerprint_is_not_a_partial_character(self):
+        data = partial_document()
+        next(row for row in data["events"][0]["tree"]["root"]["entries"] if row[0] == "player")[0] = "other"
+        self.assertEqual(logbuild.partial_candidates(data, "a" * 64), [])
+        with self.assertRaises(ValueError):
+            logbuild.project_partial(data, 0, "a" * 64)
+
+    def test_multiple_partial_events_keep_separate_source_coordinates(self):
+        data = partial_document()
+        second = copy.deepcopy(data["events"][0])
+        second["start_line"] += second["end_line"] + 3
+        second["end_line"] += data["events"][0]["end_line"] + 3
+        data["events"].append(second)
+        data["source"]["lines"] = second["end_line"] + 8
+        indexes = logbuild.partial_candidates(data, "a" * 64)
+        projections = [logbuild.project_partial(data, index, "a" * 64) for index in indexes]
+        self.assertEqual((indexes, [row["event"]["index"] for row in projections],
+                          projections[0]["event"]["start_line"] != projections[1]["event"]["start_line"],
+                          [row["identity"] for row in projections]), ([0, 1], [0, 1], True, ["unknown", "unknown"]))
 
     def test_installation_key_zero_does_not_turn_a_reference_sentinel_into_an_installed_item(self):
         data = reference_document([("1", [("Id", "0")])], [("1", [("key", "0"), ("value", [("skillId", "0")])])])

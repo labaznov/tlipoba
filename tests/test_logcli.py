@@ -55,6 +55,26 @@ class Builder:
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
 
+    def test_ordinary_import_keeps_skill_affixes_without_parent_instance_ids(self):
+        from test_logtables import event
+
+        items = [("1", [("BaseId", "9751"), ("Id", "PRIVATE-PARENT-CANARY"),
+                         ("Prefix", [("1", [("Id", "870031"), ("DynArgs", [("1", "031.75")])])])])]
+        entries = [("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None), ("skillLayout", None),
+                   ("skills", [("skills", items)])]
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            path = root / "input.log"
+            path.write_bytes(("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii"))
+            code = main(["--game-log", str(path), "--output", str(root / "result")])
+            data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
+            page = (root / "result/index.html").read_text(encoding="utf-8")
+            fields = data["events"][0]["domains"]["skill_items"]["rows"][0]["fields"]
+            self.assertEqual((code, fields["prefix_args"]["values"][0]["text"],
+                              fields["base_id"]["values"][0]["text"], "prefix_args" in page,
+                              "PRIVATE-PARENT-CANARY" in json.dumps(data) + page, data["events"][0]["import_complete"]),
+                             (0, "031.75", "9751", True, False, False))
+
     def test_html_shows_reference_limits_and_unapplied_bindings(self):
         document = snapshot(Path(__file__))
         event = Builder.project(document, 0, document["source"]["sha256"])

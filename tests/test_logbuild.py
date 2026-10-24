@@ -37,6 +37,12 @@ def skill_document(items, dressed):
                      ("skills", [("skills", items)])])
 
 
+def empty_affixes():
+    """Describe every newly admitted unprinted skill-affix field independently of production maps."""
+    return {family + "_" + field: [] for family in ("base_affix", "prefix", "suffix", "slot", "enchant", "chip")
+            for field in ("id", "version", "source", "args")}
+
+
 def reference_document(items, slots):
     """Keep synthetic item tokens and layout references within one printed candidate."""
     return document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
@@ -58,6 +64,124 @@ def refusals(data):
 
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
+
+    def test_equipment_base_affixes_keep_their_printed_argument_tokens(self):
+        data = document([("bag", [("wearItems", [("1", [("Item", [("BaseAffix", [("1", [
+            ("Id", "860031"), ("Version", "003"), ("DynArgs", [("1", "17.250")])])])])])])]),
+            ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        fields = project(data, 0, "a" * 64)["domains"]["equipment"]["rows"][0]["fields"]
+        self.assertEqual(fields.get("base_affix_args", {}).get("values"), [{
+            "path": ["bag", "wearItems", "1", "Item", "BaseAffix", "1", "DynArgs", "1"],
+            "text": "17.250", "class": "float"}])
+
+    def test_equipment_base_affixes_cannot_overwrite_the_catalog_base_id(self):
+        data = document([("bag", [("wearItems", [("1", [("Item", [("BaseId", "9711"),
+            ("BaseAffix", [("1", [("Id", "860031")])])])])])]),
+            ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        fields = project(data, 0, "a" * 64)["domains"]["equipment"]["rows"][0]["fields"]
+        self.assertEqual([row["text"] for row in fields["base_id"]["values"]], ["9711"])
+
+    def test_equipment_slot_and_chip_affixes_keep_values_and_unmapped_conditions(self):
+        data = document([("bag", [("wearItems", [("1", [("Item", [
+            ("SlotAffix", [("1", [("Id", "870043")])]),
+            ("ChipAffix", [("1", [("DynArgs", [("1", "-0.375")]), ("Condition", "UNMAPPED")])])])])])]),
+            ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        row = project(data, 0, "a" * 64)["domains"]["equipment"]["rows"][0]
+        self.assertEqual((row["fields"].get("slot_id", {}).get("values"),
+                          row["fields"].get("chip_args", {}).get("values"), row["conditions"]),
+                         ([{"path": ["bag", "wearItems", "1", "Item", "SlotAffix", "1", "Id"],
+                            "text": "870043", "class": "int"}],
+                          [{"path": ["bag", "wearItems", "1", "Item", "ChipAffix", "1", "DynArgs", "1"],
+                            "text": "-0.375", "class": "float"}],
+                          {"condition": "printed_unmapped", "filter": "not_printed", "behavior": "not_printed"}))
+
+    def test_skills_keep_six_affix_families_and_the_separate_catalog_base_id(self):
+        lists = [(name, [("1", [("Id", str(870101 + index)), ("DynArgs", [("1", str(index) + ".250")])])])
+                 for index, name in enumerate(("BaseAffix", "Prefix", "Suffix", "SlotAffix", "EnchantAffixs", "ChipAffix"))]
+        data = skill_document([("1", [("BaseId", "9711"), ("Id", "PRIVATE-INSTANCE-X")] + lists)], None)
+        result = project(data, 0, "a" * 64)
+        fields = result["domains"]["skill_items"]["rows"][0]["fields"]
+        self.assertEqual(([fields.get(name, {}).get("values", []) for name in
+                           ("base_affix_args", "prefix_args", "suffix_args", "slot_args", "enchant_args", "chip_args")],
+                          [value["text"] for value in fields["base_id"]["values"]],
+                          "PRIVATE-INSTANCE-X" in json.dumps(result)),
+                         ([[{"path": ["skills", "skills", "1", native, "1", "DynArgs", "1"],
+                             "text": str(index) + ".250", "class": "float"}]
+                           for index, native in enumerate(("BaseAffix", "Prefix", "Suffix", "SlotAffix", "EnchantAffixs", "ChipAffix"))],
+                          ["9711"], False))
+
+    def test_dressed_skills_keep_affix_and_catalog_ids_under_distinct_names(self):
+        data = skill_document(None, [("1", [("Item", [("BaseId", "9751"),
+            ("BaseAffix", [("1", [("Id", "870019"), ("source", "004")])])])])])
+        fields = project(data, 0, "a" * 64)["domains"]["dressed_skill_items"]["rows"][0]["fields"]
+        self.assertEqual([(name, [row["text"] for row in fields[name]["values"]]) for name in
+                          ("base_id", "base_affix_id", "base_affix_source")],
+                         [("base_id", ["9751"]), ("base_affix_id", ["870019"]), ("base_affix_source", ["004"])])
+
+    def test_skills_exclude_base_attribute_and_fixed_affix_lists(self):
+        data = skill_document([("1", [("BaseAttrAffix", [("1", [("Id", "EXCLUDED-BASE-CANARY")])]),
+            ("FixedBaseAffix", [("1", [("Id", "EXCLUDED-FIXED-CANARY")])])])], None)
+        result = json.dumps(project(data, 0, "a" * 64))
+        self.assertEqual([token for token in ("EXCLUDED-BASE-CANARY", "EXCLUDED-FIXED-CANARY", "base_attr_id", "fixed_base_id")
+                          if token in result], [])
+
+    def test_memories_do_not_acquire_slot_or_chip_fields_from_the_expanded_registry(self):
+        data = document([("bag", [("wearItems", None)]), ("skillLayout", None),
+            ("heroCharacterv3OverView", [("reminiscenceOverView", [("reminiscence", [("1", [("detail", [
+                ("SlotAffix", [("1", [("Id", "MEMORY-SLOT-CANARY")])]),
+                ("ChipAffix", [("1", [("Id", "MEMORY-CHIP-CANARY")])])])])])])])])
+        row = project(data, 0, "a" * 64)["domains"]["memories"]["rows"][0]
+        self.assertEqual((set(row["fields"]) & {"slot_id", "chip_id"}, "MEMORY-SLOT-CANARY" in json.dumps(row),
+                          "MEMORY-CHIP-CANARY" in json.dumps(row)), (set(), False, False))
+
+    def test_new_skill_fields_distinguish_missing_empty_and_elided_lists(self):
+        results = []
+        for fields in ([], [("Prefix", None)], [("Prefix", tables(30) + [("31", ELIDED)])]):
+            data = skill_document([("1", fields or [("BaseId", "9711")])], None)
+            value = project(data, 0, "a" * 64)["domains"]["skill_items"]["rows"][0]["fields"]["prefix_args"]
+            results.append((value["status"], bool(value["missing_paths"]), bool(value["empty_paths"]), bool(value["elided_paths"])))
+        self.assertEqual(results, [("not_printed", True, False, False), ("complete", False, True, False),
+                                   ("elided", True, False, True)])
+
+    def test_duplicate_affix_ids_stay_in_separate_source_occurrences(self):
+        data = skill_document([("1", [("Prefix", [("1", [("Id", "870037")]), ("2", [("Id", "870037")])]),
+                                        ("BaseAffix", [("1", [("Id", "870037")])])])], None)
+        fields = project(data, 0, "a" * 64)["domains"]["skill_items"]["rows"][0]["fields"]
+        self.assertEqual([(value["text"], value["path"][-3:]) for name in ("base_affix_id", "prefix_id")
+                          for value in fields[name]["values"]],
+                         [("870037", ["BaseAffix", "1", "Id"]), ("870037", ["Prefix", "1", "Id"]),
+                          ("870037", ["Prefix", "2", "Id"])])
+
+    def test_new_affix_arguments_preserve_lexical_forms_without_numeric_conversion(self):
+        data = skill_document([("1", [("ChipAffix", [("1", [("DynArgs", [("1", "0002"), ("2", "-0.00"),
+                                                                                         ("3", "true")])])])])], None)
+        field = project(data, 0, "a" * 64)["domains"]["skill_items"]["rows"][0]["fields"]["chip_args"]
+        self.assertEqual([(value["text"], value["class"]) for value in field["values"]],
+                         [("0002", "text"), ("-0.00", "float"), ("true", "bool")])
+
+    def test_nested_skill_argument_tables_remain_a_controlled_importer_subset_refusal(self):
+        data = skill_document([("1", [("Prefix", [("1", [("DynArgs", [("1", [("1", "NESTED-CANARY")])])])])])], None)
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_noncontiguous_new_affix_lists_remain_a_controlled_refusal(self):
+        data = skill_document([("1", [("SlotAffix", [("3", [("Id", "870013")])])])], None)
+        self.assertEqual(refusals(data), ["Log build projection requires a supported bounded saved-tree contract"] * 2)
+
+    def test_new_gear_base_conditions_are_unmapped_without_exporting_their_contents(self):
+        data = document([("bag", [("wearItems", [("1", [("Item", [("BaseAffix", [("1", [
+            ("Condition", "CONDITION-PRIVATE-CANARY")])])])])])]),
+            ("heroCharacterv3OverView", None), ("skillLayout", None)])
+        row = project(data, 0, "a" * 64)["domains"]["equipment"]["rows"][0]
+        self.assertEqual((row["conditions"]["condition"], "CONDITION-PRIVATE-CANARY" in json.dumps(row)),
+                         ("printed_unmapped", False))
+
+    def test_new_affix_observations_leave_the_source_and_unknown_gates_unchanged(self):
+        data = skill_document([("1", [("Prefix", [("1", [("Id", "870013")])])])], None)
+        before = copy.deepcopy(data)
+        result = project(data, 0, "a" * 64)
+        self.assertEqual((data, result["counts"]["domains"], result["import_complete"], result["runtime"],
+                          result["identity"], result["freshness"], result["selected_skill"]),
+                         (before, 14, False, "unknown", "unknown", "unknown", "unknown"))
 
     def test_one_visible_reference_matches_the_same_events_item_alias(self):
         data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
@@ -330,14 +454,14 @@ class LogBuildTest(unittest.TestCase):
         logbuild.skill_references(data, 0, "a" * 64)
         self.assertEqual((data, project(data, 0, "a" * 64)), (before, projection))
 
-    def test_the_existing_projection_keeps_fourteen_domains_and_its_original_allowlists(self):
+    def test_the_projection_keeps_fourteen_domains_and_its_approved_field_sets(self):
         data = reference_document([("1", [("Id", "MATCH"), ("Level", "019"), ("SkillItemLevel", "6")])],
                                  [("1", [("key", "007"), ("value", [("skillId", "MATCH")])])])
         result = project(data, 0, "a" * 64)
         self.assertEqual((result["format"], result["counts"]["domains"], set(result["domains"]["skill_layout"]["rows"][0]["fields"]),
                           set(result["domains"]["skill_items"]["rows"][0]["fields"]), "references" in result,
                           result["import_complete"], result["selected_skill"]),
-                         ("tli-log-build-domains-v1", 14, {"slot_key"}, {"base_id", "level", "skill_item_level", "rarity"}, False, False, "unknown"))
+                         ("tli-log-build-domains-v1", 14, {"slot_key"}, {"base_id", "level", "skill_item_level", "rarity", *empty_affixes()}, False, False, "unknown"))
 
     def test_explicit_event_keeps_lexical_tokens_and_unprinted_conditions(self):
         result = project(document(), 0, "a" * 64)
@@ -353,7 +477,7 @@ class LogBuildTest(unittest.TestCase):
         self.assertEqual([{field: [(value["text"], value["class"]) for value in result["values"]]
                            for field, result in row["fields"].items()} for row in rows],
                          [{"base_id": [("8153", "int")], "level": [("019", "text")],
-                           "skill_item_level": [("6", "int")], "rarity": [("03", "text")]}])
+                           "skill_item_level": [("6", "int")], "rarity": [("03", "text")], **empty_affixes()}])
 
     def test_dressed_skills_keep_slot_and_nested_lexical_fields(self):
         data = skill_document(None, [("1", [("PageId", "003"), ("Index", "02"),
@@ -362,7 +486,7 @@ class LogBuildTest(unittest.TestCase):
         self.assertEqual([{field: [value["text"] for value in result["values"]]
                            for field, result in row["fields"].items()} for row in rows],
                          [{"page_id": ["003"], "index": ["02"], "base_id": ["8153"],
-                           "level": ["019"], "skill_item_level": ["6"], "rarity": ["4"]}])
+                           "level": ["019"], "skill_item_level": ["6"], "rarity": ["4"], **empty_affixes()}])
 
     def test_printed_layout_slot_keys_are_retained_as_lexical_fields(self):
         data = document([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),

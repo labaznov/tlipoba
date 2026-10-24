@@ -12,23 +12,26 @@ REFERENCE_STATUSES = ("reference_not_printed", "reference_elided", "reference_pr
                       "ambiguous_visible_duplicates", "observed_token_match", "no_visible_match_items_incomplete",
                       "no_visible_match_closed_printed_subtree")
 AFFIXES = {"base_attr": "BaseAttrAffix", "fixed_base": "FixedBaseAffix", "prefix": "Prefix",
-           "suffix": "Suffix", "enchant": "EnchantAffixs", "base": "BaseAffix"}
+           "suffix": "Suffix", "enchant": "EnchantAffixs", "base": "BaseAffix",
+           "slot": "SlotAffix", "chip": "ChipAffix"}
+MEMORY_AFFIXES = ("base_attr", "fixed_base", "prefix", "suffix", "enchant", "base")
+SKILL_AFFIXES = ("base", "prefix", "suffix", "slot", "enchant", "chip")
 
 
-def _affixes(prefix, memory=False):
-    return {name + "_" + field: prefix + "." + native + ".#." + source
-            for name, native in AFFIXES.items() if memory or name != "base"
+def _affixes(prefix, names, memory=False):
+    return {(name if memory or name != "base" else "base_affix") + "_" + field: prefix + ("." if prefix else "") + native + ".#." + source
+            for name, native in AFFIXES.items() if name in names
             for field, source in (("id", "Id"), ("version", "Version"), ("source", "source"), ("args", "DynArgs.#"))}
 
 
 DOMAINS = {
     "equipment": ("bag.wearItems", {"page_id": "PageId", "index": "Index", "base_id": "Item.BaseId",
                    "level": "Item.Level", "rarity": "Item.RareValue", "corroded": "Item.Corrode",
-                   "affix_num": "Item.AffixNum", **_affixes("Item")}),
+                   "affix_num": "Item.AffixNum", **_affixes("Item", AFFIXES)}),
     "memories": ("heroCharacterv3OverView.reminiscenceOverView.reminiscence",
                  {"index": "index", "state": "state", "base_id": "detail.BaseId", "level": "detail.Level",
                   "fixed_level": "detail.ReminiscenceFixedLevel", "enhance_level": "detail.ReminiscenceFixedLevelFromEnhance",
-                  "memory_level": "detail.ReminiscenceLevel", **_affixes("detail", True)}),
+                  "memory_level": "detail.ReminiscenceLevel", **_affixes("detail", MEMORY_AFFIXES, True)}),
     "traits": ("heroCharacterv3OverView.pointOverView.activeId", {"trait_id": ""}),
     "slates": ("bag.dressingTalentBlocks", {"page_id": "PageId", "index": "Index", "base_id": "Item.BaseId",
                "level": "Item.Level", "rarity": "Item.RareValue", "shape_id": "Item.ShapeId", "direction": "Item.Direction",
@@ -40,10 +43,10 @@ DOMAINS = {
     "pacts": ("ContractInfosV2.ContractDatas", {"area_id": "areaId", "servant_id": "servantId"}),
     "skill_layout": ("skillLayout.slots", {"slot_key": "key"}),
     "skill_items": ("skills.skills", {"base_id": "BaseId", "level": "Level",
-                    "skill_item_level": "SkillItemLevel", "rarity": "RareValue"}),
+                    "skill_item_level": "SkillItemLevel", "rarity": "RareValue", **_affixes("", SKILL_AFFIXES)}),
     "dressed_skill_items": ("bag.dressSkillItems", {"page_id": "PageId", "index": "Index",
                             "base_id": "Item.BaseId", "level": "Item.Level",
-                            "skill_item_level": "Item.SkillItemLevel", "rarity": "Item.RareValue"}),
+                            "skill_item_level": "Item.SkillItemLevel", "rarity": "Item.RareValue", **_affixes("Item", SKILL_AFFIXES)}),
     "pact_points": ("ContractInfosV2.pointDatas", None),
     "pact_roster": ("ServantInfos.servantData", None), "talents": ("geniusInfos", None), "stats": ("attrInfo", None),
     "season": ("SP3Base.TalentTree", None)}
@@ -320,7 +323,7 @@ def _domain(root, name, path, fields):
             prefix = "Item" if name == "equipment" else "detail"
             row["conditions"] = {
                 field.lower(): "printed_unmapped" if any(_gather(child, location, [prefix, native, "#", field])[0]
-                    for affix, native in AFFIXES.items() if name == "memories" or affix != "base") else "not_printed"
+                    for affix, native in AFFIXES.items() if name == "equipment" or affix in MEMORY_AFFIXES) else "not_printed"
                 for field in ("Condition", "Filter", "Behavior")}
         result["rows"].append(row)
     return result

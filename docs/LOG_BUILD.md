@@ -45,14 +45,30 @@ compiled-modifier, or damage results.
 | influence | `talentBlockInfluence` | `value.{EffectTalentIds,TalentIdDevour,TalentIdInfluence}`; its instance-key join is excluded |
 | pacts | `ContractInfosV2.ContractDatas` | `areaId`, `servantId`; no activation, star level, or chosen scheme inferred |
 | skill_layout | `skillLayout.slots` | `key` as lexical `slot_key`; no slot role or skill reference inferred |
-| skill_items | `skills.skills` | `BaseId`, `Level`, `SkillItemLevel`, `RareValue`; no instance IDs or effective level |
-| dressed_skill_items | `bag.dressSkillItems` | `PageId`, `Index`, `Item.{BaseId,Level,SkillItemLevel,RareValue}`; no instance IDs or joins |
+| skill_items | `skills.skills` | `BaseId`, `Level`, `SkillItemLevel`, `RareValue` and six listed affix families; no instance IDs or effective level |
+| dressed_skill_items | `bag.dressSkillItems` | `PageId`, `Index`, `Item.{BaseId,Level,SkillItemLevel,RareValue}` and six listed affix families under `Item`; no instance IDs or joins |
 
-The equipment affix lists are exactly `BaseAttrAffix`, `FixedBaseAffix`, `Prefix`, `Suffix`, and
-`EnchantAffixs`. Memories also allow `BaseAffix`. Only `.Id`, `.Version`, `.source`, and `.DynArgs`
+The equipment affix lists are exactly `BaseAttrAffix`, `FixedBaseAffix`, `BaseAffix`, `Prefix`, `Suffix`,
+`SlotAffix`, `EnchantAffixs` and `ChipAffix`. Skills and dressed skills allow exactly `BaseAffix`,
+`Prefix`, `Suffix`, `SlotAffix`, `EnchantAffixs` and `ChipAffix`; their base-attribute and fixed lists
+are excluded. Memories keep their prior six lists without `SlotAffix` or `ChipAffix`.
+Only `.Id`, `.Version`, `.source`, and flat `.DynArgs.#`
 tokens are retained. Nested arrays must have contiguous one-based coordinate keys; an elision is not
 an invented extra record. Affix `Condition`, `Filter`, and `Behavior` remain `not_printed` or
-`printed_unmapped`, never `[]`. No row is compiled as an unconditional effect.
+`printed_unmapped` on equipment and memory rows, never `[]`. Skill affix fields remain lexical
+observations without a compiled condition or effect. No row is compiled as an unconditional effect.
+
+New equipment/skill/dressed `BaseAffix` fields use `base_affix_id`, `base_affix_version`,
+`base_affix_source` and `base_affix_args`, keeping catalog `base_id` separate. The existing memory
+`base_*` naming is retained: its legacy `base_id` mapping overlaps the catalog name and must not be
+treated as a verified memory catalog binding. That existing gap needs a separate contract correction.
+
+This extension preserves the current flat-array importer subset. The
+[actual command conversion](research/affix-command-source.md) can also encounter nested tables and
+uses `pairs`; this projection does not emulate that flattening or ordering. Deeper tables or
+noncontiguous keys in newly exposed lists can cause refusal of an entire event, including reference
+observations that first validate the projection. Such a refusal identifies an importer coverage gap,
+not invalid game data. Missing and elided fields remain explicit; new fields never supply zero rolls.
 
 The following paths are coverage diagnostics only, without rows or skill-instance joins:
 
@@ -76,7 +92,7 @@ then compares the printed `value.skillId` and item `Id` tokens internally in
 that same event. The separate `tli-log-skill-references-v1` result keeps
 coordinate aliases and source paths; it never exports the identifiers, their
 hashes, prefixes, lengths, classes or matching-peer lists. Existing `project()`,
-its lexical allowlists and the fourteen-domain count remain unchanged.
+its approved lexical allowlists and the fourteen-domain count are shared by both public seams.
 
 A single visible match points to `skill_items[j]`, whose printed catalog and
 level fields remain available separately. Multiple equal visible item tokens

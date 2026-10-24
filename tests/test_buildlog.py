@@ -20,6 +20,12 @@ def saved(directory, data):
     return path
 
 
+def message(name='GetPlayerData', direction='Recv', frame=17):
+    """A fictional exact socket marker with no payload or private identifiers."""
+    return (f'[2000.01.03-05.07.11:013][ {frame}]TLNetGame: Display: [Game] '
+            f'----Socket {direction}Message STT----{name}----\n').encode('ascii')
+
+
 class ChangingDigest:
     """Hash real bytes and perform one deterministic real file mutation after reading begins."""
 
@@ -38,6 +44,96 @@ class ChangingDigest:
 
 class SnapshotTest(unittest.TestCase):
     """Read exact saved prefixes without promoting printed trees to build identity."""
+
+    def test_new_snapshot_retains_explicit_unknown_message(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, event('+amount [001]')))
+        self.assertEqual((result['version'], result['events'][0].get('message', 'absent')), ('0.1.3', None))
+
+    def test_adjacent_matching_socket_marker_is_bound_without_its_raw_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message() + event('+amount [001]')))
+        self.assertEqual(result['events'][0]['message'], {'name': 'GetPlayerData', 'direction': 'recv', 'line': 1,
+                         'logTimeText': '2000.01.03-05.07.11:013', 'frame': 17})
+
+    def test_exact_optional_socket_synid_suffix_is_not_retained(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message()[:-1] + b'SynId = 7\n' + event('+a [1]')))
+        self.assertEqual(result['events'][0]['message'], {'name': 'GetPlayerData', 'direction': 'recv', 'line': 1,
+                         'logTimeText': '2000.01.03-05.07.11:013', 'frame': 17})
+
+    def test_adjacent_same_second_and_frame_allow_nondecreasing_milliseconds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message().replace(b':013', b':007')
+                                    + event('+a [1]').replace(b':013', b':015')))
+        self.assertEqual((result['events'][0]['message'], result['events'][0]['tree']['header']['logTimeText']),
+                         ({'name': 'GetPlayerData', 'direction': 'recv', 'line': 1,
+                           'logTimeText': '2000.01.03-05.07.11:007', 'frame': 17}, '2000.01.03-05.07.11:015'))
+
+    def test_temporal_policy_is_same_second_not_a_fitted_millisecond_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message().replace(b':013', b':000')
+                                    + event('+a [1]').replace(b':013', b':999')))
+        self.assertEqual(result['events'][0]['message']['logTimeText'], '2000.01.03-05.07.11:000')
+
+    def test_cross_second_and_backward_timestamps_do_not_bind(self):
+        for marker in (message().replace(b':013', b':014'),
+                       message().replace(b'11:013', b'10:999'),
+                       message().replace(b'11:013', b'12:000')):
+            with self.subTest(length=len(marker)), tempfile.TemporaryDirectory() as directory:
+                result = snapshot(saved(directory, marker + event('+a [1]')))
+            self.assertIsNone(result['events'][0]['message'])
+
+    def test_socket_synid_suffix_has_exact_bounded_decimal_grammar(self):
+        for suffix in (b'SynId = -7', b'SynId = +7', b'SynId = ', b'SynId = 12345678901',
+                       b'SynId=7', b'SynId = 7 ', b' SynId = 7', b'SynId = 7token', b'Private = 7'):
+            with self.subTest(length=len(suffix)), tempfile.TemporaryDirectory() as directory:
+                result = snapshot(saved(directory, message()[:-1] + suffix + b'\n' + event('+a [1]')))
+            self.assertIsNone(result['events'][0]['message'])
+
+    def test_socket_synid_decimal_boundaries_preserve_only_message_name(self):
+        for suffix in (b'SynId = 0', b'SynId = 1234567890'):
+            with self.subTest(length=len(suffix)), tempfile.TemporaryDirectory() as directory:
+                result = snapshot(saved(directory, message()[:-1] + suffix + b'\n' + event('+a [1]')))
+            self.assertEqual(set(result['events'][0]['message']), {'name', 'direction', 'line', 'logTimeText', 'frame'})
+
+    def test_send_and_unrelated_messages_are_typed_without_player_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message(direction='Send') + event('+a [1]')
+                                    + message(name='Other_2', frame=29) + event('+b [2]', frame=29)))
+        self.assertEqual([(row['message']['direction'], row['message']['name']) for row in result['events']],
+                         [('send', 'GetPlayerData'), ('recv', 'Other_2')])
+
+    def test_intervening_or_oversized_physical_lines_clear_a_marker(self):
+        for intervening in (b'\n', b'foreign\n', b'x' * 1000 + b'\n'):
+            with self.subTest(intervening=len(intervening)), tempfile.TemporaryDirectory() as directory:
+                result = snapshot(saved(directory, message() + intervening + event('+a [1]')))
+            self.assertIsNone(result['events'][0]['message'])
+
+    def test_mismatching_timestamp_frame_or_marker_grammar_cannot_bind(self):
+        for marker in (message(frame=19), message().replace(b'013', b'014'),
+                       message(name='9bad'), message(name='a' * 65), message()[:-1] + b' \n',
+                       message().replace(b'RecvMessage', b'recvMessage'), message().replace(b'GetPlayerData', b'PRIVATEMARKER\xff'),
+                       message().replace(b'TLNetGame', b'OtherGame'), message()[:-1] + b'x' * 1000 + b'\n'):
+            with self.subTest(marker=marker[:0]), tempfile.TemporaryDirectory() as directory:
+                result = snapshot(saved(directory, marker + event('+a [1]')))
+            self.assertIsNone(result['events'][0]['message'])
+
+    def test_marker_does_not_leak_to_a_later_event(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message() + event('+a [1]') + event('+b [2]')))
+        self.assertEqual([row['message'] is None for row in result['events']], [False, True])
+
+    def test_unterminated_marker_is_only_an_incomplete_foreign_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message()[:-1]))
+        self.assertEqual((result['events'], result['source']['incompleteFinalLine']['line']), ([], 1))
+
+    def test_crlf_socket_line_and_framed_header_keep_adjacency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = snapshot(saved(directory, message().replace(b'\n', b'\r\n')
+                                    + event('+a [1]').replace(b'[Game]\r\n', b'[Game] \r\n')))
+        self.assertEqual((result['events'][0]['message']['line'], result['events'][0]['header_trailing_space']), (1, True))
 
     def test_snapshot_hash_covers_ignored_bytes_and_preserves_lexical_values(self):
         data = b'ignored\r\n' + event('+amount [001]') + b'[foreign record]\r\n'

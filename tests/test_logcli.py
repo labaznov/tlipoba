@@ -18,6 +18,14 @@ def snapshot(path):
             "events": [{"private": "RAW-TREE-MARKER"}] * 3, "rejected": [{"private": "RAW-REJECTED-MARKER"}]}
 
 
+def received(entries):
+    """Build a synthetic composition reply with its adjacent socket marker."""
+    from test_logtables import event
+
+    lines = event(entries)
+    return [lines[0] + " ----Socket RecvMessage STT----GetPlayerData----", *lines]
+
+
 class Builder:
     """Provide separate synthetic state candidates without merging their values."""
 
@@ -65,6 +73,16 @@ class Builder:
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
 
+    def test_html_preserves_and_escapes_socket_message_provenance(self):
+        document = snapshot(Path(__file__))
+        event = Builder.project(document, 0, document["source"]["sha256"])
+        event["skill_references"] = Builder.skill_references(document, 0, document["source"]["sha256"])
+        event["event"]["message"] = {"name": "GetPlayerData<unsafe>", "direction": "recv", "line": 13,
+                                     "logTimeText": "2001.02.03-04.05.06:007", "frame": 19}
+        page = render({"source": {"sha256": "b" * 64, "bytes_read": 13},
+                       "acquisition": {"parsed_events": 1, "rejected_events": 0}, "gaps": [], "events": [event]})
+        self.assertIn('&quot;name&quot;: &quot;GetPlayerData&lt;unsafe&gt;&quot;', page)
+
     def test_default_import_keeps_bag_elided_character_separate_from_full_events(self):
         from test_logbuild import partial_document
 
@@ -74,7 +92,7 @@ class LogCliTests(unittest.TestCase):
                         reader=lambda path: partial_document())
             data = json.loads((output / "log-import.json").read_text(encoding="utf-8"))
             self.assertEqual((code, data["version"], len(data["events"]), len(data.get("partial_events", []))),
-                             (0, "0.3.0", 0, 1))
+                             (0, "0.3.1", 0, 1))
 
     def test_partial_html_shows_unknown_equipment_and_same_event_reference_targets(self):
         from test_logbuild import partial_document
@@ -130,13 +148,11 @@ class LogCliTests(unittest.TestCase):
             self.assertEqual((code, list(Path(folder).iterdir())), (1, []))
 
     def test_installation_graphs_and_html_targets_stay_in_their_own_log_event(self):
-        from test_logtables import event
-
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)
             lines = []
             for key in ("103", "1007"):
-                lines.extend(event([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
+                lines.extend(received([("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
                     ("skillLayout", [("slots", [("1", [("key", key)])])])]) + ["[closed]"])
             path = root / "input.log"
             path.write_text("\n".join(lines) + "\n", encoding="ascii")
@@ -175,26 +191,22 @@ class LogCliTests(unittest.TestCase):
             "<td>7</td><td>3</td>", "<script>graph()</script>")), (True, True, True, True, True, True, True, False))
 
     def test_ordinary_import_saves_conditional_installation_coordinates_from_the_same_event(self):
-        from test_logtables import event
-
         entries = [("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None),
                    ("skillLayout", [("slots", [("1", [("key", "205"), ("value", [("skillId", "PRIVATE-GRAPH-CANARY")])])])]),
                    ("skills", [("skills", [("1", [("Id", "PRIVATE-GRAPH-CANARY"), ("BaseId", "9749")])])])]
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)
             path = root / "input.log"
-            path.write_bytes(("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii"))
+            path.write_bytes(("\r\n".join(received(entries)) + "\r\n[closed]\r\n").encode("ascii"))
             code = main(["--game-log", str(path), "--output", str(root / "result")])
             data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
             graph = data["events"][0]["installation_graph"]
             self.assertEqual((code, data["version"], graph["slots"][0]["tab_candidate"],
                               graph["slots"][0]["position_candidate"], graph["skill_references"], graph["import_complete"],
                               "PRIVATE-GRAPH-CANARY" in json.dumps(data)),
-                             (0, "0.3.0", 2, 6, data["events"][0]["skill_references"], False, False))
+                             (0, "0.3.1", 2, 6, data["events"][0]["skill_references"], False, False))
 
     def test_ordinary_import_keeps_memory_catalog_and_affix_ids_separate(self):
-        from test_logtables import event
-
         detail = [("BaseId", "9737"), ("Id", "PRIVATE-MEMORY-CANARY"),
                   ("BaseAffix", [("1", [("Id", "870061"), ("DynArgs", [("1", "12.875")])])])]
         entries = [("bag", [("wearItems", None)]), ("skillLayout", None),
@@ -203,7 +215,7 @@ class LogCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)
             path = root / "input.log"
-            path.write_bytes(("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii"))
+            path.write_bytes(("\r\n".join(received(entries)) + "\r\n[closed]\r\n").encode("ascii"))
             code = main(["--game-log", str(path), "--output", str(root / "result")])
             data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
             page = (root / "result/index.html").read_text(encoding="utf-8")
@@ -214,8 +226,6 @@ class LogCliTests(unittest.TestCase):
                              (0, "9737", "870061", True, False, False))
 
     def test_ordinary_import_keeps_skill_affixes_without_parent_instance_ids(self):
-        from test_logtables import event
-
         items = [("1", [("BaseId", "9751"), ("Id", "PRIVATE-PARENT-CANARY"),
                          ("Prefix", [("1", [("Id", "870031"), ("DynArgs", [("1", "031.75")])])])])]
         entries = [("bag", [("wearItems", None)]), ("heroCharacterv3OverView", None), ("skillLayout", None),
@@ -223,7 +233,7 @@ class LogCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)
             path = root / "input.log"
-            path.write_bytes(("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii"))
+            path.write_bytes(("\r\n".join(received(entries)) + "\r\n[closed]\r\n").encode("ascii"))
             code = main(["--game-log", str(path), "--output", str(root / "result")])
             data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
             page = (root / "result/index.html").read_text(encoding="utf-8")
@@ -378,12 +388,10 @@ class LogCliTests(unittest.TestCase):
             self.assertEqual((data["events"], data["selection"]["selected"], bool(data["gaps"])), ([], [], True))
 
     def test_default_reader_and_projector_import_a_real_synthetic_log(self):
-        from test_logtables import event
-
         entries = [("bag", [("wearItems", [("1", [("Item", [("BaseId", "9001")])])])]),
                    ("heroCharacterv3OverView", [("pointOverView", [("activeId", [("1", "41")])])]),
                    ("skillLayout", [("slots", None)])]
-        raw = ("\r\n".join(event(entries)) + "\r\n[closed]\r\n").encode("ascii")
+        raw = ("\r\n".join(received(entries)) + "\r\n[closed]\r\n").encode("ascii")
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)
             source = root / "input.log"
@@ -466,7 +474,7 @@ class LogCliTests(unittest.TestCase):
             data = json.loads((root / "result/log-import.json").read_text(encoding="utf-8"))
             self.assertEqual((code, data["version"], data["skill_catalog_source"]["kind"],
                               data["partial_events"][0]["skill_catalog"]["rows"][0]["identity"]["tlidb_id"]),
-                             (0, "0.3.0", "saved_skill_catalog", 9001))
+                             (0, "0.3.1", "saved_skill_catalog", 9001))
 
     def test_invalid_catalog_is_refused_even_before_an_empty_source_is_projected(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):

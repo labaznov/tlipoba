@@ -49,6 +49,8 @@ def render(data):
         label = "Частично напечатанное состояние" if partial else "Событие"
         parts.extend([f'<section><h2>{label} {_text(context["index"])}</h2>',
                       f'<p>Строки {_text(context["start_line"])}–{_text(context["end_line"])}</p>'])
+        if "message" in context:
+            parts.extend(['<p>Источник сообщения:</p>', f'<pre>{_json(context["message"])}</pre>'])
         if partial:
             parts.extend(['<p>bag elided: экипировка неизвестна, а не пуста</p>',
                           f'<pre>{_json(event["structure"])}</pre>'])
@@ -169,7 +171,7 @@ def main(argv=None, *, reader=None, builder=None):
                 event["skill_catalog"] = logcatalog.project(snapshot, event["event"]["index"],
                     source["sha256"], records, catalog, partial=True)
         data = {
-            "format": "tli-log-import-v1", "version": "0.3.0", "status": "diagnostic", "scope": "separate_printed_events",
+            "format": "tli-log-import-v1", "version": "0.3.1", "status": "diagnostic", "scope": "separate_printed_events",
             "skill_catalog_source": catalog_source,
             "import_complete": False, "identity": "unknown", "runtime": "unknown", "freshness": "unknown",
             "selected_skill": "unknown", "build_code": "unknown",

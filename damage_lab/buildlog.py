@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 
 from .logtables import HEADER, LIMITS as PARSER_LIMITS, LogTableError, parse_event
 
 FORMAT = 'tli-build-log-v1'
-VERSION = '0.1.2'
+VERSION = '0.1.3'
+MESSAGE = re.compile(HEADER.pattern + r' ----Socket (Recv|Send)Message STT----([A-Za-z][A-Za-z0-9_]{0,63})----(?:SynId = [0-9]{1,10})?', re.ASCII)
 LIMITS = {'max_source_bytes': 1 << 30, 'max_lines': 20_000_000,
           'max_line_bytes': 512, 'max_events': 512, 'max_event_lines': 20_000,
           'max_event_bytes': 16 << 20, 'max_retained_bytes': 32 << 20, 'chunk_bytes': 1 << 16}
@@ -74,6 +76,7 @@ def snapshot(path: Path, *, max_source_bytes=LIMITS['max_source_bytes'],
     except (OSError, RuntimeError, TypeError, ValueError):
         raise BuildLogError('path', 0) from None
     digest, events, rejected, active = hashlib.sha256(), [], [], None
+    previous = None
     source = {'kind': 'ordinary_log', 'path': location, 'lines': 0,
               'ignoredLines': 0, 'oversizedLines': 0, 'retainedEventBytes': 0,
               'incompleteFinalLine': None}
@@ -104,7 +107,7 @@ def snapshot(path: Path, *, max_source_bytes=LIMITS['max_source_bytes'],
             if source['retainedEventBytes'] + active['bytes'] > max_retained_bytes:
                 raise BuildLogError('retained_limit', active['start_line'])
             source['retainedEventBytes'] += active['bytes']
-            events.append({**context, 'tree': tree})
+            events.append({**context, 'tree': tree, 'message': active['message']})
         active = None
 
     try:
@@ -119,6 +122,7 @@ def snapshot(path: Path, *, max_source_bytes=LIMITS['max_source_bytes'],
                     raise BuildLogError('line_limit', number)
                 source['oversizedLines'] += length > max_line_bytes
                 if not complete:
+                    previous = None
                     source['incompleteFinalLine'] = {'line': number, 'bytes': raw}
                     if active is not None:
                         active['end_line'] = number
@@ -130,12 +134,19 @@ def snapshot(path: Path, *, max_source_bytes=LIMITS['max_source_bytes'],
                 header = length <= max_line_bytes and HEADER.fullmatch(text)
                 framing = False
                 if not header and length <= max_line_bytes and text.endswith(' ') and HEADER.fullmatch(text[:-1]):
-                    text, header, framing = text[:-1], True, True
+                    text, header, framing = text[:-1], HEADER.fullmatch(text[:-1]), True
                 if header:
                     if len(events) + len(rejected) >= max_events:
                         raise BuildLogError('event_limit', number)
                     active = {'start_line': number, 'end_line': number, 'lines': [], 'bytes': 0,
-                              'header_trailing_space': framing}
+                              'header_trailing_space': framing,
+                              'message': previous if previous is not None
+                              and previous['logTimeText'][:20] == header.group(1)[:20]
+                              and previous['logTimeText'] <= header.group(1)
+                              and previous['frame'] == int(header.group(2)) else None}
+                marker = MESSAGE.fullmatch(text) if length <= max_line_bytes else None
+                previous = ({'name': marker.group(4), 'direction': marker.group(3).lower(), 'line': number,
+                             'logTimeText': marker.group(1), 'frame': int(marker.group(2))} if marker else None)
                 if active is not None:
                     active['end_line'] = number
                     active['bytes'] += raw

@@ -7,6 +7,7 @@ from .logtables import LIMITS as TREE_LIMITS, MEANING
 
 
 FORMAT = "tli-log-build-domains-v2"
+STAMP = re.compile(r'[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2}\.[0-9]{2}\.[0-9]{2}:[0-9]{3}', re.ASCII)
 REFERENCE_STATUSES = ("reference_not_printed", "reference_elided", "reference_printed_empty", "reference_shape_unsupported",
                       "sentinel_observed", "no_match_items_not_printed", "no_match_items_printed_empty",
                       "ambiguous_visible_duplicates", "observed_token_match", "no_visible_match_items_incomplete",
@@ -69,7 +70,7 @@ def _integer(value, maximum, minimum=0):
 def _envelope(snapshot, digest):
     _object(snapshot, ("format", "version", "status", "scope", "import_complete", "identity", "runtime", "freshness",
                        "selected_skill", "build_code", "source", "events", "rejected", "limits"))
-    if (snapshot["format"] != "tli-build-log-v1" or snapshot["version"] != "0.1.2" or snapshot["status"] != "diagnostic"
+    if (snapshot["format"] != "tli-build-log-v1" or snapshot["version"] not in ("0.1.2", "0.1.3") or snapshot["status"] != "diagnostic"
             or snapshot["scope"] != "printed_tree_only" or snapshot["import_complete"] is not False
             or any(snapshot[key] != "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code"))):
         _error()
@@ -116,7 +117,33 @@ def _snapshot(snapshot, index, digest):
         _integer(tail["bytes"], source["snapshotBytes"], 1)
         if tail["line"] != source["lines"] or type(tail["line"]) is not int or event["end_line"] >= tail["line"]:
             _error()
+    if snapshot['version'] == '0.1.3':
+        _object(event, ('message',))
+        message = event['message']
+        if message is not None:
+            _object(message, ('name', 'direction', 'line', 'logTimeText', 'frame'))
+            _object(event['tree'], ('header',))
+            _object(event['tree']['header'], ('logTimeText', 'frame'))
+            _integer(message['line'], event['start_line'] - 1, 1)
+            _integer(message['frame'], 9999999999)
+            if (set(message) != {'name', 'direction', 'line', 'logTimeText', 'frame'}
+                    or type(message['name']) is not str or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', message['name'], re.ASCII)
+                    or message['direction'] not in ('recv', 'send')
+                    or message['line'] != event['start_line'] - 1
+                    or type(message['logTimeText']) is not str
+                    or not STAMP.fullmatch(message['logTimeText'])
+                    or type(event['tree']['header']['logTimeText']) is not str
+                    or not STAMP.fullmatch(event['tree']['header']['logTimeText'])
+                    or message['logTimeText'][:20] != event['tree']['header']['logTimeText'][:20]
+                    or message['logTimeText'] > event['tree']['header']['logTimeText']
+                    or message['frame'] != event['tree']['header']['frame']):
+                _error()
     return event
+
+
+def _received(snapshot, event):
+    return snapshot['version'] == '0.1.2' or (event['message'] is not None
+           and event['message']['direction'] == 'recv' and event['message']['name'] == 'GetPlayerData')
 
 
 def _class(text):
@@ -343,7 +370,7 @@ def _project(snapshot, event_index, source_sha256, *, partial):
     event = _snapshot(snapshot, event_index, source_sha256)
     tree = event["tree"]
     header = _tree(tree, event, snapshot["limits"])
-    if not (_partial(tree["root"]) if partial else _candidate(tree["root"])):
+    if not _received(snapshot, event) or not (_partial(tree["root"]) if partial else _candidate(tree["root"])):
         _error()
     domains = {name: _domain(tree["root"], name, path.split("."), fields) for name, (path, fields) in DOMAINS.items()}
     return {"format": "tli-log-partial-build-domains-v1" if partial else FORMAT,
@@ -352,7 +379,9 @@ def _project(snapshot, event_index, source_sha256, *, partial):
             **{key: "unknown" for key in ("identity", "runtime", "freshness", "selected_skill", "build_code")},
             "source": {"sha256": snapshot["source"]["sha256"], "snapshot_bytes": snapshot["source"]["snapshotBytes"]},
             "event": {"index": event_index, "start_line": event["start_line"], "end_line": event["end_line"],
-                      "boundary": event["boundary"], "header": header},
+                      "boundary": event["boundary"], "header": header,
+                      **({'message': None if event['message'] is None else dict(event['message'])}
+                         if snapshot['version'] == '0.1.3' else {})},
             "domains": domains,
             "counts": {"domains": len(domains), "rows": sum(len(row["rows"]) for row in domains.values()),
                        "lexical_values": sum(len(field["values"]) for domain in domains.values()
@@ -543,7 +572,7 @@ def candidates(snapshot, source_sha256):
     for index in range(len(snapshot["events"])):
         event = _snapshot(snapshot, index, source_sha256)
         _tree(event["tree"], event, snapshot["limits"])
-        if _candidate(event["tree"]["root"]):
+        if _received(snapshot, event) and _candidate(event["tree"]["root"]):
             result.append(index)
     return result
 
@@ -555,7 +584,7 @@ def partial_candidates(snapshot, source_sha256):
     for index in range(len(snapshot["events"])):
         event = _snapshot(snapshot, index, source_sha256)
         _tree(event["tree"], event, snapshot["limits"])
-        if _partial(event["tree"]["root"]):
+        if _received(snapshot, event) and _partial(event["tree"]["root"]):
             result.append(index)
     return result
 

@@ -66,6 +66,16 @@ def partial_document():
     return document(entries + [("filler" + str(index), [("n", "1")]) for index in range(25)] + [("bag", ELIDED)])
 
 
+def message_document(*, partial=False):
+    """Bind fictional new-version events to one adjacent received player-data marker."""
+    data = partial_document() if partial else document()
+    data['version'] = '0.1.3'
+    header = data['events'][0]['tree']['header']
+    data['events'][0]['message'] = {'name': 'GetPlayerData', 'direction': 'recv', 'line': 2,
+                                  'logTimeText': header['logTimeText'], 'frame': header['frame']}
+    return data
+
+
 def refusals(data):
     """Capture both public seams fixed refusals without inspecting private validation helpers."""
     results = []
@@ -81,6 +91,87 @@ def refusals(data):
 
 class LogBuildTest(unittest.TestCase):
     """Project one printed player-state candidate without reconstructing a verified build."""
+
+    def test_received_player_message_qualifies_new_version_without_identity_claims(self):
+        data = document()
+        data['version'] = '0.1.3'
+        header = data['events'][0]['tree']['header']
+        data['events'][0]['message'] = {'name': 'GetPlayerData', 'direction': 'recv', 'line': 2,
+                                      'logTimeText': header['logTimeText'], 'frame': header['frame']}
+        self.assertEqual(candidates(data, 'a' * 64), [0])
+
+    def test_new_player_projection_preserves_only_message_provenance_and_unknown_identity(self):
+        data = message_document()
+        result = project(data, 0, 'a' * 64)
+        self.assertEqual((result['event']['message'], result['identity'], result['runtime'], result['import_complete']),
+                         (data['events'][0]['message'], 'unknown', 'unknown', False))
+
+    def test_same_second_nondecreasing_message_time_is_preserved_separately(self):
+        data = message_document()
+        stamp = data['events'][0]['tree']['header']['logTimeText'][:-3]
+        data['events'][0]['message']['logTimeText'] = stamp + '007'
+        data['events'][0]['tree']['header']['logTimeText'] = stamp + '015'
+        result = project(data, 0, 'a' * 64)
+        self.assertEqual((candidates(data, 'a' * 64), result['event']['message']['logTimeText'],
+                          result['event']['header']['logTimeText']), ([0], stamp + '007', stamp + '015'))
+
+    def test_temporal_validation_refuses_backward_cross_second_and_malformed_times(self):
+        for side, value in (('message', '2000.01.03-05.07.11:999'),
+                            ('message', '1999.01.03-05.07.11:000'),
+                            ('message', None), ('message', 17), ('message', ['PRIVATE']),
+                            ('message', '2000.01.03-05.07.11:00'),
+                            ('message', '2000.01.03-05.07.11:001extra'),
+                            ('header', None), ('header', True), ('header', ['PRIVATE']),
+                            ('header', '2000.01.03-05.07.11:1')):
+            data = message_document()
+            target = data['events'][0]['message'] if side == 'message' else data['events'][0]['tree']['header']
+            target['logTimeText'] = value
+            with self.subTest(side=side):
+                with self.assertRaisesRegex(ValueError, '^Log build projection requires a supported bounded saved-tree contract$'):
+                    candidates(data, 'a' * 64)
+
+    def test_new_partial_player_projection_and_references_remain_available(self):
+        data = message_document(partial=True)
+        result = logbuild.project_partial(data, 0, 'a' * 64)
+        self.assertEqual((logbuild.partial_candidates(data, 'a' * 64), candidates(data, 'a' * 64),
+                          result['event']['message'], result['domains']['equipment']['visible_entries'],
+                          logbuild.partial_skill_references(data, 0, 'a' * 64)['event']['message']),
+                         ([0], [], data['events'][0]['message'], None, data['events'][0]['message']))
+
+    def test_send_unrelated_and_unknown_new_messages_are_not_composition_candidates(self):
+        for partial in (False, True):
+            for change in ('send', 'unrelated', 'unknown'):
+                data = message_document(partial=partial)
+                if change == 'unknown':
+                    data['events'][0]['message'] = None
+                elif change == 'send':
+                    data['events'][0]['message']['direction'] = 'send'
+                else:
+                    data['events'][0]['message']['name'] = 'OtherMessage'
+                operation = logbuild.project_partial if partial else project
+                with self.subTest(partial=partial, change=change):
+                    self.assertEqual((candidates(data, 'a' * 64), logbuild.partial_candidates(data, 'a' * 64)), ([], []))
+                    with self.assertRaisesRegex(ValueError, '^Log build projection requires'):
+                        operation(data, 0, 'a' * 64)
+
+    def test_new_message_contract_refuses_tampering_without_private_errors(self):
+        for field, value in (('line', 1), ('line', True), ('frame', True), ('frame', 999),
+                             ('logTimeText', 'PRIVATE'), ('direction', 'unknown'), ('name', 'bad-name'),
+                             ('name', 'a' * 65), ('token', 'PRIVATE')):
+            data = message_document()
+            data['events'][0]['message'][field] = value
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, '^Log build projection requires a supported bounded saved-tree contract$'):
+                    candidates(data, 'a' * 64)
+
+    def test_new_message_field_is_required_even_when_unknown(self):
+        data = message_document()
+        del data['events'][0]['message']
+        with self.assertRaisesRegex(ValueError, '^Log build projection requires'):
+            candidates(data, 'a' * 64)
+
+    def test_legacy_candidate_and_projection_have_no_synthetic_message(self):
+        self.assertEqual((candidates(document(), 'a' * 64), 'message' in project(document(), 0, 'a' * 64)['event']), ([0], False))
 
     def test_bag_elided_character_shape_is_separate_from_full_candidates(self):
         data = partial_document()

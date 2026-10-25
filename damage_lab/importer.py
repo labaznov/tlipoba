@@ -3,6 +3,7 @@
 import argparse
 import copy
 import json
+import re
 import sqlite3
 import sys
 import tempfile
@@ -36,6 +37,9 @@ def ranksummary(data):
     def select(row, fields):
         return {key: copy.deepcopy(row[key]) for key in fields if key in row}
 
+    source = data.get("source_sha256")
+    if type(source) is not str or not re.fullmatch("[0-9a-f]{64}", source):
+        raise ValueError("Trait rank candidates require a canonical source hash")
     if data["rule_status"] != "rank_rule_unverified" or any(row["rank"] is not None for row in data["traits"]):
         raise ValueError("Trait rank candidates cannot select or verify a rank")
     result = select(data, ("format", "source_sha256", "rule_status", "memories_without_selected_trait",
@@ -197,7 +201,10 @@ def snapshot(data):
     if "panel_log" in data:
         result["panel_log"] = logsummary(data["panel_log"])
     if "trait_ranks" in data:
-        result["trait_ranks"] = ranksummary(data["trait_ranks"])
+        ranks = ranksummary(data["trait_ranks"])
+        if ranks["source_sha256"] != data.get("source_sha256"):
+            raise ValueError("Trait rank candidates differ from the record source hash")
+        result["trait_ranks"] = ranks
     if "import_coverage" in data:
         from .importcoverage import summary
         coverage = summary(data["import_coverage"])

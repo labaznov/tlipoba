@@ -665,6 +665,55 @@ class ImporterTests(unittest.TestCase):
                 (root / "result" / "import.json").read_text(encoding="utf-8"))["trait_ranks"]["traits"]],
                              [None, None])
 
+    def test_trait_candidates_reject_a_different_record_source(self):
+        from damage_lab.traitranks import project
+        from damage_lab.importer import snapshot
+        from test_traitranks import document
+
+        data = record()
+        data["trait_ranks"] = project(document(), data["source_sha256"])
+        data["source_sha256"] = "c" * 64
+        with self.assertRaisesRegex(ValueError, "Trait rank candidates differ from the record source hash"):
+            snapshot(data)
+
+    def test_trait_candidates_require_the_record_source(self):
+        from damage_lab.traitranks import project
+        from damage_lab.importer import snapshot
+        from test_traitranks import document
+
+        data = record()
+        data["trait_ranks"] = project(document(), data.pop("source_sha256"))
+        with self.assertRaisesRegex(ValueError, "Trait rank candidates differ from the record source hash"):
+            snapshot(data)
+
+    def test_trait_candidates_require_the_child_source_even_without_a_record_source(self):
+        from damage_lab.traitranks import project
+        from damage_lab.importer import snapshot
+        from test_traitranks import document
+
+        for missing in (False, True):
+            data = record()
+            data["trait_ranks"] = project(document(), data["source_sha256"])
+            data["trait_ranks"].pop("source_sha256")
+            if missing:
+                data.pop("source_sha256")
+            with self.subTest(missing=missing), self.assertRaisesRegex(
+                    ValueError, "Trait rank candidates require a canonical source hash"):
+                snapshot(data)
+
+    def test_trait_candidates_reject_matching_noncanonical_source_values(self):
+        from damage_lab.traitranks import project
+        from damage_lab.importer import snapshot
+        from test_traitranks import document
+
+        for source in (None, True, 79, [], {}, "", "A" * 64, "a" * 63, "g" * 64):
+            data = record()
+            data["trait_ranks"] = project(document(), data["source_sha256"])
+            data["source_sha256"] = data["trait_ranks"]["source_sha256"] = source
+            with self.subTest(source=source), self.assertRaisesRegex(
+                    ValueError, "Trait rank candidates require a canonical source hash"):
+                snapshot(data)
+
     def test_rank_summary_drops_extra_properties_at_each_depth(self):
         from damage_lab.importer import snapshot
         from damage_lab.traitranks import project

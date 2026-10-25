@@ -54,6 +54,24 @@ this source path; that fallback is not permission to fill missing imported
 character data with zero. The latter method calls a helper named
 `GetSkillDamageValueAsHit`; its name alone does not establish units.
 
+## Native helper context: 25 October 2026
+
+Separately bounded saved-file analysis found a context supplying the literal
+`UAttrHelper` under a `game` operand and the method names `GetAttrData`,
+`GetSkillDamageValue`, `GetCurrentFrame` and `GetAttributeSources`.
+An exact address operand shared with the result-wrapper candidate for
+`CreateAttrHelper` connects these source observations conditionally.
+The literal bytes and selected instruction sequences were independently checked;
+opaque binder calls still prevent treating this as verified runtime class or
+player identity. A failed RTTI representation did not establish type absence.
+
+The candidate cache lookup and a member-result load are now localized in saved
+code. A subsequently inspected callee preserves that result on its direct-return
+path; its external tail paths remain unknown. These findings guide the next
+bounded acquisition design. They do not establish a live root, scalar encoding,
+attribute units, complete pools or an atomic snapshot, and supply no numerical
+correction to DPS.
+
 ## Display DPS callback arithmetic
 
 The constructor's six checked numeric callback entries delegate to their

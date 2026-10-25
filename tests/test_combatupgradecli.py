@@ -9,11 +9,186 @@ from types import ModuleType
 from unittest.mock import patch
 
 from damage_lab.combatupgradecli import main
-from test_combatupgrades import scenario
+from test_combatupgrades import candidate, scenario, unit
+
+
+def goal_scenario():
+    return {"format": "tli-combat-upgrade-scenario-v1", "baseline": unit(1000),
+            "currency": "synthetic tokens",
+            "candidates": [candidate("efficient-expensive", unit(1500), 100),
+                           candidate("sufficient-cheap", unit(1100), 25)]}
 
 
 class CombatUpgradeCliTests(unittest.TestCase):
     """Publish only complete conditional comparisons while preserving local inputs and existing paths."""
+
+    def test_budget_goal_selects_the_cheapest_sufficient_upgrade_without_reordering_efficiency(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "30"])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            goal = report["goal"]
+            self.assertEqual((status, report["ranking"], goal["format"], goal["minimum_gain"],
+                              goal["budget"], goal["currency"], goal["quantity_scope"],
+                              goal["ranking"], goal["selected"]),
+                             (0, ["efficient-expensive", "sufficient-cheap"],
+                              "tli-combat-upgrade-goal-v1", 100, 30, "synthetic tokens",
+                              "conditional_combat_dps", ["sufficient-cheap"], "sufficient-cheap"))
+
+    def test_goal_html_escapes_the_selected_name_and_currency_in_its_own_section(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = goal_scenario()
+            document["currency"] = "token <script>currency</script>"
+            document["candidates"][1]["name"] = "Choice <img src=x onerror=alert(1)> & gain"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "30"])
+            page = (target / "index.html").read_text(encoding="utf-8")
+            section = page[page.index('id="upgrade-goal"'):].partition("</section>")[0]
+            self.assertEqual((status, 'id="goal-selected"' in section,
+                              "Choice &lt;img src=x onerror=alert(1)&gt; &amp; gain" in section,
+                              "token &lt;script&gt;currency&lt;/script&gt;" in section,
+                              "<img src=x" in page, "<script>currency" in page),
+                             (0, True, True, True, False, False))
+
+    def test_each_goal_flag_requires_its_partner_before_any_output_is_created(self):
+        outcomes = []
+        for flags in (["--minimum-gain", "100"], ["--budget", "30"]):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                raw = json.dumps(goal_scenario()).encode("utf-8")
+                source.write_bytes(raw)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(root / "new/result"), *flags])
+                outcomes.append((status, (root / "new").exists(), source.read_bytes()))
+        self.assertEqual([(status, created, raw == json.dumps(goal_scenario()).encode("utf-8"))
+                          for status, created, raw in outcomes], [(1, False, True)] * 2)
+
+    def test_invalid_goal_numbers_leave_no_output_or_new_parent(self):
+        outcomes = []
+        for minimum, budget in (("0", "30"), ("-1", "30"), ("NaN", "30"),
+                                ("Infinity", "30"), ("1e400", "30"), ("1e-400", "30"),
+                                ("100", "-1"), ("100", "NaN"), ("100", "Infinity"),
+                                ("100", "1e400"), ("100", "1e-400"), ("100", "-1e-400"),
+                                ("true", "30")):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+                errors = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    status = main(["--scenario", str(source), "--output", str(root / "new/result"),
+                                   "--minimum-gain", minimum, "--budget", budget])
+                outcomes.append((status, (root / "new").exists(), len(errors.getvalue().splitlines())))
+        self.assertEqual(outcomes, [(1, False, 1)] * 13)
+
+    def test_duplicate_goal_flags_are_refused_without_publication(self):
+        outcomes = []
+        for extra in (["--minimum-gain", "200"], ["--budget", "40"]):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(root / "new/result"),
+                                   "--minimum-gain", "100", "--budget", "30", *extra])
+                outcomes.append((status, (root / "new").exists()))
+        self.assertEqual(outcomes, [(1, False)] * 2)
+
+    def test_default_comparison_keeps_the_existing_report_without_a_goal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, "goal" in report, 'id="upgrade-goal"' in page, report["ranking"]),
+                             (0, False, False, ["efficient-expensive", "sufficient-cheap"]))
+
+    def test_equivalent_integral_goal_flags_produce_identical_reports_and_html(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "scenario.json"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            outputs = []
+            for index, (minimum, budget) in enumerate((("100", "30"), ("100.0", "30.0"), ("1e2", "3e1"))):
+                target = root / str(index)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(target),
+                                   "--minimum-gain", minimum, "--budget", budget])
+                outputs.append((status, (target / "comparison.json").read_bytes(),
+                                (target / "index.html").read_bytes()))
+            self.assertEqual(outputs[1:], [outputs[0], outputs[0]])
+
+    def test_a_budget_integer_above_binary64_precision_is_preserved_exactly(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "9007199254740993"])
+            goal = json.loads((target / "comparison.json").read_text(encoding="utf-8"))["goal"]
+            self.assertEqual((status, type(goal["budget"]), goal["budget"], goal["selected"]),
+                             (0, int, 9007199254740993, "sufficient-cheap"))
+
+    def test_zero_budget_can_select_an_explicit_free_supported_upgrade(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = goal_scenario()
+            document["candidates"][1]["cost"] = 0
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "0"])
+            goal = json.loads((target / "comparison.json").read_text(encoding="utf-8"))["goal"]
+            self.assertEqual((status, goal["budget"], goal["ranking"], goal["selected"]),
+                             (0, 0, ["sufficient-cheap"], "sufficient-cheap"))
+
+    def test_unaffordable_goal_reports_exclusion_reasons_without_a_fake_selection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "24"])
+            goal = json.loads((target / "comparison.json").read_text(encoding="utf-8"))["goal"]
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, goal["selected"], goal["ranking"],
+                              sorted((row["id"], bool(row["reasons"])) for row in goal["excluded"]),
+                              'id="upgrade-goal"' in page, 'id="goal-selected"' in page),
+                             (0, None, [], [("efficient-expensive", True), ("sufficient-cheap", True)], True, False))
+
+    def test_unknown_baseline_keeps_the_goal_blocked_with_reasons_and_no_selected_html(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = goal_scenario()
+            document["baseline"]["spell"]["context"]["effective_level"] = None
+            document["baseline"]["spell"]["context"]["gates"]["level"]["status"] = "unknown"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "30"])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            goal = report["goal"]
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, report["baseline"]["dps"], goal["selected"], goal["ranking"],
+                              all(bool(row["reasons"]) for row in goal["excluded"]), len(goal["excluded"]),
+                              'id="upgrade-goal"' in page, 'id="goal-selected"' in page),
+                             (0, None, None, [], True, 2, True, False))
 
     def test_unknown_effective_levels_remain_null_and_block_all_upgrade_rankings(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):

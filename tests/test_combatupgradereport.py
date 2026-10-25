@@ -5,7 +5,9 @@ from html.parser import HTMLParser
 
 from damage_lab.combatupgrades import evaluate
 from damage_lab.combatupgradereport import render
+from damage_lab.upgradegoal import evaluate as query
 from test_combatupgrades import candidate, scenario, unit
+from test_upgradegoal import scenario as goals
 
 
 class Surface(HTMLParser):
@@ -21,6 +23,44 @@ class Surface(HTMLParser):
 
 class CombatUpgradeReportTests(unittest.TestCase):
     """Present complete conditional combat comparisons without introducing damage arithmetic."""
+
+    def test_goal_section_shows_the_cheapest_sufficient_selection_and_exact_limits(self):
+        report = query(goals(1000, [candidate("efficient", unit(1500), 100),
+                                    candidate("sufficient", unit(1100), 25)]), minimum=100, budget=30)
+        page = render(report)
+        self.assertTrue(all(value in page for value in (
+            'id="upgrade-goal"', 'id="goal-selected">Synthetic sufficient',
+            "Минимальный прирост DPS: <strong>100</strong>", "Бюджет: <strong>30</strong>",
+            "synthetic tokens", "Передано вариантов: 2", "Исключено: 1",
+        )))
+
+    def test_goal_explains_why_provided_candidates_did_not_qualify(self):
+        unsupported = candidate("unknown-effect", unit(1500), 1)
+        unsupported["missing"] = ["unresolved effect"]
+        report = query(goals(1000, [candidate("unpriced", unit(1200), None), unsupported,
+                                    candidate("too-small", unit(1050), 5),
+                                    candidate("too-expensive", unit(1200), 50)]), minimum=100, budget=30)
+        section = render(report).partition('id="upgrade-goal"')[2].partition("</section>")[0]
+        self.assertTrue(all(value in section for value in (
+            "Передано вариантов: 4", "Исключено: 4", "Среди переданных вариантов нет подходящего",
+            "Без известной цены", "Неполные исходные данные", "Прирост ниже минимума", "Дороже бюджета",
+        )))
+
+    def test_goal_rendering_is_reproducible_from_the_saved_parameters_and_preserves_input(self):
+        report = query(goals(100, [candidate("option", unit(127), 9)]), minimum=17.0, budget=9.0)
+        preserved = copy.deepcopy(report)
+        self.assertEqual((render(report), report), (render(json.loads(json.dumps(report))), preserved))
+
+    def test_incoherent_goal_results_or_context_cannot_be_rendered(self):
+        report = query(goals(1000, [candidate("option", unit(1100), 25)]), minimum=100, budget=30)
+        for key, value in (("selected", "invented"), ("ranking", []), ("currency", "other currency"),
+                           ("quantity_scope", "pre_defence_single_caster"), ("status", "blocked"),
+                           ("excluded", [{"id": "option", "reasons": ["unpriced"]}]),
+                           ("minimum_gain", 101), ("budget", 24), ("format", "unsupported")):
+            changed = copy.deepcopy(report)
+            changed["goal"][key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "unchanged evaluated report"):
+                render(changed)
 
     def test_unknown_spell_policies_are_visible_without_zero_or_empty_policy_defaults(self):
         document = scenario()

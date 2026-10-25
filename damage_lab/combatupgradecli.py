@@ -36,6 +36,13 @@ def _reject(token):
     raise ValueError("Combat comparison JSON has a nonfinite constant")
 
 
+def _goal_number(token):
+    value = json.loads(token, parse_float=_finite, parse_constant=_reject)
+    if type(value) not in (int, float):
+        raise ValueError("Combat comparison goal requires a JSON number")
+    return value
+
+
 def main(argv=None):
     """Write a validated comparison and passive HTML atomically without replacing existing paths."""
     parser = argparse.ArgumentParser(
@@ -43,16 +50,24 @@ def main(argv=None):
         exit_on_error=False, allow_abbrev=False, add_help=False)
     parser.add_argument("--scenario", action="append", type=Path, help="JSON полного сценария сравнения")
     parser.add_argument("--output", action="append", type=Path, help="Новый каталог результата")
+    parser.add_argument("--minimum-gain", action="append", type=_goal_number,
+                        help="Минимальный положительный прирост условного DPS; задаётся вместе с --budget")
+    parser.add_argument("--budget", action="append", type=_goal_number,
+                        help="Неотрицательный бюджет в валюте сценария; задаётся вместе с --minimum-gain")
     parser.add_argument("-h", "--help", action="store_true", help="Показать описание команды")
     try:
         arguments, extras = parser.parse_known_args(argv)
-        if extras or any(len(value or []) > 1 for value in (arguments.scenario, arguments.output)):
+        if extras or any(len(value or []) > 1 for value in
+                         (arguments.scenario, arguments.output, arguments.minimum_gain, arguments.budget)):
             raise ValueError("Combat comparison arguments are unsupported")
         if arguments.help:
             parser.print_help()
             return 0
         if not arguments.scenario or not arguments.output:
             raise ValueError("Combat comparison requires scenario and output")
+        if (arguments.minimum_gain is None) != (arguments.budget is None):
+            print("Ошибка боевого сравнения: --minimum-gain и --budget задаются вместе", file=sys.stderr)
+            return 1
         source, target = arguments.scenario[0], arguments.output[0]
     except (argparse.ArgumentError, TypeError, ValueError, AttributeError):
         print("Ошибка боевого сравнения: укажите --scenario и --output без лишних аргументов", file=sys.stderr)
@@ -67,8 +82,14 @@ def main(argv=None):
             raw = stream.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
             raise ValueError("Combat comparison scenario exceeds eight mebibytes")
-        report = evaluate(json.loads(raw.decode("utf-8-sig"), object_pairs_hook=_unique,
-                                     parse_float=_finite, parse_constant=_reject))
+        document = json.loads(raw.decode("utf-8-sig"), object_pairs_hook=_unique,
+                              parse_float=_finite, parse_constant=_reject)
+        if arguments.minimum_gain is None:
+            report = evaluate(document)
+        else:
+            from .upgradegoal import evaluate as select
+
+            report = select(document, minimum=arguments.minimum_gain[0], budget=arguments.budget[0])
         from .combatupgradereport import render
 
         comparison = (json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")

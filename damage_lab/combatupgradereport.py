@@ -80,12 +80,44 @@ def _evidence(result):
             + "<p>Нет повторного применения crit, cast или defence</p></details>")
 
 
+def _goal(report):
+    goal = report.get("goal")
+    if goal is None:
+        return ""
+    candidates = {row["id"]: row for row in report["candidates"]}
+    if goal["status"] == "selected":
+        selected = ("Выбран вариант: <strong id=\"goal-selected\">"
+                    + text(candidates[goal["selected"]]["name"]) + "</strong>")
+    elif goal["status"] == "blocked":
+        selected = "Выбор заблокирован: неполные исходные данные сценария"
+    else:
+        selected = "Среди переданных вариантов нет подходящего"
+    reasons = {"blocked": "Неполные исходные данные", "unpriced": "Без известной цены",
+               "not_upgrade": "Нет положительного прироста", "below_minimum": "Прирост ниже минимума",
+               "over_budget": "Дороже бюджета", "ineligible": "Не допущен к ценовому сравнению"}
+    excluded = [(text(candidates[row["id"]]["name"]), items([reasons[reason] for reason in row["reasons"]]))
+                for row in goal["excluded"]]
+    ranking = "".join("<li>" + text(candidates[identity]["name"]) + "</li>" for identity in goal["ranking"])
+    return ("<section id=\"upgrade-goal\" style=\"overflow-wrap:anywhere\"><h2>Нужный прирост в пределах бюджета</h2>"
+            + "<p>Минимальный прирост DPS: <strong>" + text(goal["minimum_gain"]) + "</strong></p>"
+            + "<p>Бюджет: <strong>" + text(goal["budget"]) + "</strong> " + text(goal["currency"]) + "</p>"
+            + "<p>Передано вариантов: " + str(len(candidates)) + "; Исключено: " + str(len(excluded)) + "</p>"
+            + "<p>" + selected + "</p><ol id=\"goal-ranking\">" + ranking + "</ol>"
+            + (_table(excluded, ("Вариант", "Причины исключения")) if excluded else "<p>Нет исключённых вариантов</p>")
+            + "<p>Выбор относится к переданным вариантам и условной модели боя</p></section>\n")
+
+
 def render(report):
     """Display caller-priced combat results without promoting scenario assertions to runtime facts."""
     try:
         if type(report) is not dict:
             raise ValueError
-        canonical = evaluate(report["scenario"])
+        if "goal" in report:
+            from .upgradegoal import evaluate as query
+
+            canonical = query(report["scenario"], minimum=report["goal"]["minimum_gain"], budget=report["goal"]["budget"])
+        else:
+            canonical = evaluate(report["scenario"])
         if json.dumps(report, sort_keys=True, allow_nan=False) != json.dumps(canonical, sort_keys=True, allow_nan=False):
             raise ValueError
     except (KeyError, TypeError, ValueError, OverflowError, RecursionError):
@@ -112,7 +144,7 @@ details{{min-width:280px;margin:12px 0}}summary{{cursor:pointer;color:#9de1d1}}f
 </style></head><body><main><h1>Условное сравнение боевого DPS</h1>
 <div class=notice>Не является рекомендацией купить предмет<br>
 Gates — утверждения сценария, а не проверка актуального состояния персонажа</div>
-<section><h2>Baseline</h2>
+{_goal(report)}<section><h2>Baseline</h2>
 <p>Базовый DPS: <strong>{quantity(report['baseline']['dps'])}</strong></p>
 <p>Статус baseline: {text(report['baseline']['status'])}</p>{items(report['gaps'])}
 {_evidence(report['baseline'])}

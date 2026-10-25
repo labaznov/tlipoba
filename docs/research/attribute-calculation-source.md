@@ -72,6 +72,15 @@ bounded acquisition design. They do not establish a live root, scalar encoding,
 attribute units, complete pools or an atomic snapshot, and supply no numerical
 correction to DPS.
 
+For the explicitly constructed `CppWFloat` payload path, the transport word is
+stored with tag `0x13` (decimal 19), retrieved unchanged on the matching-tag
+branch, then used as binary64 by the `__tonumber` handler. No scale factor or
+special-value filter appears on this path. Other extraction branches delegate
+to uninspected code. The raw decoder requires an established payload binding;
+character identity, field roles and units remain separate evidence requirements.
+Its numeric conversion preserves signed zero, subnormals, infinities and NaNs;
+combat validation must still reject nonfinite inputs where required.
+
 ## Display DPS callback arithmetic
 
 The constructor's six checked numeric callback entries delegate to their

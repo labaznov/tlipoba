@@ -115,7 +115,17 @@ a finite soft deadline is checked before each read and after each successful
 return. Failures propagate without retries. The seam does not create a session
 or admit module metadata,
 and a blocked read still requires a bounded transport and outer timeout. Only
-synthetic composition has been verified; the complete live driver is pending.
+synthetic composition has been verified for this seam.
+
+The external `anchor_capture.capture` coordinator defaults to planning without
+contacting a session or platform provider. Its explicit live path checks the
+fixed PID, reader expiry, full image path, unique module name and image size,
+then supplies the current module base and observed address-domain bound to
+the planner. It charges content requests before calling the reader and retains
+a failed receipt when a read or later metadata check fails. Matching metadata
+observations do not establish atomicity or character identity. A fixed private
+driver has passed source-only execution with zero game reads; its live path
+still needs runtime validation with a fresh authorized ReaderSession.
 
 The named `FAttrData` registration supplies offsets 8, 16 and 24 for
 `Base`, `Floating` and `ModIncr`. Each follows the same candidate scalar

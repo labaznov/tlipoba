@@ -127,8 +127,13 @@ then supplies the current module base and observed address-domain bound to
 the planner. It charges content requests before calling the reader and retains
 a failed receipt when a read or later metadata check fails. Matching metadata
 observations do not establish atomicity or character identity. A fixed private
-driver has passed source-only execution with zero game reads; its live path
-still needs runtime validation with a fresh authorized ReaderSession.
+driver has passed source-only execution with zero game reads. Its first live
+attempt stopped before content reads because local module-metadata acquisition
+was denied. The external reader now provides an authenticated, fixed-PID
+`main_module` metadata operation, and the driver uses it without a local
+fallback. Synthetic transport tests and the local exporter suite pass.
+Runtime validation still requires a fresh authorized ReaderSession containing
+that operation; no live manager word has yet been acquired by this driver.
 
 The named `FAttrData` registration supplies offsets 8, 16 and 24 for
 `Base`, `Floating` and `ModIncr`. Each follows the same candidate scalar

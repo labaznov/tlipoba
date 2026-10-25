@@ -90,6 +90,23 @@ character identity, field roles and units remain separate evidence requirements.
 Its numeric conversion preserves signed zero, subnormals, infinities and NaNs;
 combat validation must still reject nonfinite inputs where required.
 
+The inspected `GameInstanceApi` assigns a manager global from the zero-argument
+call `game.UVirtualWorldMgr.Instance()`. A candidate native registration
+for that method supplies a thin getter which loads one global word and returns.
+Its wrapper places a nonzero result into an opaque object. This connects source
+observations conditionally; the live global word has not been acquired.
+
+The data-only `nativeanchor.Anchor` planner uses an admitted module base, span,
+address-domain bound and an exact eight-byte x64 RIP-load/return instruction.
+It derives the relative slot using a signed displacement and refuses a slot
+request unless the observed getter bytes match. Both planned reads are eight
+bytes and stay within the declared image. The library invokes no getter, reads
+no memory and follows no pointer. The observation preserves the raw word;
+zero or an in-domain address does not prove a manager, character or selected
+build. Module identity, freshness, atomicity and DPS claims remain false.
+Runtime acquisition and the external adapter's source binding require separate
+verification; matching this instruction does not verify the whole client image.
+
 The named `FAttrData` registration supplies offsets 8, 16 and 24 for
 `Base`, `Floating` and `ModIncr`. Each follows the same candidate scalar
 getter and `CppWFloat` pusher. These offsets are relative to the record pointer

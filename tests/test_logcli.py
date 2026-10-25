@@ -73,6 +73,137 @@ class Builder:
 class LogCliTests(unittest.TestCase):
     """Save distinct diagnostic event projections through a local atomic CLI."""
 
+    def test_explicit_tail_mode_imports_a_recent_printed_event(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        payload = ('\n'.join(received(entries) + ['+mirror {.skillLayout}', '[closed]']) + '\n').encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            root = Path(folder)
+            source = root / 'input.log'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            try:
+                code = main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29),
+                             '--output', str(root / 'out')])
+            except SystemExit as error:
+                code = error.code
+            self.assertEqual(code, 0)
+
+    def test_tail_does_not_persist_original_log_authentication_text(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        secret = b'fictional-cookie-7391'
+        payload = b'[ignored] authKeyHex=' + secret + b'\n' + ('\n'.join(received(entries) + ['[closed]']) + '\n').encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29), '--output', str(output)])
+            self.assertEqual(any(secret in path.read_bytes() for path in output.iterdir()), False)
+
+    def test_tail_context_does_not_persist_original_log_authentication_text(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        secret = b'fictional-cookie-8193'
+        payload = b'[ignored] authKeyHex=' + secret + b'\n' + ('\n'.join(received(entries) + ['[closed]']) + '\n').encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29), '--context', '--output', str(output)])
+            self.assertEqual(any(secret in path.read_bytes() for path in output.iterdir()), False)
+
+    def test_tail_ignores_the_cut_off_leading_event(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        first = ('\n'.join(received(entries) + ['[first-closed]']) + '\n').encode('ascii')
+        second = ('\n'.join(received(entries) + ['[second-closed]']) + '\n').encode('ascii')
+        offset = first.find(b'\n') + 11
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(first + second)
+            main(['--game-log', str(source), '--tail-bytes', str(len(first + second) - offset), '--output', str(output)])
+            report = json.loads((output / 'log-import.json').read_text(encoding='utf-8'))
+            self.assertEqual((len(report['events']) + len(report['partial_events']), report['acquisition']['parsed_events']),
+                             (1, 1))
+
+    def test_tail_provenance_hashes_only_the_retained_window(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        payload = ('\n'.join(received(entries) + ['+mirror {.skillLayout}', '[closed]']) + '\n').encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29), '--output', str(output)])
+            report = json.loads((output / 'log-import.json').read_text(encoding='utf-8'))
+            self.assertEqual((report['version'], report['source']['kind'], report['source']['path'],
+                              report['source']['sha256'], report['window']['original_sha256'],
+                              len(report['partial_events']), report['source']['sha256_scope'], report['source']['bytes_retained']),
+                             ('0.4.0', 'retained_log_window', str(source.resolve()),
+                              hashlib.sha256(payload).hexdigest(), None, 1, 'retained_window', False))
+
+    def test_tail_context_is_bound_to_the_same_retained_bytes(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        payload = ('\n'.join(received(entries) + ['+mirror {.skillLayout}', '[closed]']) + '\n').encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29), '--context', '--output', str(output)])
+            context = json.loads((output / 'log-context.json').read_text(encoding='utf-8'))
+            self.assertEqual(context['source']['sha256'], hashlib.sha256(payload).hexdigest())
+
+    def test_tail_preserves_the_partial_last_line_and_cannot_accept_that_event(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        payload = '\n'.join(received(entries) + ['+mirror {.skillLayout}', '[closed]']).encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29), '--output', str(output)])
+            report = json.loads((output / 'log-import.json').read_text(encoding='utf-8'))
+            self.assertEqual((len(report['events']), len(report['partial_events']),
+                              report['acquisition']['rejected_events'], report['window']['payload_sha256']),
+                             (0, 0, 1, hashlib.sha256(payload).hexdigest()))
+
+    def test_tail_does_not_weaken_the_ordinary_source_size_refusal(self):
+        from damage_lab.buildlog import snapshot as parse
+
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        payload = ('\n'.join(received(entries) + ['[closed]']) + '\n').encode('ascii')
+
+        def limited(path):
+            return parse(path, max_source_bytes=len(payload) + 32)
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            root = Path(folder)
+            source = root / 'input.log'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            ordinary = main(['--game-log', str(source), '--output', str(root / 'ordinary')], reader=limited)
+            window = main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29),
+                           '--output', str(root / 'window')], reader=limited)
+            self.assertEqual((ordinary, window, (root / 'ordinary').exists()), (1, 0, False))
+
+    def test_tail_cannot_publish_a_reader_hash_mismatch(self):
+        def mismatched(path):
+            document = snapshot(path)
+            document['source']['sha256'] = 'a' * 64
+            return document
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'older\nnewer\n')
+            code = main(['--game-log', str(source), '--tail-bytes', '8', '--output', str(output)],
+                        reader=mismatched, builder=Builder)
+            self.assertEqual((code, output.exists()), (1, False))
+
+    def test_tail_output_has_no_temporary_input_path(self):
+        entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
+        payload = ('\n'.join(received(entries) + ['[closed]']) + '\n').encode('ascii')
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            source, output = root / 'input.log', root / 'out'
+            source.write_bytes(b'old-record' * 431 + b'\n' + payload)
+            main(['--game-log', str(source), '--tail-bytes', str(len(payload) + 29), '--context', '--output', str(output)])
+            self.assertEqual(any(b'.tli-window-' in path.read_bytes() for path in output.iterdir()), False)
+
     def test_reference_reply_imports_as_partial_without_reconstructed_values(self):
         entries = [('bag', [('wearItems', None)]), ('heroCharacterv3OverView', None), ('skillLayout', None)]
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):

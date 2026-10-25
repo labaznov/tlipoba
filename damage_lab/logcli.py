@@ -29,7 +29,7 @@ def render(data):
         '<h1>Состав из напечатанных таблиц журнала</h1>',
         '<p>События не объединены. Идентичность персонажа, код билда, свежесть и действие эффектов не подтверждены.</p>',
         '<p>Complete домена означает полноту напечатанного поддерева, а не полный импорт персонажа. DPS не рассчитывается.</p>',
-        f'<p>SHA256 снимка: <code>{_text(data["source"]["sha256"])}</code></p>',
+        f'<p>SHA256 {"окна" if data["source"].get("kind") == "retained_log_window" else "снимка"}: <code>{_text(data["source"]["sha256"])}</code></p>',
         f'<p>Прочитано байт: {_text(data["source"]["bytes_read"])}; таблиц: {_text(data["acquisition"]["parsed_events"])}; ',
         f'отклонено таблиц: {_text(data["acquisition"]["rejected_events"])}</p>']
     for gap in data["gaps"]:
@@ -126,7 +126,28 @@ def parser():
     interface.add_argument("--event", type=int, help="Необязательный индекс одного подходящего события; по умолчанию все отдельно")
     interface.add_argument("--context", action="store_true", help="Сохранить ограниченный приватный контекст всех напечатанных событий")
     interface.add_argument("--skill-catalog", type=Path, help="Явный сохранённый каталог для отдельных напечатанных навыков")
+    interface.add_argument("--tail-bytes", type=int, help="Последние N байт журнала, не более 2 МиБ; частичный снимок")
     return interface
+
+
+def _window(path, budget, reader, context):
+    """Parse bounded bytes and optional context before removing the private input copy."""
+    from .logwindow import collect
+
+    payload, metadata = collect(path, budget=budget)
+    with tempfile.TemporaryDirectory(prefix=".tli-window-") as directory:
+        path = Path(directory) / "log-window.log"
+        path.write_bytes(payload)
+        snapshot = reader(path)
+        source = snapshot["source"]
+        if source["sha256"] != metadata["payload_sha256"] or source["snapshotBytes"] != metadata["payload_bytes"]:
+            raise ValueError("Log snapshot differs from its retained window")
+        packet = None
+        if context:
+            from .logcontext import collect
+
+            packet = collect(path, snapshot)
+        return snapshot, metadata, packet
 
 
 def main(argv=None, *, reader=None, builder=None):
@@ -147,7 +168,11 @@ def main(argv=None, *, reader=None, builder=None):
         if builder is None:
             from . import logbuild
             builder = logbuild
-        snapshot = reader(arguments.game_log)
+        window, context = None, None
+        if arguments.tail_bytes is None:
+            snapshot = reader(arguments.game_log)
+        else:
+            snapshot, window, context = _window(arguments.game_log, arguments.tail_bytes, reader, arguments.context)
         source = snapshot["source"]
         candidates = builder.candidates(snapshot, source["sha256"])
         partials = builder.partial_candidates(snapshot, source["sha256"])
@@ -192,10 +217,17 @@ def main(argv=None, *, reader=None, builder=None):
             "gaps": (["Строгие полные состояния не напечатаны; доступны отдельные частичные состояния с явными пропусками данных"
                       if partials else "В снимке нет таблиц поддерживаемой структуры; отсутствие билда этим не установлено"]
                      if not candidates else [])}
+        if window is not None:
+            data["version"] = "0.4.0"
+            data["source"].update(kind="retained_log_window", line_scope="retained_window",
+                                   sha256_scope="retained_window", bytes_retained=False)
+            data["window"] = window
+            data["gaps"].append("Показаны события из ограниченного окна журнала; это не полный импорт персонажа")
         packet = None
         if arguments.context:
             from .logcontext import collect, serialize
-            context = collect(arguments.game_log, snapshot)
+            if window is None:
+                context = collect(arguments.game_log, snapshot)
             packet = serialize(context)
             data["context"] = {"file": "log-context.json", "sha256": hashlib.sha256(packet).hexdigest(),
                                "bytes": len(packet), "status": context["status"],

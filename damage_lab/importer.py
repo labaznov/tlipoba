@@ -206,7 +206,10 @@ def snapshot(data):
         result["import_coverage"] = coverage
     if "build_resolution" in data:
         from .buildresolution import summary
-        result["build_resolution"] = summary(data["build_resolution"])
+        resolution = summary(data["build_resolution"])
+        if resolution["source"]["sha256"] != data.get("source_sha256"):
+            raise ValueError("Build resolution differs from the record source hash")
+        result["build_resolution"] = resolution
     result.update(staticsummary(data))
     result.update(installedsummary(data))
     result.update(supportsummary(data))

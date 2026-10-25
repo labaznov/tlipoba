@@ -574,6 +574,27 @@ class ImporterTests(unittest.TestCase):
                               result["build_resolution"]["identity"]["payload_self_identifies"]),
                              ("matched_saved_code", False))
 
+    def test_resolution_summary_rejects_a_different_record_source(self):
+        from damage_lab.buildresolution import project
+        from damage_lab.importer import snapshot
+        from test_buildresolution import document
+
+        data = record()
+        data["build_resolution"] = project(document(), data["source_sha256"])
+        data["source_sha256"] = "d" * 64
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
+    def test_resolution_summary_requires_the_record_source(self):
+        from damage_lab.buildresolution import project
+        from damage_lab.importer import snapshot
+        from test_buildresolution import document
+
+        data = record()
+        data["build_resolution"] = project(document(), data.pop("source_sha256"))
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
     def test_resolution_summary_removes_unknown_nested_properties(self):
         from damage_lab.buildresolution import project
         from damage_lab.importer import snapshot

@@ -36,6 +36,15 @@ Equal observed values would not prove an atomic snapshot.
 
 ## Numeric query boundary
 
+The checked `_GetAttrValue` prelude first consults its Lua cache. A non-nil
+entry bypasses the helper query. On a miss, source `A` or `O` with
+`SkillStoneId != -1` selects `GetAttrValueAsStone` for `EValue` and `GetAttrDataAsStone` for
+the other modes; these sources supply different Boolean arguments. With stone ID
+`-1`, only source `A` takes the corresponding `WithTags` route. The constructors
+on the fallback paths are not recovery from a failed getter: a getter result
+unconditionally replaces the constructed value. Cache lifetime and actual
+receiver identity require separate evidence.
+
 `_GetAttrValue` delegates to external helper methods. Its value branch selects
 X, Y or absolute X according to the requested filter. Its base branch uses Base
 or Base + Floating. Its increase branch returns `(ModIncr + 100) / 100`; its
@@ -96,6 +105,16 @@ opaque operation. A separate path
 retains a collection pointer behind an opaque wrapper; it has not been reduced
 to the same iteration contract. Container type, capacity, accepted counts and
 pointer lifetime are not established by these observations.
+
+The separately inspected native candidates for `GetAttrDataAsStone` and
+`GetAttrDataWithTags` both prepare this record shape and converge on a shared
+query after context and virtual-call gates. One branch selects a lookup map;
+when that map exists, a missing entry returns an initialized result rather than
+falling through to the alternate calculation path. The initializer's numerical
+defaults are not established. The inspected entry-handler fragment updates scalar words
+through an external operation, so it cannot yet be treated as a plain record
+copy. These branches do not prove current-actor ownership or equivalent results
+for different skill and tag contexts.
 
 The checked Lua consumer initializes the `EMore` result to one and iterates
 `pairs(ModIncrExt)`, updating it as `result * (value + 100) / 100` for each

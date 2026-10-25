@@ -81,6 +81,33 @@ character identity, field roles and units remain separate evidence requirements.
 Its numeric conversion preserves signed zero, subnormals, infinities and NaNs;
 combat validation must still reject nonfinite inputs where required.
 
+The named `FAttrData` registration supplies offsets 8, 16 and 24 for
+`Base`, `Floating` and `ModIncr`. Each follows the same candidate scalar
+getter and `CppWFloat` pusher. These offsets are relative to the record pointer
+returned by an opaque receiver operation, not an arbitrary userdata address.
+`AttrType` follows a separate DWORD getter, which zero-extends the stored bits
+before integer transport; its semantic identifier namespace remains unknown.
+
+The collection property is named `ModIncrExt`. Its candidate copier reads a
+pointer at offset zero and a DWORD count at offset eight, copying eight bytes
+per element. Its ordinary push path calls the scalar `CppWFloat` pusher for
+each element, then supplies successive index operands starting at one to an
+opaque operation. A separate path
+retains a collection pointer behind an opaque wrapper; it has not been reduced
+to the same iteration contract. Container type, capacity, accepted counts and
+pointer lifetime are not established by these observations.
+
+The checked Lua consumer initializes the `EMore` result to one and iterates
+`pairs(ModIncrExt)`, updating it as `result * (value + 100) / 100` for each
+entry. With ordinary Lua `pairs` behavior, an empty collection leaves one;
+a missing collection is not an empty collection. Environment overrides and
+custom iteration behavior have not been verified. `EIncrease` instead uses
+`(ModIncr + 100) / 100`. The base branches
+select `Base + Floating`, `Base`, or `abs(Base)` according to their selector,
+and the consumer finally calls `tonumber`. This connects the source field names
+to arithmetic, without obtaining current values, proving actor ownership or
+authorizing substitution of displayed aggregates for these inputs.
+
 ## Display DPS callback arithmetic
 
 The constructor's six checked numeric callback entries delegate to their

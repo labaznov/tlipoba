@@ -15,7 +15,7 @@ Build an independent local Torchlight Infinite planner, inspired by the capabili
 
 The owner reported severe slowdown and rebooted after accumulated worker processes. Keep parallel reasoning within this shared Windows budget
 
-- Use the coordinator, one Claude queue worker, one DeepSeek queue worker and at most one Codex subagent at a time; keep each external queue serial and do not nest delegation
+- Use the coordinator, at most two active external agents from the shared roster and at most one Codex subagent at a time; keep each external queue serial and do not nest delegation
 - Run at most one heavy local job across both repositories: a test suite, capture, catalog scan, bulk download or build
 - The coordinator owns this shared slot and explicitly assigns it in the helper task before launch, including previously queued work; unassigned tasks may only do small scoped reads or edits
 - While an assigned job runs, the coordinator edits or reads small scoped files instead of starting another heavy job
@@ -51,11 +51,12 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 - If the heartbeat is stale or missing, tell the user and continue available work locally instead of waiting
 - This rule does not expand the helper's permissions or authorize publishing, uploads or changes to its protocol
 
-## DeepSeek implementation and independent review
+## Delegation priority and independent review
 
-- Use the shared roster and addressed queue in `C:/Repos/tli-build-exporter/handoff/README.md` sections 9-10 for Claude and DeepSeek availability, ownership and stopped-task records
-- Prefer available DeepSeek for scoped implementation and ordinary unfinished technical tasks; provide exact inputs, acceptance criteria, file ownership and the heavy-slot assignment
-- After DeepSeek reports `done`, assign Claude an independent review of the requirements and resulting diff; the author cannot approve its own work
+- Use the shared roster and addressed queue in `C:/Repos/tli-build-exporter/handoff/README.md` sections 9-10 for ZCode, DeepSeek and Claude availability, ownership and stopped-task records
+- Assign new and unclaimed unfinished technical tasks to z.ai / ZCode (`to: zcode`) first, then DeepSeek (`to: deepseek`), using fresh presence and capabilities; provide exact inputs, acceptance criteria, file ownership and the heavy-slot assignment
+- After ZCode or DeepSeek reports `done`, assign Claude an independent review of the requirements and resulting diff; the author cannot approve its own work
+- Conserve Codex limits: delegate implementation and research first; use the coordinator for decomposition, verification and integration, and keep active file ownership intact
 - The coordinator verifies source hashes, failing/passing test evidence and owned-process completion, resolves review findings, and integrates only the reviewed result
 - Keep unfinished tasks visible and check completed successors before reassignment; record permission and safety stops for review rather than silently losing or automatically retrying them
 - A missing permission is requested from the human by the agent that needs it; a model change or user approval does not override system or provider restrictions

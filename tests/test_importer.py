@@ -598,6 +598,27 @@ class ImporterTests(unittest.TestCase):
             self.assertIs(json.loads((root / "result" / "import.json").read_text(encoding="utf-8"))
                           ["import_coverage"]["import_complete"], False)
 
+    def test_acquisition_summary_rejects_a_different_record_source(self):
+        from damage_lab.importcoverage import project
+        from damage_lab.importer import snapshot
+        from test_importcoverage import document
+
+        data = record()
+        data["import_coverage"] = project(document(), data["source_sha256"], None)
+        data["source_sha256"] = "e" * 64
+        with self.assertRaisesRegex(ValueError, "Import coverage differs from the record source hash"):
+            snapshot(data)
+
+    def test_acquisition_summary_requires_the_record_source(self):
+        from damage_lab.importcoverage import project
+        from damage_lab.importer import snapshot
+        from test_importcoverage import document
+
+        data = record()
+        data["import_coverage"] = project(document(), data.pop("source_sha256"), None)
+        with self.assertRaisesRegex(ValueError, "Import coverage differs from the record source hash"):
+            snapshot(data)
+
     def test_acquisition_summary_drops_unknown_properties_at_each_depth(self):
         from damage_lab.importcoverage import project
         from damage_lab.importer import snapshot

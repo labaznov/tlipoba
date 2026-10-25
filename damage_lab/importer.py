@@ -200,7 +200,10 @@ def snapshot(data):
         result["trait_ranks"] = ranksummary(data["trait_ranks"])
     if "import_coverage" in data:
         from .importcoverage import summary
-        result["import_coverage"] = summary(data["import_coverage"])
+        coverage = summary(data["import_coverage"])
+        if coverage["source"]["sha256"] != data.get("source_sha256"):
+            raise ValueError("Import coverage differs from the record source hash")
+        result["import_coverage"] = coverage
     if "build_resolution" in data:
         from .buildresolution import summary
         result["build_resolution"] = summary(data["build_resolution"])

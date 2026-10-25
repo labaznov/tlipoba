@@ -1,5 +1,14 @@
 # Project purpose
 
+## Current delegation cost policy (human update 2026-10-26)
+
+Ordinary work uses the subscription agents Codex, Claude Code, Z.ai and Grok-Cursor. Prioritize Grok and Z.ai for implementation and use a different vendor for review. DeepSeek is outside the primary rotation: assign it only explicit last-stage void work that remains unfinished after the subscription agents. Do not run paid DeepSeek heartbeat/inference polling while idle. A safety or permission stop is still held for review, never cleared by vendor/model fallback. This paragraph supersedes earlier ordinary-task routing orders that included DeepSeek.
+
+
+## Current autonomous mission and parallelism (human update 2026-10-25)
+
+Read `C:/Repos/tli-build-exporter/handoff/CONTROL.md` and the current addressed task at start and safe checkpoints. Autonomous handoff was accepted and released as private prerelease v0.1.0 on 2026-10-26; the current priority is Carino automatic import and traceable DPS. The human superseded the old global one-heavy-job limit: allow five independent isolated local jobs, initially 16 CPU units and 64 GiB requested memory, with exclusive locks only on genuinely shared resources. The tested runtime pool is active. Do not remove existing owned locks, duplicate watchers or expand game/safety permissions.
+
 Build an independent local Torchlight Infinite planner, inspired by the capabilities of Path of Building Community. Start with Carino / Zealot of War / Cold Chromatic Shot / Tangle in SS14. Read `docs/VISION.md` and `docs/ROADMAP.md` before substantial work. Keep replies short and direct.
 
 ## Planning and parallel work
@@ -15,10 +24,10 @@ Build an independent local Torchlight Infinite planner, inspired by the capabili
 
 The owner reported severe slowdown and rebooted after accumulated worker processes. Keep parallel reasoning within this shared Windows budget
 
-- Use the coordinator, at most two active external agents from the shared roster and at most one Codex subagent at a time; keep each external queue serial and do not nest delegation
-- Run at most one heavy local job across both repositories: a test suite, capture, catalog scan, bulk download or build
-- The coordinator owns this shared slot and explicitly assigns it in the helper task before launch, including previously queued work; unassigned tasks may only do small scoped reads or edits
-- While an assigned job runs, the coordinator edits or reads small scoped files instead of starting another heavy job
+- Use the coordinator, the three primary external agents Grok, ZCode and Claude, and at most one Codex subagent at a time; DeepSeek is reserved for explicitly assigned last-stage void work under the cost policy above; keep each external queue serial and do not nest delegation
+- Run up to five independent isolated local jobs across both repositories within the initial aggregate budget of 16 CPU units and 65536 MiB; serialize conflicting shared resources by their explicit keys
+- The coordinator explicitly assigns bounded job budgets and shared resource keys before launch, including previously queued work; use the accepted runtime resource pool
+- Independent assigned jobs may overlap; preserve another owner's locks and do not overlap conflicting paths, Git indexes, installs or Reader sessions
 - Reuse returned terminal session IDs and existing verified watchers/servers; do not start replacement loops or servers while an earlier instance may still run
 - Keep commands in the foreground with bounded timeouts; account for owned children when a command fails or times out
 - Before starting and after finishing a long job, check that its owned processes ended; identify them by PID, start time and task ownership, never just an image name
@@ -53,14 +62,14 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Delegation priority and independent review
 
-- Use the shared roster and addressed queue in `C:/Repos/tli-build-exporter/handoff/README.md` sections 9-10 for ZCode, DeepSeek and Claude availability, ownership and stopped-task records
-- Assign new and unclaimed unfinished technical tasks to z.ai / ZCode (`to: zcode`) first, then DeepSeek (`to: deepseek`), using fresh presence and capabilities; provide exact inputs, acceptance criteria, file ownership and the heavy-slot assignment
-- After ZCode or DeepSeek reports `done`, assign Claude an independent review of the requirements and resulting diff; the author cannot approve its own work
+- Use the shared roster and addressed queue in `C:/Repos/tli-build-exporter/handoff/README.md` sections 9-10 for Grok, ZCode, DeepSeek and Claude availability, ownership and stopped-task records
+- Assign ordinary new and unclaimed unfinished technical tasks to Grok (`to: grok`) first, then z.ai / ZCode (`to: zcode`), using fresh presence and capabilities; provide exact inputs, acceptance criteria, file ownership and the resource assignment; DeepSeek follows the last-stage void policy above
+- After Grok, ZCode or DeepSeek reports `done`, assign Claude an independent review of the requirements and resulting diff; the author cannot approve its own work
 - Conserve Codex limits: delegate implementation and research first; use the coordinator for decomposition, verification and integration, and keep active file ownership intact
 - The coordinator verifies source hashes, failing/passing test evidence and owned-process completion, resolves review findings, and integrates only the reviewed result
 - Keep unfinished tasks visible and check completed successors before reassignment; record permission and safety stops for review rather than silently losing or automatically retrying them
 - A missing permission is requested from the human by the agent that needs it; a model change or user approval does not override system or provider restrictions
-- External agents remain inside the exporter repository; transfer reviewed proposals here through the coordinator, preserving the single heavy-job budget and Windows-only validation
+- External agents remain inside the exporter repository; transfer reviewed proposals here through the coordinator, preserving the assigned parallel resource budget and Windows-only validation
 
 ## Git and scope
 

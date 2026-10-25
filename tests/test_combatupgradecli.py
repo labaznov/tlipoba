@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import io
 import json
 import sys
@@ -21,6 +22,25 @@ def goal_scenario():
 
 class CombatUpgradeCliTests(unittest.TestCase):
     """Publish only complete conditional comparisons while preserving local inputs and existing paths."""
+
+    def test_existing_cli_publishes_a_v2_goal(self):
+        # Spec 6 and 7: no new command
+        baseline = unit(100)
+        baseline["format"] = "tli-raw-cold-combat-v2"
+        baseline["topology"].update(maximum=4, extra=0, active=4, hits=1, retention=1, base=1)
+        better = copy.deepcopy(baseline)
+        better["topology"]["base"] = 2
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                    "currency": "synthetic tokens", "candidates": [candidate("wider", better, 5)]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "50", "--budget", "10"])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["goal"]["selected"]), (0, "wider"))
 
     def test_budget_goal_selects_the_cheapest_sufficient_upgrade_without_reordering_efficiency(self):
         with tempfile.TemporaryDirectory() as folder:

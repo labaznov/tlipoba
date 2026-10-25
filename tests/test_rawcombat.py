@@ -305,8 +305,80 @@ class RawCombatTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate(document)
 
+    def test_nonscalar_formats_raise_value_error(self):
+        # Spec 1: invalid format shapes stay ValueError, matching the v1 contract
+        for value in ([], {}):
+            with self.subTest(value=value):
+                document = scenario()
+                document["format"] = value
+                with self.assertRaisesRegex(ValueError, "Unsupported raw combat format"):
+                    evaluate(document)
+
     def test_target_modifier_collections_are_bounded(self):
         document = scenario()
         document["target"]["more_taken"] = document["target"]["more_taken"] * 1001
         with self.assertRaises(ValueError):
             evaluate(document)
+
+    def _neutral(self, base):
+        # Spec 3: 100 DPS, maximum 4, active 4, extra 1, hits 1, retention 1
+        document = scenario()
+        document["format"] = "tli-raw-cold-combat-v2"
+        document["spell"]["critical"].update(chance=0, multiplier=1)
+        document["spell"]["casting"]["interval"] = 1
+        document["topology"] = {"maximum": 4, "extra": 1, "active": 4, "hits": 1, "retention": 1, "base": base}
+        document["target"].update(cold_resistance=0, cold_penetration=0, armor=0, armor_effectiveness=1,
+                                  armor_penetration=0, increased_taken=0, more_taken=[])
+        document["uptime"] = 1
+        return document
+
+    def test_known_v2_base_sets_attached_count_without_changing_v1_shape(self):
+        # Spec 2 and 3
+        self.assertEqual(evaluate(self._neutral(1))["dps"], 200)
+        self.assertEqual(evaluate(self._neutral(2))["topology"]["base"], 2)
+        self.assertEqual(evaluate(self._neutral(2))["dps"], 300)
+        self.assertEqual(evaluate(self._neutral(0))["dps"], 100)
+        legacy = scenario()
+        self.assertEqual(set(evaluate(legacy)["topology"]), {"attached", "shotgun", "factor"})
+
+    def test_null_base_blocks_without_a_substitute_and_rejects_a_confirmed_gate(self):
+        # Spec 4
+        unknown = self._neutral(None)
+        unknown["gates"]["hit_topology"] = {"status": "unknown", "evidence": []}
+        blocked = evaluate(unknown)
+        self.assertIsNone(blocked["dps"])
+        self.assertIsNone(blocked["topology"])
+        self.assertIn("topology.base: unavailable", blocked["gaps"])
+        confirmed = self._neutral(None)
+        with self.assertRaisesRegex(ValueError, "unknown base"):
+            evaluate(confirmed)
+        invalid = self._neutral(None)
+        invalid["topology"]["active"] = 5
+        invalid["gates"]["hit_topology"] = {"status": "unknown", "evidence": []}
+        with self.assertRaisesRegex(ValueError, "exceed"):
+            evaluate(invalid)
+        for bad in (True, 1.5, -1, 1001):
+            with self.assertRaises(ValueError):
+                evaluate(self._neutral(bad))
+        missing = self._neutral(1)
+        missing["topology"].pop("base")
+        with self.assertRaises(ValueError):
+            evaluate(missing)
+
+    def test_null_base_still_rejects_invalid_more_taken(self):
+        # Spec 4: invalid siblings are rejected before a blocked report
+        document = self._neutral(None)
+        document["gates"]["hit_topology"] = {"status": "unknown", "evidence": []}
+        document["target"]["more_taken"] = [{"id": "x"}]
+        with self.assertRaises(ValueError):
+            evaluate(document)
+        conflict = self._neutral(None)
+        conflict["gates"]["hit_topology"] = {"status": "conflict", "evidence": []}
+        blocked = evaluate(conflict)
+        self.assertIsNone(blocked["dps"])
+        self.assertIn("topology.base: unavailable", blocked["gaps"])
+        sibling = self._neutral(None)
+        sibling["gates"]["hit_topology"] = {"status": "unknown", "evidence": []}
+        sibling["topology"]["extra"] = -1
+        with self.assertRaises(ValueError):
+            evaluate(sibling)

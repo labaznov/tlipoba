@@ -238,3 +238,34 @@ class CombatUpgradeReportTests(unittest.TestCase):
             "Статус baseline: conditional", "<td>blocked</td>", "Synthetic unresolved effect",
             "<td>Не рассчитывается</td>", "Нет допущенных вариантов",
         )))
+
+    def test_saved_v1_reports_still_render_and_v2_base_is_labeled(self):
+        # Spec 1 and 7. Fixtures were rendered by the pre-change implementation.
+        from pathlib import Path
+        folder = Path(__file__).resolve().parent / "fixtures"
+        upgrade = json.loads((folder / "tangle-base-v1-upgrade-report.json").read_text(encoding="utf-8"))
+        goal = json.loads((folder / "tangle-base-v1-goal-report.json").read_text(encoding="utf-8"))
+        rendered = render(upgrade)
+        self.assertIn("непроверенное допущение legacy", rendered)
+        self.assertIn("непроверенное допущение legacy", render(goal))
+        fresh = copy.deepcopy(unit(100))
+        fresh["format"] = "tli-raw-cold-combat-v2"
+        fresh["topology"]["base"] = None
+        fresh["gates"]["hit_topology"] = {"status": "unknown", "evidence": []}
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": fresh, "currency": "synthetic tokens",
+                    "candidates": [candidate("same", copy.deepcopy(fresh), 1)]}
+        self.assertIn("неизвестно", render(evaluate(document)))
+        numbered = copy.deepcopy(unit(100))
+        numbered["format"] = "tli-raw-cold-combat-v2"
+        numbered["topology"]["base"] = 2
+        page = render(evaluate({"format": "tli-combat-upgrade-scenario-v1", "baseline": numbered,
+                                "currency": "synthetic tokens",
+                                "candidates": [candidate("same", copy.deepcopy(numbered), 1)]}))
+        self.assertIn("<td>База Tangle</td><td>2</td>", page)
+        self.assertNotIn("непроверенное допущение legacy", page)
+        zero = copy.deepcopy(numbered)
+        zero["topology"]["base"] = 0
+        zero_page = render(evaluate({"format": "tli-combat-upgrade-scenario-v1", "baseline": zero,
+                                      "currency": "synthetic tokens",
+                                      "candidates": [candidate("same", copy.deepcopy(zero), 1)]}))
+        self.assertIn("<td>База Tangle</td><td>0</td>", zero_page)

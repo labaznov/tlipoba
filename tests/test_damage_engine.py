@@ -92,6 +92,14 @@ class DamageEngineTests(unittest.TestCase):
 
     def test_extra_attachments_do_not_create_extra_tangles(self):
         self.assertEqual(topology(3, 2, 3, 7, 0.2), {"attached": 3, "shotgun": 2.2, "factor": 6.6})
+        self.assertEqual(topology(4, 1, 4, 1, 1, base=2)["attached"], 3)
+        self.assertEqual(set(topology(4, 1, 4, 1, 1)), {"attached", "shotgun", "factor"})
+        with self.assertRaises(ValueError):
+            topology(4, 1, 4, 1, 1, base=True)
+        with self.assertRaises(ValueError):
+            topology(4, 1, 4, 1, 1, base=1001)
+        with self.assertRaises(TypeError):
+            topology(4, 1, 4, 1, 1, 2)
 
     def test_converted_physical_keeps_origin_modifiers_without_buffing_native_cold(self):
         self.assertAlmostEqual(cold(127, 19, 23, 1.37, 0.83, 0.41, 0.29, [

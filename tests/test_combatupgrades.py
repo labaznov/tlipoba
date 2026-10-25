@@ -51,6 +51,31 @@ class CombatUpgradesTests(unittest.TestCase):
         self.assertEqual((result["baseline"]["dps"], row["dps"], row["delta"], row["per_cost"]),
                          (100, 125, 25, 5))
 
+    def test_combat_variants_cannot_mix_contract_versions_or_rank_an_unknown_base(self):
+        # Spec 6
+        baseline = unit(100)
+        baseline["format"] = "tli-raw-cold-combat-v2"
+        baseline["topology"]["base"] = 1
+        other = unit(200)
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                    "currency": "synthetic tokens", "candidates": [candidate("other", other, 5)]}
+        with self.assertRaisesRegex(ValueError, "combat contract version"):
+            evaluate(document)
+        forward = unit(100)
+        newer = copy.deepcopy(forward)
+        newer["format"] = "tli-raw-cold-combat-v2"
+        newer["topology"]["base"] = 1
+        with self.assertRaisesRegex(ValueError, "combat contract version"):
+            evaluate({"format": "tli-combat-upgrade-scenario-v1", "baseline": forward,
+                      "currency": "synthetic tokens", "candidates": [candidate("newer", newer, 5)]})
+        unknown = copy.deepcopy(baseline)
+        unknown["topology"]["base"] = None
+        unknown["gates"]["hit_topology"] = {"status": "unknown", "evidence": []}
+        ranked = evaluate({"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                           "currency": "synthetic tokens", "candidates": [candidate("unknown", unknown, 5)]})
+        self.assertEqual(ranked["ranking"], [])
+        self.assertIsNone(ranked["candidates"][0]["delta"])
+
     def test_combat_variants_cannot_mix_legacy_and_joint_spell_models(self):
         baseline = unit(100)
         target = copy.deepcopy(baseline)

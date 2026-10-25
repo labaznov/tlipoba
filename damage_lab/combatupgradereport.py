@@ -56,10 +56,16 @@ def _evidence(result):
     metadata = [("Статус расчёта варианта", text(result["status"])), ("Статус spell", text(spell["status"])),
                 ("SHA источника сценария", text(context["source_sha256"])),
                 ("Уровень сценария", quantity(context["effective_level"], "count"))]
+    if scenario["format"] == "tli-raw-cold-combat-v1":
+        base = ("База Tangle", "1, непроверенное допущение legacy")
+    elif scenario["topology"]["base"] is None:
+        base = ("База Tangle", "неизвестно")
+    else:
+        base = ("База Tangle", quantity(scenario["topology"]["base"], "count"))
     topology = [(label, quantity(scenario["topology"][key], unit)) for key, label, unit in (
         ("maximum", "Максимум Tangle", "count"), ("extra", "Дополнительные Tangle", "count"),
         ("active", "Активные Tangle", "count"), ("hits", "Попаданий за каст", "count"),
-        ("retention", "Остаток shotgun", "fraction"))]
+        ("retention", "Остаток shotgun", "fraction"))] + [base]
     gates = [(text(scope + ": " + name), text(gate["status"]), items(gate["evidence"]))
              for scope, values in (("spell", context["gates"]), ("combat", scenario["gates"]))
              for name, gate in values.items()]

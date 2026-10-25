@@ -14,6 +14,22 @@ def scenario(baseline, rows):
 class UpgradeGoalTests(unittest.TestCase):
     """Choose supported progress within an explicit caller-priced budget."""
 
+    def test_v2_goal_selects_and_mixed_versions_are_rejected(self):
+        # Spec 6
+        baseline = unit(100)
+        baseline["format"] = "tli-raw-cold-combat-v2"
+        baseline["topology"].update(maximum=4, extra=0, active=4, hits=1, retention=1, base=1)
+        better = copy.deepcopy(baseline)
+        better["topology"]["base"] = 2
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                    "currency": "synthetic tokens", "candidates": [candidate("wider", better, 5)]}
+        chosen = evaluate(document, minimum=50, budget=10)
+        self.assertEqual(chosen["goal"]["selected"], "wider")
+        mixed = copy.deepcopy(document)
+        mixed["candidates"] = [candidate("old", unit(200), 5)]
+        with self.assertRaisesRegex(ValueError, "combat contract version"):
+            evaluate(mixed, minimum=50, budget=10)
+
     def test_cheapest_sufficient_option_can_differ_from_the_efficiency_winner(self):
         report = evaluate(scenario(1000, [candidate("efficient", unit(1500), 100),
                                           candidate("sufficient", unit(1100), 25)]),

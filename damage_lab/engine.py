@@ -22,7 +22,7 @@ def critical(chance, multiplier, *, lucky, more=0):
     return (1 - probability) + product((probability, multiplier, 1 + more), name="Critical damage")
 
 
-def topology(maximum, extra, active, hits, retention):
+def topology(maximum, extra, active, hits, retention, *, base=1):
     bounded(maximum, 0, 4, "Supported Tangle maximum")
     for name, value in (("Tangle maximum", maximum), ("Additional attachments", extra),
                         ("Active tangles", active), ("Hits", hits)):
@@ -30,9 +30,11 @@ def topology(maximum, extra, active, hits, retention):
         if value != math.floor(value):
             raise ValueError(f"{name} must be an integer")
     bounded(retention, 0, 1, "Shotgun retained fraction")
+    if type(base) is not int or not 0 <= base <= 1000:
+        raise ValueError("Tangle base requires an integer from 0 through 1000")
     if active > maximum:
         raise ValueError("Active tangles exceed the maximum")
-    attached = min(maximum, 1 + extra, active)
+    attached = min(maximum, base + extra, active)
     shotgun = 0 if hits == 0 else 1 + (hits - 1) * retention
     return {"attached": attached, "shotgun": shotgun, "factor": round(attached * shotgun, 12)}
 

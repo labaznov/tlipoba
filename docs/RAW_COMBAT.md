@@ -1,10 +1,10 @@
 # Соединение исходного spell и боевого сценария
 
-Математический блок `damage_lab.rawcombat.evaluate`, вход `tli-raw-cold-combat-v1`, соединяет уже поддержанный полный обычный Physical→Cold spell с явно заданными Tangle/topology и защитой цели. Это отдельная модель, не панельный anchor. Статические аффиксы и наблюдаемый Spell DPS сюда не подставляются автоматически.
+Математический блок `damage_lab.rawcombat.evaluate`, входы `tli-raw-cold-combat-v1` и `tli-raw-cold-combat-v2`, соединяет уже поддержанный полный обычный Physical→Cold spell с явно заданными Tangle/topology и защитой цели. Это отдельная модель, не панельный anchor. Статические аффиксы и наблюдаемый Spell DPS сюда не подставляются автоматически.
 
 Контракт верхнего уровня строгий: `format`, `spell` (полный вход `rawspell`), `topology`, `target`, `uptime`, `gates`, `missing`, `notes`. Неизвестные поля, неполные числовые данные и неправильные типы дают ошибку, даже если один из gates заблокирован.
 
-`topology` содержит `maximum`, `extra`, `active`, `hits`, `retention` для существующего `engine.topology`. Это явная гипотеза числа прикреплённых Tangle и принятых попаданий, не вывод из числа снарядов. `target` содержит `cold_resistance`, `cold_penetration`, `armor`, `armor_effectiveness`, `armor_penetration`, `armor_penetration_order`, `increased_taken`, `more_taken`. Все значения обязательны; порядок пробивания выбирается явно из двух существующих вариантов `formulas.armor`. `more_taken` — полные явные rows существующего `additional`, без неявного объединения источников. `uptime` — доля 0..1.
+В v1 `topology` содержит `maximum`, `extra`, `active`, `hits`, `retention` для существующего `engine.topology`. Это явная гипотеза числа прикреплённых Tangle и принятых попаданий, не вывод из числа снарядов. `target` содержит `cold_resistance`, `cold_penetration`, `armor`, `armor_effectiveness`, `armor_penetration`, `armor_penetration_order`, `increased_taken`, `more_taken`. Все значения обязательны; порядок пробивания выбирается явно из двух существующих вариантов `formulas.armor`. `more_taken` — полные явные rows существующего `additional`, без неявного объединения источников. `uptime` — доля 0..1.
 
 Три gate — `inheritance`, `hit_topology`, `target_state` — имеют `status: confirmed|unknown|conflict` и `evidence: [refs]`. Confirmed требует непустой список evidence. Это утверждения сценария, не автоматическая проверка runtime или клиента. Unknown/conflict, непустой `missing` или blocked исходного spell дают blocked и null итоговый DPS; конкретные причины сохраняются. Источник и skill gates самого `rawspell` продолжают действовать.
 
@@ -29,7 +29,7 @@
 | `status` | `conditional` либо `blocked` |
 | `dps` | Итог заданного сценария; null при blocked |
 | `spell` | Полный результат `rawspell.evaluate`, с собственным статусом, trace, gaps и копией исходного spell |
-| `topology` | `attached`, `shotgun`, `factor` из `engine.topology`; null при blocked |
+| `topology` | В v1: `attached`, `shotgun`, `factor` из `engine.topology`; в v2 также выбранный `base`; null при blocked |
 | `factors` | Множители `topology`, `cold_defence`, `armor`, `increased_taken`, `more_taken`, `uptime`; null при blocked |
 | `armor_mitigation` | Результат явной policy `formulas.armor`; null при blocked; отрицательная редукция не обрезается |
 | `scenario` | Отдельная глубокая копия полного входного сценария |
@@ -61,3 +61,22 @@
 Каждая строка `target.more_taken` имеет **ровно** `id`, `affix`, `value`, `stacks`, `mode`. Поля scope/damage/cast не принимаются. `value` лежит в −1..1e6; stacks — строго int 0..1000; mode — `add` либо `multiply`. Список содержит не более 1000 строк. `formulas.additional` сохраняет pooling по полному affix, отклоняет повтор экземпляра id, несовместимые modes, отрицательный фактор и нечисловой результат. Никакого reference pool или вычитания baseline здесь нет.
 
 Gate имеет ровно `status` и `evidence`. `missing`, `notes` и evidence — явно переданные списки до 1000 непустых строк длиной до 1024 без пробелов по краям. Такая же граница текста действует для modifier id/affix. Confirmed с пустым evidence недопустим; unknown/conflict не превращаются в confirmed по наличию корректных чисел. Target gate также не подтверждает фактический runtime-порядок пробивания брони.
+
+## Явная база Tangle: контракт v2
+
+Вход `tli-raw-cold-combat-v2` добавляет ровно одно поле `topology.base`: целое
+число 0..1000 либо null. Это предел сценария, а не установленный предел игры.
+При известной базе прикреплений `min(maximum, active, base + extra)`; base0
+означает явный ноль, а не отсутствие значения. В успешном результате v2
+`topology` сохраняет выбранный `base` рядом с `attached`, `shotgun`, `factor`.
+
+Null при unknown/conflict у `hit_topology` блокирует DPS и добавляет
+`topology.base: unavailable`; confirmed вместе с null отклоняется. Остальные
+переданные поля проверяются до возврата blocked, включая `active > maximum`
+и строки `target.more_taken`. Неизвестная база не заменяется единицей.
+
+HTML показывает базу v2 целым числом либо как неизвестную. Для v1 HTML явно
+обозначает единицу как непроверенное допущение legacy. JSON v1, его assumptions
+и форма topology не изменены, сохранённые отчёты проходят прежнюю проверку
+пересчётом. В v2 математическая модель остаётся условной: значение базы Carino,
+полнота импорта и игровое подтверждение из этого контракта не следуют.

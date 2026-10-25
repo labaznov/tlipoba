@@ -33,6 +33,8 @@ def _finite(value, label):
 
 
 def _common(baseline, target):
+    if baseline["format"] != target["format"]:
+        raise ValueError("Combat upgrade variants must share the combat contract version")
     if baseline["spell"]["format"] != target["spell"]["format"]:
         raise ValueError("Combat upgrade variants must share the spell model version")
     if baseline["target"] != target["target"] or baseline["uptime"] != target["uptime"]:

@@ -172,6 +172,8 @@ def evaluate(document):
                   "All supplied pools are complete for this scenario and applied once without a panel",
                   "The result is one caster before enemy defence, damage taken, Tangle topology and uptime",
                   "Tick rounding, when selected, is a separate unverified 30 Hz hypothesis",
+                  "Critical chance is supplied before the scenario Lucky adjustment",
+                  "Negative pooled increased damage factors are clamped to zero as a scenario rule, not verified game behavior",
               ]}
     result["assumptions"].append(
         "Double Damage uses caller-asserted conditional probabilities and the same midpoint in every crit/DD branch"

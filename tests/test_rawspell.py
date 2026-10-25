@@ -411,6 +411,31 @@ class RawSpellTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluate(document)
 
+    def test_lucky_input_and_pooled_clamp_assumptions_are_disclosed_in_every_result(self):
+        blocked = scenario()
+        blocked["damage"] = None
+        for document in (scenario(), blocked, double()):
+            with self.subTest(format=document["format"], blocked=document["damage"] is None):
+                self.assertLessEqual(
+                    {"Critical chance is supplied before the scenario Lucky adjustment",
+                     "Negative pooled increased damage factors are clamped to zero as a scenario rule, "
+                     "not verified game behavior"}, set(evaluate(document)["assumptions"]))
+
+    def test_negative_pooled_increased_retains_the_scenario_zero_floor(self):
+        for physical, cold in ((-1, -.5), (-.5, -.5)):
+            with self.subTest(physical=physical, cold=cold):
+                document = scenario()
+                document["damage"].update(base={"min": 100, "max": 100}, physical={"min": 0, "max": 0},
+                                          cold={"min": 300, "max": 300}, effectiveness=1,
+                                          increased={"all": 0, "physical": physical, "cold": cold})
+                document["critical"].update(chance=0, multiplier=1, more=0)
+                document["casting"].update(interval=1, increased=0)
+                result = evaluate(document)
+                self.assertEqual(
+                    (result["status"], result["pre_defence_dps"], result["noncritical"]["components"]),
+                    ("conditional", 150.0, {"converted": {"min": 0.0, "max": 0.0},
+                                             "native": {"min": 150.0, "max": 150.0}}))
+
     def test_equal_subnormal_endpoints_keep_their_representable_midpoint(self):
         document = scenario()
         document["damage"].update(base={"min": 5e-324, "max": 5e-324},

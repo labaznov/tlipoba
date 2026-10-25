@@ -904,6 +904,38 @@ class ImportCoverageReportTests(unittest.TestCase):
 class TraitRankReportTests(unittest.TestCase):
     """Show candidate ranks as unresolved evidence without applying them to damage."""
 
+    def test_the_new_report_does_not_acquire_the_legacy_assumption(self):
+        """Spec 3: 0.1.1 HTML does not acquire a legacy qualifier."""
+        from test_importer import ranked
+        from damage_lab.traitranks import LEGACY_ASSUMPTION
+
+        self.assertNotIn(LEGACY_ASSUMPTION, render_import({"trait_ranks": ranked("0.1.1")["trait_ranks"]}))
+
+    def test_the_explicit_old_report_qualifies_the_legacy_assumption(self):
+        """Spec 3: explicitly declared 0.1.0 HTML qualifies its legacy labels."""
+        from test_importer import ranked
+        from damage_lab.traitranks import LEGACY_ASSUMPTION
+
+        data = ranked("0.1.0")["trait_ranks"]
+        data["assumptions"] = []
+        self.assertIn(LEGACY_ASSUMPTION, render_import({"trait_ranks": data}))
+
+    def test_the_import_report_shows_the_declared_trait_contract(self):
+        """Spec 3: display contract provenance without resolving a rank."""
+        from test_importer import ranked
+
+        data = ranked("0.1.1")["trait_ranks"]
+        self.assertIn("Контракт: 0.1.1", render_import({"trait_ranks": data}))
+
+    def test_older_reports_show_legacy_when_contract_provenance_is_unavailable(self):
+        """Spec 3: an older canonical record does not acquire an invented version."""
+        self.assertIn("Контракт: legacy", render_import({"trait_ranks": ranks()}))
+
+    def test_legacy_relation_labels_are_explicitly_unverified_in_the_report(self):
+        """Spec 3: a direct older report also qualifies the catalog hypothesis."""
+        self.assertIn("Legacy C = S + F labels are an unverified catalog hypothesis, not source facts",
+                      render_import({"trait_ranks": ranks()}))
+
     def test_import_report_displays_unverified_candidates_without_selecting_a_rank(self):
         result = render_import({"trait_ranks": ranks()})
         self.assertTrue(all(value in result for value in (

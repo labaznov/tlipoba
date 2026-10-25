@@ -628,11 +628,17 @@ def importdetails(record):
 
 def rankdetails(record):
     """Display unresolved trait candidates separately from applied combat parameters."""
+    from .traitranks import LEGACY_ASSUMPTION
+
     if "trait_ranks" not in record:
         return ""
     data = record["trait_ranks"]
     if data["rule_status"] != "rank_rule_unverified" or any(row["rank"] is not None for row in data["traits"]):
         raise ValueError("Trait rank projection must keep unverified ranks unresolved")
+    contract = data.get("contract_version", "legacy")
+    assumptions = list(data["assumptions"])
+    if contract in ("legacy", "0.1.0") and LEGACY_ASSUMPTION not in assumptions:
+        assumptions.append(LEGACY_ASSUMPTION)
     traits, candidates, memories = [], [], []
     for row in data["traits"]:
         traits.append(f"<tr><td>{text(row['trait_id']) if row['trait_id'] is not None else 'ID не установлен'}</td><td>{text(row['index'])}</td>"
@@ -669,13 +675,14 @@ def rankdetails(record):
             "<p>Неизвестное базовое свойство остаётся без ранга: ранг 1 по умолчанию не назначается<br>"
             "Совпадение кандидатов не подтверждает правило</p>"
             f"<p>Формат: {text(data['format'])}; правило: {text(data['rule_status'])}<br>"
+            f"Контракт: {text(contract)}<br>"
             f"SHA-256 исходного снимка: {text(data['source_sha256'])}</p>"
             "<div class=scroll><table><thead><tr><th>ID свойства</th><th>Индекс</th><th>Итоговый ранг</th>"
             f"<th>Статус</th><th>Позиция памяти в источнике</th><th>Кандидаты совпадают</th></tr></thead><tbody>{''.join(traits)}</tbody></table></div>"
             "<h3>Кандидаты ранга</h3><div class=scroll><table><thead><tr><th>ID свойства</th><th>Правило</th>"
             f"<th>Формула</th><th>Значение</th><th>Статус</th><th>Источники</th></tr></thead><tbody>{''.join(candidates)}"
             f"</tbody></table></div><h3>Поля воспоминаний</h3>{''.join(memories)}{unlinked}<h3>Допущения и пробелы</h3>"
-            f"{items(data['assumptions'])}{items(data['gaps'])}</section>")
+            f"{items(assumptions)}{items(data['gaps'])}</section>")
 
 
 def rawdetails(record):

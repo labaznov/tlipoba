@@ -6,6 +6,7 @@ import re
 FORMAT = "tli-trait-rank-candidates-v1"
 STATUS = "rank_rule_unverified"
 RULES = {"client_fixed": "C", "fixed_plus_enhance": "C + E"}
+LEGACY_ASSUMPTION = "Legacy C = S + F labels are an unverified catalog hypothesis, not source facts"
 FIELDS = {"clientFixed": ("client_fixed", "ReminiscenceFixedLevel"),
           "fromEnhance": ("from_enhance", "ReminiscenceFixedLevelFromEnhance"),
           "serverFixed": ("server_fixed", "ServerPlayerItem.ReminiscenceFixedLevel"),
@@ -43,7 +44,7 @@ def _enum(value, choices):
     return value
 
 
-def _memory(row):
+def _memory(row, v011=False):
     _object(row, ("position", "baseId", "fields", "fixedAffixContribution", "fixedAffixSource", "consistency", "linkage"))
     position = _count(row["position"])
     path = f"sections.HeroCharacter.data.HeroJewels[{position}]._Raw_Data"
@@ -59,7 +60,10 @@ def _memory(row):
                         "value": _count(field["value"]) if status == "ok" else None}
     contribution = _count(row["fixedAffixContribution"], nullable=True)
     client, server = fields["client_fixed"]["value"], fields["server_fixed"]["value"]
-    consistency = "unchecked" if None in (client, server, contribution) else "consistent" if client == server + contribution else "conflict"
+    if v011:
+        consistency = "unchecked"
+    else:
+        consistency = "unchecked" if None in (client, server, contribution) else "consistent" if client == server + contribution else "conflict"
     if row["consistency"] != consistency or row["fixedAffixSource"] != f"{path}.ServerPlayerItem.BaseAffix":
         raise ValueError("Trait candidate memory consistency or affix path differs from its inputs")
     _object(row["linkage"], ("status",))
@@ -164,9 +168,20 @@ def project(document, source_sha256):
         raise ValueError("Trait candidate source hash must match the package snapshot")
     if document["format"] != FORMAT or document["ruleStatus"] != STATUS or document["candidateRules"] != RULES:
         raise ValueError("Trait candidate format and unverified rules must match the producer contract")
+    if "version" not in document:
+        contract_version = "legacy"
+        v011 = False
+    elif document["version"] == "0.1.1":
+        contract_version = "0.1.1"
+        v011 = True
+    elif document["version"] == "0.1.0":
+        contract_version = "0.1.0"
+        v011 = False
+    else:
+        raise ValueError("Trait candidate version must be absent, 0.1.0 or 0.1.1")
     for key in ("traits", "memories", "memoriesWithoutSelectedTrait"):
         _list(document[key])
-    memories = [_memory(row) for row in document["memories"]]
+    memories = [_memory(row, v011) for row in document["memories"]]
     for row in document["traits"]:
         _object(row, ("index",))
     indexes = [_count(row["index"], nullable=True) for row in document["traits"]]
@@ -180,10 +195,14 @@ def project(document, source_sha256):
     unclaimed = [_count(value) for value in document["memoriesWithoutSelectedTrait"]]
     if unclaimed != sorted(position + 1 for position in positions if position + 1 not in indexes):
         raise ValueError("Unclaimed memory slots differ from the exported trait indexes")
+    assumptions = _texts(document["assumptions"])
+    if contract_version in ("legacy", "0.1.0") and LEGACY_ASSUMPTION not in assumptions:
+        assumptions.append(LEGACY_ASSUMPTION)
     return {
-        "format": document["format"], "source_sha256": document["source"]["sha256"],
+        "format": document["format"], "contract_version": contract_version,
+        "source_sha256": document["source"]["sha256"],
         "rule_status": document["ruleStatus"],
         "traits": traits,
         "memories": memories,
         "memories_without_selected_trait": unclaimed,
-        "gaps": _texts(document["gaps"]), "assumptions": _texts(document["assumptions"])}
+        "gaps": _texts(document["gaps"]), "assumptions": assumptions}

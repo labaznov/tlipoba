@@ -258,3 +258,81 @@ class TraitRanksTest(unittest.TestCase):
         for row in data["traits"][1]["candidates"]:
             row.update(value=0, status="out_of_range")
         self.assertEqual(project(data, "a" * 64)["traits"][1]["candidates"][0]["value"], 0)
+
+
+LEGACY_ASSUMPTION = "Legacy C = S + F labels are an unverified catalog hypothesis, not source facts"
+
+
+def versioned(version="0.1.1", consistency="unchecked", client=1, server=1, contribution=2):
+    data = document()
+    data["version"] = version
+    data["memories"][0]["consistency"] = consistency
+    data["memories"][0]["fields"]["clientFixed"]["value"] = client
+    data["memories"][0]["fields"]["serverFixed"]["value"] = server
+    data["memories"][0]["fixedAffixContribution"] = contribution
+    data["traits"][1]["candidates"][0]["value"] = client
+    data["traits"][1]["candidates"][1]["value"] = client
+    return data
+
+
+class ConsistencyVersionTest(unittest.TestCase):
+    def test_contract_version_and_legacy_assumption(self):  # requirement 3
+        result = project(document(), "a" * 64)
+        self.assertEqual(result.get("contract_version"), "legacy")
+        self.assertIn(LEGACY_ASSUMPTION, result["assumptions"])
+
+    def test_v011_unchecked_accepts_disagreement(self):  # requirement 4
+        result = project(versioned("0.1.1", "unchecked", 1, 1, 2), "a" * 64)
+        self.assertEqual(result.get("contract_version"), "0.1.1")
+        self.assertNotIn(LEGACY_ASSUMPTION, result["assumptions"])
+
+    def test_v011_rejects_a_conflict_claim(self):  # requirement 4
+        with self.assertRaises(ValueError):
+            project(versioned("0.1.1", "conflict", 1, 1, 2), "a" * 64)
+
+    def test_explicit_bad_version_is_rejected(self):  # requirement 5
+        for bad in (None, "x", "0.1.2", 1):
+            with self.subTest(version=bad):
+                with self.assertRaises(ValueError):
+                    project(versioned(bad, "consistent", 3, 1, 2), "a" * 64)
+
+    def test_explicit_0_1_0_version_is_legacy(self):  # requirement 3
+        result = project(versioned("0.1.0", "consistent", 3, 1, 2), "a" * 64)
+        self.assertEqual(result.get("contract_version"), "0.1.0")
+        self.assertIn(LEGACY_ASSUMPTION, result["assumptions"])
+        self.assertEqual([row["rank"] for row in result["traits"]], [None, None])
+
+    def test_v011_rejects_a_consistent_claim(self):  # requirement 4
+        with self.assertRaises(ValueError):
+            project(versioned("0.1.1", "consistent", 3, 1, 2), "a" * 64)
+
+    def test_v011_rejects_candidate_input_conflict(self):  # requirement 4
+        data = versioned("0.1.1", "unchecked", 1, 1, 2)
+        data["traits"][1]["candidates"][0]["status"] = "input_conflict"
+        data["traits"][1]["status"] = "input_conflict"
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_v011_rejects_trait_input_conflict(self):  # requirement 4
+        data = versioned("0.1.1", "unchecked", 1, 1, 2)
+        data["traits"][1]["status"] = "input_conflict"
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_legacy_assumption_is_not_duplicated(self):  # requirement 3
+        data = document()
+        data["assumptions"] = [LEGACY_ASSUMPTION]
+        result = project(data, "a" * 64)
+        self.assertEqual(result["assumptions"].count(LEGACY_ASSUMPTION), 1)
+
+    def test_v011_rejects_wrong_candidate_value(self):  # requirement 4
+        data = versioned("0.1.1", "unchecked", 1, 1, 2)
+        data["traits"][1]["candidates"][0]["value"] = 99
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)
+
+    def test_v011_rejects_bad_typed_field(self):  # requirement 5
+        data = versioned("0.1.1", "unchecked", 1, 1, 2)
+        data["memories"][0]["fields"]["clientFixed"]["value"] = "x"
+        with self.assertRaises(ValueError):
+            project(data, "a" * 64)

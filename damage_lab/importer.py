@@ -34,6 +34,8 @@ def logsummary(data):
 
 def ranksummary(data):
     """Keep only diagnostic rank fields, without raw instance identifiers."""
+    from .traitranks import LEGACY_ASSUMPTION
+
     def select(row, fields):
         return {key: copy.deepcopy(row[key]) for key in fields if key in row}
 
@@ -42,8 +44,20 @@ def ranksummary(data):
         raise ValueError("Trait rank candidates require a canonical source hash")
     if data["rule_status"] != "rank_rule_unverified" or any(row["rank"] is not None for row in data["traits"]):
         raise ValueError("Trait rank candidates cannot select or verify a rank")
+    contract = data.get("contract_version", "legacy")
+    if contract not in ("legacy", "0.1.0", "0.1.1"):
+        raise ValueError("Trait rank candidates require a supported contract version")
+    if contract == "0.1.1" and (
+            any(row["consistency"] != "unchecked" for row in data["memories"])
+            or any(row["status"] == "input_conflict" for row in data["traits"])
+            or any(candidate["status"] == "input_conflict"
+                   for row in data["traits"] for candidate in row["candidates"])):
+        raise ValueError("Trait rank contract 0.1.1 cannot claim catalog consistency or input conflicts")
     result = select(data, ("format", "source_sha256", "rule_status", "memories_without_selected_trait",
                            "gaps", "assumptions"))
+    result["contract_version"] = contract
+    if contract in ("legacy", "0.1.0") and LEGACY_ASSUMPTION not in result["assumptions"]:
+        result["assumptions"].append(LEGACY_ASSUMPTION)
     result["traits"] = []
     for entry in data["traits"]:
         row = select(entry, ("trait_id", "index", "rank", "memory_position", "status", "candidates_agree"))

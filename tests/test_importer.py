@@ -37,6 +37,21 @@ def record():
     }
 
 
+def ranked(version):
+    """Create synthetic canonical ranks with explicit contract provenance."""
+    from damage_lab.traitranks import project
+    from test_traitranks import document
+
+    data = record()
+    data["trait_ranks"] = project(document(), data["source_sha256"])
+    data["trait_ranks"]["contract_version"] = version
+    if version == "0.1.1":
+        data["trait_ranks"]["assumptions"] = ["Synthetic mapping is unverified"]
+        for memory in data["trait_ranks"]["memories"]:
+            memory["consistency"] = "unchecked"
+    return data
+
+
 def archive(package, observations, facts, database, **inputs):
     if observations is not None:
         raise ValueError("Import must not require developer observations")
@@ -664,6 +679,80 @@ class ImporterTests(unittest.TestCase):
             self.assertEqual([row["rank"] for row in json.loads(
                 (root / "result" / "import.json").read_text(encoding="utf-8"))["trait_ranks"]["traits"]],
                              [None, None])
+
+    def test_trait_contract_version_survives_the_snapshot(self):
+        """Spec 3: retain the declared canonical contract through normalization."""
+        from damage_lab.importer import snapshot
+
+        self.assertEqual(snapshot(ranked("0.1.1"))["trait_ranks"]["contract_version"], "0.1.1")
+
+    def test_the_new_snapshot_does_not_acquire_the_legacy_assumption(self):
+        """Spec 3: qualify only legacy contracts, never 0.1.1."""
+        from damage_lab.importer import snapshot
+
+        self.assertEqual(snapshot(ranked("0.1.1"))["trait_ranks"]["assumptions"],
+                         ["Synthetic mapping is unverified"])
+
+    def test_the_explicit_old_snapshot_qualifies_the_legacy_assumption(self):
+        """Spec 3: explicitly declared 0.1.0 also needs qualification."""
+        from damage_lab.importer import snapshot
+        from damage_lab.traitranks import LEGACY_ASSUMPTION
+
+        data = ranked("0.1.0")
+        data["trait_ranks"]["assumptions"] = []
+        self.assertEqual(snapshot(data)["trait_ranks"]["assumptions"], [LEGACY_ASSUMPTION])
+
+    def test_an_old_canonical_rank_record_has_unavailable_contract_provenance(self):
+        """Spec 3: missing canonical provenance means legacy, not a guessed version."""
+        from damage_lab.importer import snapshot
+
+        data = ranked("legacy")
+        data["trait_ranks"].pop("contract_version")
+        self.assertEqual(snapshot(data)["trait_ranks"]["contract_version"], "legacy")
+
+    def test_an_unknown_canonical_trait_contract_is_rejected(self):
+        """Spec 5: reject supplied unsupported or non-string contract markers."""
+        from damage_lab.importer import snapshot
+
+        for version in (None, True, 17, "0.1.2", ""):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                snapshot(ranked(version))
+
+    def test_the_new_canonical_contract_cannot_claim_catalog_consistency(self):
+        """Spec 4: canonical 0.1.1 retains the unchecked relation requirement."""
+        from damage_lab.importer import snapshot
+
+        data = ranked("0.1.1")
+        data["trait_ranks"]["memories"][0]["consistency"] = "consistent"
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
+    def test_the_new_canonical_contract_cannot_claim_a_trait_input_conflict(self):
+        """Spec 4: reject a 0.1.1 trait conflict claim, without selecting a rank."""
+        from damage_lab.importer import snapshot
+
+        data = ranked("0.1.1")
+        data["trait_ranks"]["traits"][1]["status"] = "input_conflict"
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
+    def test_the_new_canonical_contract_cannot_claim_a_candidate_input_conflict(self):
+        """Spec 4: reject the same unsupported claim at candidate level."""
+        from damage_lab.importer import snapshot
+
+        data = ranked("0.1.1")
+        data["trait_ranks"]["traits"][1]["candidates"][0]["status"] = "input_conflict"
+        with self.assertRaises(ValueError):
+            snapshot(data)
+
+    def test_legacy_catalog_qualification_survives_repeated_snapshots_once(self):
+        """Spec 3: qualify older canonical labels exactly once."""
+        from damage_lab.importer import snapshot
+
+        data = ranked("legacy")
+        data["trait_ranks"]["assumptions"] = []
+        self.assertEqual(snapshot(snapshot(data))["trait_ranks"]["assumptions"].count(
+            "Legacy C = S + F labels are an unverified catalog hypothesis, not source facts"), 1)
 
     def test_trait_candidates_reject_a_different_record_source(self):
         from damage_lab.traitranks import project

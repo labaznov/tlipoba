@@ -107,6 +107,16 @@ build. Module identity, freshness, atomicity and DPS claims remain false.
 Runtime acquisition and the external adapter's source binding require separate
 verification; matching this instruction does not verify the whole client image.
 
+The local external exporter now has an `anchor_probe.acquire` transport seam.
+Given an admitted planner and read-only reader, it requests the code word,
+passes the actual response to the planner's source check, then requests the
+slot word. Each request and immutable response must be exactly eight bytes;
+a finite soft deadline is checked before each read and after each successful
+return. Failures propagate without retries. The seam does not create a session
+or admit module metadata,
+and a blocked read still requires a bounded transport and outer timeout. Only
+synthetic composition has been verified; the complete live driver is pending.
+
 The named `FAttrData` registration supplies offsets 8, 16 and 24 for
 `Base`, `Floating` and `ModIncr`. Each follows the same candidate scalar
 getter and `CppWFloat` pusher. These offsets are relative to the record pointer

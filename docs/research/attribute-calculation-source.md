@@ -34,6 +34,9 @@ player-ID or helper-pointer dimension. This does not establish a cache defect:
 actual helper ownership, frame behavior and call ordering remain unknown.
 Equal observed values would not prove an atomic snapshot.
 
+The [item proxy source trace](item-proxy-source.md) separately distinguishes
+readonly bodies, normalized item fields and their supplied input records.
+
 ## Numeric query boundary
 
 The checked `_GetAttrValue` prelude first consults its Lua cache. A non-nil

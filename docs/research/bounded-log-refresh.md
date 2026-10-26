@@ -48,3 +48,25 @@ complete automatic build import or exact combat DPS. Selected-instance identity,
 actor binding, effective levels and complete composition remain unresolved.
 Real windows and reports stay private; production code and defaults were
 unchanged by this check.
+
+## Two existing parsers on one saved window
+
+`import-log` parses printed composition trees only. Zero such events does not
+establish that `RoleAttrMgr` panel data is absent from the same bytes. The
+existing [`panellog`](../../damage_lab/panellog.py) parser reads the panel
+header/value pairs; no new parser, command or API is required.
+
+Bounded window acquisition is a separate, already verified step. It keeps the
+window bytes and window metadata (offsets, discarded leading bytes and origin)
+privately, so both parsers can run offline on identical bytes without another
+game read. [LOG_IMPORT](../LOG_IMPORT.md) shows both commands. On a synthetic
+saved window they reported zero composition events, one resolved panel cohort
+and the same snapshot SHA256.
+
+That hash covers only the saved window. It is not the original whole-log hash
+and proves neither actor, currentness nor atomicity. No cohort is current
+because it is first, latest or equal to another. A native-anchored
+`logstats.select` still needs an independent native Spell DPS reading: the
+window's own `10103` value cannot anchor itself, and an older native export
+does not establish a fresh actor. This note grants no new acquisition
+permission and describes no retry.

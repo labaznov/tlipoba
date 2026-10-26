@@ -21,8 +21,62 @@ def _factor(value):
     return value
 
 
-def product(values, *, name="Product"):
+def _ratio(value, name):
+    """The admitted binary value. A float uses its ratio, never its decimal spelling."""
+    if type(value) is Fraction:
+        return value
+    if type(value) is int:
+        return Fraction(value)
+    if type(value) is float and math.isfinite(value):
+        return Fraction(value)
+    raise ValueError(f"{name} factor must be a finite number")
+
+
+_EXACT_BITS = 262144
+
+
+def _span(value):
+    return value.numerator.bit_length() + value.denominator.bit_length()
+
+
+def _within(value, name):
+    if _span(value) > _EXACT_BITS:
+        raise ValueError(f"{name} exceeds the exact bit budget")
+    return value
+
+
+def _multiply(left, right, name):
+    if left == 0 or right == 0:
+        return Fraction(0)
+    if left == 1:
+        return _within(right, name)
+    if right == 1:
+        return _within(left, name)
+    if _span(left) + _span(right) > _EXACT_BITS:
+        raise ValueError(f"{name} exceeds the exact bit budget")
+    return _within(left * right, name)
+
+
+def _power(factor, stacks, name):
+    if stacks == 0 or factor == 1:
+        return Fraction(1)
+    if factor == 0:
+        return Fraction(0)
+    if stacks * _span(factor) > _EXACT_BITS:
+        raise ValueError(f"{name} exceeds the exact bit budget")
+    return _within(factor ** stacks, name)
+
+
+def product(values, *, name="Product", exact=False):
     """Multiply finite nonnegative factors without silently losing positive values to zero."""
+    if exact:
+        result = Fraction(1)
+        for value in values:
+            factor = _ratio(value, name)
+            if factor < 0:
+                raise ValueError(f"{name} factor cannot be negative")
+            result = _multiply(result, factor, name)
+        return result
     result = 1.0
     for value in values:
         _finite(value, f"{name} factor")
@@ -38,7 +92,7 @@ def product(values, *, name="Product"):
     return result
 
 
-def additional(rows):
+def additional(rows, *, exact=False):
     """Pool additional fractions by affix, retaining exact additive sums until multiplication."""
     pools = {}
     identities = set()
@@ -70,19 +124,27 @@ def additional(rows):
             raise ValueError("Affix stack mode must be consistent")
         modes[row["affix"]] = row["mode"]
         if row["mode"] == "multiply":
-            factor = _factor(1 + row["value"])
-            try:
-                power = factor ** row["stacks"]
-            except OverflowError as error:
-                raise ValueError("Additional product must be finite") from error
-            if factor > 0 and power == 0:
-                raise ValueError("Additional power cannot underflow to zero")
-            result = product((result, power), name="Additional product")
+            if exact:
+                factor = _ratio(1, "Additional factor") + _ratio(row["value"], "Additional factor")
+                if factor < 0:
+                    raise ValueError("Additional factor cannot be negative")
+                power = _power(factor, row["stacks"], "Additional product")
+                result = product((result, power), name="Additional product", exact=True)
+            else:
+                factor = _factor(1 + row["value"])
+                try:
+                    power = factor ** row["stacks"]
+                except OverflowError as error:
+                    raise ValueError("Additional product must be finite") from error
+                if factor > 0 and power == 0:
+                    raise ValueError("Additional power cannot underflow to zero")
+                result = product((result, power), name="Additional product")
         else:
-            pools.setdefault(row["affix"], []).append(row["value"] * row["stacks"])
+            term = _ratio(row["value"], "Additional factor") * row["stacks"] if exact else row["value"] * row["stacks"]
+            pools.setdefault(row["affix"], []).append(term)
     try:
         return product((result, *(_factor(sum(map(Fraction, (1, *terms)))) for terms in pools.values())),
-                       name="Additional product")
+                       name="Additional product", exact=exact)
     except OverflowError:
         raise ValueError("Additional product must be finite") from None
 

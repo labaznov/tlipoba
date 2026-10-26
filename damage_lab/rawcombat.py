@@ -2,9 +2,10 @@
 
 import copy
 import math
+from fractions import Fraction
 
 from . import rawspell
-from .engine import topology
+from .engine import topology, _admitted
 from .formulas import additional, armor, product
 
 
@@ -73,7 +74,7 @@ def _target(value):
     return value
 
 
-def _more(value):
+def _more(value, *, exact=False):
     if type(value) is not list or len(value) > 1000:
         raise ValueError("Target additional modifiers require a bounded list")
     for row in value:
@@ -85,7 +86,7 @@ def _more(value):
             raise ValueError("Target modifier stacks require a bounded nonnegative integer")
         if row["mode"] not in ("add", "multiply"):
             raise ValueError("Target modifier mode must be add or multiply")
-    return additional(value)
+    return additional(value, exact=exact)
 
 
 def _gates(value):
@@ -103,7 +104,7 @@ def _gates(value):
     return gaps
 
 
-def evaluate(document):
+def evaluate(document, *, exact=False):
     """Return conditional combat damage without applying panel or reference-state pools."""
     _object(document, "format spell topology target uptime gates missing notes", "Raw combat scenario")
     formats = {"tli-raw-cold-combat-v1": 1, "tli-raw-cold-combat-v2": 2}
@@ -111,7 +112,7 @@ def evaluate(document):
     if type(name) is not str or name not in formats:
         raise ValueError("Unsupported raw combat format")
     version = formats[name]
-    spell = rawspell.evaluate(document["spell"])
+    spell = rawspell.evaluate(document["spell"], exact=exact)
     gaps = (_gates(document["gates"]) + ["spell: " + gap for gap in spell["gaps"]]
             + _texts(document["missing"], "Missing combat effects"))
     _texts(document["notes"], "Combat notes")
@@ -124,12 +125,20 @@ def evaluate(document):
     _number(document["uptime"], 0, 1, "Combat uptime")
     mitigation = armor(target["armor"], True, effectiveness=target["armor_effectiveness"],
                        penetration=target["armor_penetration"], order=target["armor_penetration_order"])
-    more = _more(target["more_taken"])
-    factors = None if geometry is None else {
-        "topology": geometry["factor"],
-        "cold_defence": max(0, 1 - target["cold_resistance"] + target["cold_penetration"]),
-        "armor": 1 - mitigation, "increased_taken": 1 + target["increased_taken"],
-        "more_taken": more, "uptime": document["uptime"]}
+    more = _more(target["more_taken"], exact=exact)
+    if exact:
+        factors = None if geometry is None else {
+            "topology": _admitted(geometry["factor"]),
+            "cold_defence": max(Fraction(0), _admitted(1) - _admitted(target["cold_resistance"]) + _admitted(target["cold_penetration"])),
+            "armor": _admitted(1) - _admitted(mitigation),
+            "increased_taken": _admitted(1) + _admitted(target["increased_taken"]),
+            "more_taken": more, "uptime": _admitted(document["uptime"])}
+    else:
+        factors = None if geometry is None else {
+            "topology": geometry["factor"],
+            "cold_defence": max(0, 1 - target["cold_resistance"] + target["cold_penetration"]),
+            "armor": 1 - mitigation, "increased_taken": 1 + target["increased_taken"],
+            "more_taken": more, "uptime": document["uptime"]}
     result = {"format": "tli-raw-cold-combat-report-v1", "status": "blocked" if gaps else "conditional", "dps": None,
             "spell": spell, "topology": None, "factors": None, "armor_mitigation": None,
             "scenario": copy.deepcopy(document), "trace": [], "gaps": gaps,
@@ -153,7 +162,7 @@ def evaluate(document):
         return result
     value, trace = spell["pre_defence_dps"], []
     for stage, factor in factors.items():
-        amount = product([value, factor], name="Combat stage product")
+        amount = product([value, factor], name="Combat stage product", exact=exact)
         trace.append({"stage": stage, "input": value, "factor": factor, "output": amount})
         value = amount
     result.update(dps=value, topology=geometry, factors=factors, armor_mitigation=mitigation, trace=trace)

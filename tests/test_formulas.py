@@ -333,3 +333,58 @@ class FormulasTests(unittest.TestCase):
 
         self.assertAlmostEqual(armor(1234567, True, effectiveness=0.6, penetration=0.08,
                                      order="after_effectiveness"), 0.4)
+
+
+def _wide(bits):
+    return Fraction(1 << (bits - 2))
+
+
+def _row(index, stacks):
+    return {"id": f"m{index}", "affix": f"a{index}", "value": 0.1, "stacks": stacks, "mode": "multiply"}
+
+
+class ExactBitBudgetTests(unittest.TestCase):
+    def test_a_product_at_the_bit_budget_is_kept(self):
+        from damage_lab.formulas import product
+
+        value = product((_wide(131072), _wide(131072)), exact=True)
+        self.assertEqual(value.numerator.bit_length() + value.denominator.bit_length(), 262142)
+
+    def test_a_product_above_the_bit_budget_is_refused_before_multiplication(self):
+        from damage_lab.formulas import product
+
+        with self.assertRaisesRegex(ValueError, "exact bit budget"):
+            product((_wide(131073), _wide(131072)), exact=True)
+
+    def test_three_full_stacks_of_a_tenth_exceed_the_budget(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "exact bit budget"):
+            additional([_row(index, 1000) for index in range(3)], exact=True)
+
+    def test_two_full_stacks_of_a_tenth_stay_inside_the_budget(self):
+        from damage_lab.formulas import additional
+
+        value = additional([_row(index, 1000) for index in range(2)], exact=True)
+        self.assertLessEqual(value.numerator.bit_length() + value.denominator.bit_length(), 262144)
+
+    def test_one_power_above_the_budget_is_refused_before_exponentiation(self):
+        from damage_lab.formulas import additional
+
+        with self.assertRaisesRegex(ValueError, "exact bit budget"):
+            additional([_row(0, 2341)], exact=True)
+
+    def test_one_power_at_the_budget_is_kept(self):
+        from damage_lab.formulas import additional
+
+        value = additional([_row(0, 2340)], exact=True)
+        self.assertLessEqual(value.numerator.bit_length() + value.denominator.bit_length(), 262144)
+
+    def test_zero_and_one_do_not_pay_for_a_wide_factor(self):
+        from damage_lab.formulas import product
+
+        wide = _wide(262144)
+        self.assertEqual(product((wide, 0), exact=True), 0)
+        self.assertEqual(product((wide, 1), exact=True), wide)
+        self.assertEqual(product((0, wide), exact=True), 0)
+        self.assertEqual(product((1, wide), exact=True), wide)

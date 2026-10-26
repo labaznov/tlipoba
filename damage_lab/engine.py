@@ -41,12 +41,25 @@ def bounded(value, minimum, maximum, name):
     return value
 
 
-def critical(chance, multiplier, *, lucky, more=0):
+def _admitted(value):
+    if type(value) is Fraction:
+        return value
+    if type(value) is bool or type(value) not in (int, float):
+        raise ValueError("Exact operand must be an admitted number")
+    return Fraction(value)
+
+
+def critical(chance, multiplier, *, lucky, more=0, exact=False):
     if lucky is not True and lucky is not False:
         raise ValueError("Lucky must be a boolean")
     bounded(chance, 0, 1, "Critical chance")
     bounded(multiplier, 0, 100, "Critical multiplier")
     bounded(more, -1, 100, "Critical-only more damage")
+    if exact:
+        lifted = _admitted(chance)
+        probability = lifted * (_admitted(2) - lifted) if lucky else lifted
+        return ((_admitted(1) - probability) + product(
+            (probability, multiplier, _admitted(1) + _admitted(more)), name="Critical damage", exact=True))
     probability = chance * (2 - chance) if lucky else chance
     return (1 - probability) + product((probability, multiplier, 1 + more), name="Critical damage")
 
@@ -68,7 +81,7 @@ def topology(maximum, extra, active, hits, retention, *, base=1):
     return {"attached": attached, "shotgun": shotgun, "factor": round(attached * shotgun, 12)}
 
 
-def cold(base, physical, flat, effectiveness, increased, origin, destination, modifiers):
+def cold(base, physical, flat, effectiveness, increased, origin, destination, modifiers, *, exact=False):
     """Calculate one noncritical hit after complete Physical to Cold conversion.
 
     Keep scope sums exact through clamping so Fraction inputs retain their residuals.
@@ -95,12 +108,19 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
             else bounded(modifier["value"], -1, 1e6, "More damage"),
             "stacks": modifier["stacks"], "mode": modifier["mode"],
         })
-    converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])
-    native_factor = additional(pools["all"] + pools["cold"])
-    converted = product((base + product((physical, effectiveness), name="Added physical hit"),
-                         max(0, sum(map(Fraction, (1, increased, origin, destination))))), name="Converted hit")
-    native = product((flat, effectiveness, max(0, sum(map(Fraction, (1, increased, destination))))), name="Native Cold hit")
-    result = product((converted, converted_factor), name="Cold hit") + product((native, native_factor), name="Cold hit")
+    converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"], exact=exact)
+    native_factor = additional(pools["all"] + pools["cold"], exact=exact)
+    if exact:
+        added = _admitted(base) + _admitted(physical) * _admitted(effectiveness)
+        scale = max(Fraction(0), sum(map(_admitted, (1, increased, origin, destination))))
+        native_scale = max(Fraction(0), sum(map(_admitted, (1, increased, destination))))
+        converted = product((added, scale), name="Converted hit", exact=True)
+        native = product((_admitted(flat), _admitted(effectiveness), native_scale), name="Native Cold hit", exact=True)
+    else:
+        converted = product((base + product((physical, effectiveness), name="Added physical hit"),
+                             max(0, sum(map(Fraction, (1, increased, origin, destination))))), name="Converted hit")
+        native = product((flat, effectiveness, max(0, sum(map(Fraction, (1, increased, destination))))), name="Native Cold hit")
+    result = product((converted, converted_factor), name="Cold hit", exact=exact) + product((native, native_factor), name="Cold hit", exact=exact)
     if not math.isfinite(result):
         raise ValueError("Cold hit must be finite")
     return result

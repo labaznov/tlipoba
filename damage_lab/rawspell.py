@@ -5,7 +5,7 @@ import math
 import re
 from fractions import Fraction
 
-from .engine import cold, critical, substitute
+from .engine import cold, critical, substitute, _admitted
 from .formulas import additional, product, tangle_rate
 
 
@@ -142,7 +142,7 @@ def _double(value):
     return [] if gate["status"] == "confirmed" else ["double_damage: " + gate["status"]]
 
 
-def evaluate(document):
+def evaluate(document, *, exact=False):
     """Return a conditional raw expectation or a blocked result with explicit evidence gaps.
 
     Gate confirmations are assertions of the caller, not a game/API verification.
@@ -192,12 +192,13 @@ def evaluate(document):
     for label, base, physical, native in (("converted", damage["base"], damage["physical"], {"min": 0, "max": 0}),
                                         ("native", {"min": 0, "max": 0}, {"min": 0, "max": 0}, damage["cold"])):
         components[label] = {edge: cold(base[edge], physical[edge], native[edge], damage["effectiveness"],
-                                        increased["all"], increased["physical"], increased["cold"], damage["more"])
+                                        increased["all"], increased["physical"], increased["cold"], damage["more"],
+                                        exact=exact)
                              for edge in ("min", "max")}
     minimum = components["converted"]["min"] + components["native"]["min"]
     maximum = components["converted"]["max"] + components["native"]["max"]
-    mean = minimum + product((maximum - minimum, .5), name="Midpoint spread")
-    factor = critical(crit["chance"], crit["multiplier"], lucky=crit["lucky"], more=crit["more"])
+    mean = minimum + product((maximum - minimum, .5), name="Midpoint spread", exact=exact)
+    factor = critical(crit["chance"], crit["multiplier"], lucky=crit["lucky"], more=crit["more"], exact=exact)
     joint = None
     if modern:
         chance = Fraction(crit["chance"])
@@ -206,13 +207,17 @@ def evaluate(document):
         joint = ((1 - probability) * (1 + Fraction(double["noncritical"])) +
                  probability * Fraction(crit["multiplier"]) * (1 + Fraction(crit["more"])) *
                  (1 + Fraction(double["critical"])))
-    expected = product((mean, joint if modern else factor), name="Expected hit")
-    speed = additional(casting["more"])
-    rate = product(((1 + casting["increased"]) / casting["interval"], speed), name="Raw cast rate")
-    _number(rate, 0, 1e300, "Raw cast rate")
+    expected = product((mean, joint if modern else factor), name="Expected hit", exact=exact)
+    speed = additional(casting["more"], exact=exact)
+    if exact:
+        ratio = (_admitted(1) + _admitted(casting["increased"])) / _admitted(casting["interval"])
+        rate = product((ratio, speed), name="Raw cast rate", exact=True)
+    else:
+        rate = product(((1 + casting["increased"]) / casting["interval"], speed), name="Raw cast rate")
+    _number(float(rate) if type(rate) is Fraction else rate, 0, 1e300, "Raw cast rate")
     effective = tangle_rate(rate, casting["frequency"])
-    dps = product((expected, effective), name="Pre-defence DPS")
-    _number(dps, 0, 1e300, "Pre-defence DPS")
+    dps = product((expected, effective), name="Pre-defence DPS", exact=exact)
+    _number(float(dps) if type(dps) is Fraction else dps, 0, 1e300, "Pre-defence DPS")
     result.update(noncritical={"min": minimum, "max": maximum, "mean": mean, "components": components},
                   critical_factor=factor, expected_hit=expected,
                   rate={"smooth": rate, "capped": min(rate, 30), "effective": effective,

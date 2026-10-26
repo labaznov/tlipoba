@@ -2,6 +2,7 @@
 
 import copy
 import math
+from fractions import Fraction
 
 from .rawcombat import evaluate as assemble
 
@@ -58,6 +59,28 @@ def _quotient(numerator, denominator, label):
     return value
 
 
+def _plain(value):
+    if type(value) is not Fraction:
+        raise ValueError("Exact upgrade gain must be a fraction of the admitted operands")
+    if value == 0:
+        return 0.0
+    number = float(value)
+    if number == 0:
+        raise ValueError("Combat damage delta cannot underflow to zero")
+    if not math.isfinite(number):
+        raise ValueError("Combat damage delta must be finite")
+    return number
+
+
+def _rank_key(candidate):
+    exact, cost = candidate["exact"], candidate["cost"]
+    if exact is None or cost in (None, 0):
+        ratio = 0
+    else:
+        ratio = exact / Fraction(cost)
+    return (cost != 0, -ratio, cost, candidate["id"])
+
+
 def _status(delta, cost):
     if delta is None:
         return "blocked"
@@ -68,6 +91,17 @@ def _status(delta, cost):
 
 def evaluate(document):
     """Return conditional combat deltas from complete replacements and caller-supplied prices."""
+    report, _gains = _measured(document)
+    return report
+
+
+def exact_deltas(document):
+    """Private exact gains for qualification and ties. They are not report fields."""
+    _report, gains = _measured(document)
+    return gains
+
+
+def _measured(document):
     _object(document, "format baseline currency candidates")
     if document["format"] != "tli-combat-upgrade-scenario-v1":
         raise ValueError("Unsupported combat upgrade scenario format")
@@ -87,6 +121,7 @@ def evaluate(document):
         if candidate["cost"] is not None and _finite(candidate["cost"], "Candidate cost") < 0:
             raise ValueError("Candidate cost must be nonnegative")
     baseline = assemble(document["baseline"])
+    baseline_exact = None if baseline["gaps"] else assemble(document["baseline"], exact=True)["dps"]
     candidates = []
     for candidate in document["candidates"]:
         target = copy.deepcopy(candidate["scenario"])
@@ -97,20 +132,24 @@ def evaluate(document):
         result = assemble(target)
         _common(baseline["scenario"], result["scenario"])
         gaps = list(dict.fromkeys(baseline["gaps"] + result["gaps"]))
-        delta = _finite(result["dps"] - baseline["dps"], "Combat damage delta") if not gaps else None
-        positive = delta is not None and delta > 0
+        if gaps:
+            exact = None
+            delta = None
+        else:
+            exact = assemble(target, exact=True)["dps"] - baseline_exact
+            delta = _plain(exact)
+        positive = exact is not None and exact > 0
         cost = candidate["cost"]
         candidates.append({"id": candidate["id"], "name": candidate["name"], "cost": cost,
                            "dps": result["dps"], "delta": delta,
                            "relative": _quotient(delta, baseline["dps"], "Relative gain"),
                            "per_cost": _quotient(delta, cost, "Gain per cost"), "status": _status(delta, cost),
                            "eligible_for_ranking": positive, "eligible_for_cost_ranking": positive and cost is not None,
-                           "gaps": gaps, "result": result})
+                           "gaps": gaps, "result": result, "exact": exact})
     ranking = sorted((candidate for candidate in candidates if candidate["eligible_for_cost_ranking"]),
-                     key=lambda candidate: (candidate["cost"] != 0,
-                                            -candidate["per_cost"] if candidate["per_cost"] is not None else 0,
-                                            candidate["cost"], candidate["id"]))
+                     key=_rank_key)
+    exact_gains = {candidate["id"]: candidate.pop("exact") for candidate in candidates}
     return {"format": "tli-combat-upgrade-report-v1", "status": baseline["status"], "baseline": baseline,
             "currency": document["currency"], "price_source": "caller", "quantity_scope": "conditional_combat_dps",
             "gaps": list(baseline["gaps"]), "candidates": candidates,
-            "ranking": [candidate["id"] for candidate in ranking], "scenario": copy.deepcopy(document)}
+            "ranking": [candidate["id"] for candidate in ranking], "scenario": copy.deepcopy(document)}, exact_gains

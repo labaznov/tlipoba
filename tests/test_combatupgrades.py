@@ -1,5 +1,6 @@
 import copy
 import unittest
+from fractions import Fraction
 
 from damage_lab.combatupgrades import evaluate
 from test_rawcombat import scenario as combat
@@ -382,3 +383,33 @@ class CombatUpgradesTests(unittest.TestCase):
         document["candidates"] = []
         result = evaluate(document)
         self.assertEqual((result["status"], result["candidates"], result["ranking"]), ("conditional", [], []))
+
+
+def _guarded(amount, baseline_chance, candidate_chance):
+    baseline = unit(amount)
+    changed = unit(amount)
+    baseline["spell"]["critical"].update(chance=baseline_chance, multiplier=2)
+    changed["spell"]["critical"].update(chance=candidate_chance, multiplier=2)
+    return {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline, "currency": "synthetic tokens",
+            "candidates": [candidate("chance", changed, 1)]}
+
+
+class ExactGainGuardTests(unittest.TestCase):
+    def test_a_positive_underflow_is_rejected_before_a_report(self):
+        with self.assertRaisesRegex(ValueError, "Combat damage delta cannot underflow to zero"):
+            evaluate(_guarded(1e-310, 0, 2**-54))
+
+    def test_a_negative_underflow_is_rejected_before_a_report(self):
+        with self.assertRaisesRegex(ValueError, "Combat damage delta cannot underflow to zero"):
+            evaluate(_guarded(1e-310, 2**-54, 0))
+
+    def test_an_exact_zero_gain_stays_zero(self):
+        row = evaluate(_guarded(1e-310, 0, 0))["candidates"][0]
+        self.assertEqual((row["delta"], row["status"], row["eligible_for_ranking"]), (0.0, "not_upgrade", False))
+
+    def test_a_representable_subnormal_gain_is_kept(self):
+        expected = float(Fraction(1e-307) * Fraction(2**-54))
+        row = evaluate(_guarded(1e-307, 0, 2**-54))["candidates"][0]
+        self.assertEqual(row["delta"], expected)
+        self.assertNotEqual(expected, 0.0)
+        self.assertEqual(row["status"], "upgrade")

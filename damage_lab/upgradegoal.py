@@ -2,7 +2,9 @@
 
 import math
 
-from .combatupgrades import evaluate as compare
+from fractions import Fraction
+
+from .combatupgrades import evaluate as compare, exact_deltas
 
 GOAL_FORMAT = "tli-combat-upgrade-goal-v1"
 REASONS = ("blocked", "unpriced", "not_upgrade", "below_minimum", "over_budget", "ineligible")
@@ -39,7 +41,7 @@ def _known(value, label):
     return value
 
 
-def _selection(report, *, minimum, budget):
+def _selection(report, *, minimum, budget, exact):
     """Return the goal object for a fresh combatupgrades report: the cheapest supported rows meeting the goal."""
     for value in (minimum, budget):
         if type(value) not in (int, float) or type(value) is bool:
@@ -57,18 +59,19 @@ def _selection(report, *, minimum, budget):
     qualified, excluded = [], []
     for row in report["candidates"]:
         delta, cost = _known(row["delta"], "delta"), _known(row["cost"], "cost")
+        gain = exact[row["id"]]
         if cost is not None and cost < 0:
             raise ValueError("Upgrade goal report row has a malformed cost")
         if type(row["eligible_for_cost_ranking"]) is not bool:
             raise ValueError("Upgrade goal report row has a malformed eligibility flag")
         reasons = set()
-        if blocked or delta is None or row["gaps"]:
+        if blocked or gain is None or row["gaps"]:
             reasons.add("blocked")
         if cost is None:
             reasons.add("unpriced")
-        if delta is not None and delta <= 0:
+        if gain is not None and gain <= 0:
             reasons.add("not_upgrade")
-        elif delta is not None and delta < minimum:
+        elif gain is not None and gain < Fraction(minimum):
             reasons.add("below_minimum")
         if cost is not None and cost > budget:
             reasons.add("over_budget")
@@ -78,7 +81,7 @@ def _selection(report, *, minimum, budget):
             excluded.append({"id": row["id"], "reasons": [reason for reason in REASONS if reason in reasons]})
         else:
             qualified.append(row)
-    qualified.sort(key=lambda row: (row["cost"], -row["delta"], row["id"]))
+    qualified.sort(key=lambda row: (row["cost"], -exact[row["id"]], row["id"]))
     ranking = [row["id"] for row in qualified]
     return {"format": GOAL_FORMAT, "minimum_gain": minimum, "budget": budget, "currency": report["currency"],
             "quantity_scope": report["quantity_scope"], "ranking": ranking, "selected": ranking[0] if ranking else None,
@@ -90,5 +93,5 @@ def evaluate(document, *, minimum, budget):
     """Preserve efficiency ranking and add an explicit minimum-gain budget query."""
     minimum, budget = _parameters(minimum, budget)
     report = compare(document)
-    report["goal"] = _selection(report, minimum=minimum, budget=budget)
+    report["goal"] = _selection(report, minimum=minimum, budget=budget, exact=exact_deltas(document))
     return report

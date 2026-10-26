@@ -1,7 +1,9 @@
 """Compare caller-priced complete cold combat scenarios under one declared target and uptime."""
 
 import copy
+import datetime
 import math
+import re
 from fractions import Fraction
 
 from .rawcombat import evaluate as assemble
@@ -15,6 +17,32 @@ def _object(value, fields):
 def _text(value):
     if type(value) is not str or not value or value != value.strip() or len(value) > 1024:
         raise ValueError("Combat upgrade labels require bounded nonempty trimmed text")
+
+
+# Gregorian date, uppercase T, seconds, 1..6 fraction digits and uppercase Z or a signed HH:MM offset
+_STAMP = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]{1,6})?"
+                    r"(?:Z|[+-]([0-9]{2}):([0-9]{2}))", re.ASCII)
+
+
+def _evidence(value):
+    """Caller price evidence: an unverified source label and an admitted lexical timestamp, each possibly unknown."""
+    _object(value, "source observed_at")
+    if value["source"] is not None:
+        _text(value["source"])
+    stamp = value["observed_at"]
+    if stamp is not None:
+        match = _STAMP.fullmatch(stamp) if type(stamp) is str else None
+        if match is None:
+            raise ValueError("Candidate price time requires an offset timestamp")
+        year, month, day, hour, minute, second, *offset = (None if part is None else int(part)
+                                                           for part in match.groups())
+        try:
+            datetime.date(year, month, day)
+        except ValueError:
+            raise ValueError("Candidate price time requires a valid date") from None
+        if hour > 23 or minute > 59 or second > 59 or (offset[0] is not None and (offset[0] > 23 or offset[1] > 59)):
+            raise ValueError("Candidate price time requires a valid time and offset")
+    return {"source": value["source"], "observed_at": stamp}
 
 
 def _list(value):
@@ -103,13 +131,14 @@ def exact_deltas(document):
 
 def _measured(document):
     _object(document, "format baseline currency candidates")
-    if document["format"] != "tli-combat-upgrade-scenario-v1":
+    if document["format"] not in ("tli-combat-upgrade-scenario-v1", "tli-combat-upgrade-scenario-v2"):
         raise ValueError("Unsupported combat upgrade scenario format")
+    evidenced = document["format"] == "tli-combat-upgrade-scenario-v2"
     _text(document["currency"])
     _list(document["candidates"])
     identities = set()
     for candidate in document["candidates"]:
-        _object(candidate, "id name scenario cost missing")
+        _object(candidate, "id name scenario cost missing" + (" price_evidence" if evidenced else ""))
         _text(candidate["id"])
         _text(candidate["name"])
         if candidate["id"] in identities:
@@ -120,6 +149,8 @@ def _measured(document):
             _text(gap)
         if candidate["cost"] is not None and _finite(candidate["cost"], "Candidate cost") < 0:
             raise ValueError("Candidate cost must be nonnegative")
+        if evidenced:
+            _evidence(candidate["price_evidence"])
     baseline = assemble(document["baseline"])
     baseline_exact = None if baseline["gaps"] else assemble(document["baseline"], exact=True)["dps"]
     candidates = []
@@ -146,10 +177,13 @@ def _measured(document):
                            "per_cost": _quotient(delta, cost, "Gain per cost"), "status": _status(delta, cost),
                            "eligible_for_ranking": positive, "eligible_for_cost_ranking": positive and cost is not None,
                            "gaps": gaps, "result": result, "exact": exact})
+        if evidenced:
+            candidates[-1]["price_evidence"] = _evidence(candidate["price_evidence"])
     ranking = sorted((candidate for candidate in candidates if candidate["eligible_for_cost_ranking"]),
                      key=_rank_key)
     exact_gains = {candidate["id"]: candidate.pop("exact") for candidate in candidates}
-    return {"format": "tli-combat-upgrade-report-v1", "status": baseline["status"], "baseline": baseline,
+    return {"format": "tli-combat-upgrade-report-v2" if evidenced else "tli-combat-upgrade-report-v1",
+            "status": baseline["status"], "baseline": baseline,
             "currency": document["currency"], "price_source": "caller", "quantity_scope": "conditional_combat_dps",
             "gaps": list(baseline["gaps"]), "candidates": candidates,
             "ranking": [candidate["id"] for candidate in ranking], "scenario": copy.deepcopy(document)}, exact_gains

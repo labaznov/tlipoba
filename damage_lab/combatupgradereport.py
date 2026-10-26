@@ -113,6 +113,17 @@ def _goal(report):
             + "<p>Выбор относится к переданным вариантам и условной модели боя</p></section>\n")
 
 
+def _price(row):
+    """The caller price, followed in v2 by that same row's own evidence; null evidence stays explicitly unknown."""
+    if "price_evidence" not in row:
+        return price(row["cost"])
+    evidence = row["price_evidence"]
+    return (price(row["cost"]) + "<br>Источник цены: "
+            + ("неизвестно" if evidence["source"] is None else text(evidence["source"]))
+            + "<br>Время получения цены: "
+            + ("неизвестно" if evidence["observed_at"] is None else text(evidence["observed_at"])))
+
+
 def render(report):
     """Display caller-priced combat results without promoting scenario assertions to runtime facts."""
     try:
@@ -132,12 +143,14 @@ def render(report):
     rows = "".join(
         f"<tr><td>{text(row['id'])}<br>{text(row['name'])}</td><td>{quantity(row['dps'])}</td>"
         f"<td>{quantity(row['delta'])}</td><td>{quantity(row['relative'], 'fraction')}</td>"
-        f"<td>{price(row['cost'])}</td><td>{quantity(row['per_cost'], 'rate')}</td>"
+        f"<td>{_price(row)}</td><td>{quantity(row['per_cost'], 'rate')}</td>"
         f"<td>{text(row['status'])}</td><td>{items(row['gaps'])}{_evidence(row['result'])}</td></tr>"
         for row in report["candidates"])
     order = "".join(f"<li>{text(identity)}</li>" for identity in report["ranking"])
     free = [row["id"] for row in report["candidates"] if row["status"] == "free"]
     unpriced = [row["id"] for row in report["candidates"] if row["status"] == "unpriced"]
+    evidence = ("<p>Источник и время цены заданы вызывающей стороной и не проверялись</p>"
+                if report["format"] == "tli-combat-upgrade-report-v2" else "")
     return f"""<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Условное сравнение боевого DPS</title><style>
@@ -157,7 +170,7 @@ Gates — утверждения сценария, а не проверка ак
 <h2>Общие условия</h2>{_conditions(report)}</section>
 <section><h2>Полные замены сценария</h2>
 <p>Цены заданы вызывающей стороной; валюта: {text(report['currency'])}</p>
-<p>Рыночные цены не запрашивались</p><p>При нулевом baseline относительное изменение не определено</p>
+<p>Рыночные цены не запрашивались</p>{evidence}<p>При нулевом baseline относительное изменение не определено</p>
 <div class=scroll><table><thead><tr>
 <th>Кандидат</th><th>DPS</th><th>Δ DPS</th><th>Изменение</th><th>Цена</th><th>Δ DPS / цену</th><th>Статус</th><th>Пробелы и трассы</th>
 </tr></thead><tbody>{rows}</tbody></table></div></section>

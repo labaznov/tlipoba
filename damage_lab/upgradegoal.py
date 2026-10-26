@@ -52,7 +52,7 @@ def _selection(report, *, minimum, budget, exact):
         raise ValueError("Upgrade goal parameters must be canonical") from None
     if canonical != (minimum, budget) or tuple(map(type, canonical)) != (type(minimum), type(budget)):
         raise ValueError("Upgrade goal parameters must be canonical")
-    if (type(report) is not dict or report.get("format") != "tli-combat-upgrade-report-v1"
+    if (type(report) is not dict or report.get("format") not in ("tli-combat-upgrade-report-v1", "tli-combat-upgrade-report-v2")
             or report.get("quantity_scope") != "conditional_combat_dps" or type(report.get("candidates")) is not list):
         raise ValueError("Upgrade goal requires a conditional combat upgrade report")
     blocked = report.get("status") == "blocked"

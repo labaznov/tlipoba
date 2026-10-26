@@ -1,8 +1,32 @@
 """Apply source-bound target-Cursed damage only under an explicit scenario condition."""
 
 import copy
+import re
+from decimal import Decimal, InvalidOperation
 
 from . import combatupgrades, rawcombat, staticcombat
+
+_CANONICAL = re.compile(r"-?(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{0,10}[1-9])?")
+
+
+def _exact_value(percent):
+    """Canonical fraction of a ledger percent. The fraction spelling is not copied."""
+    if type(percent) is not str:
+        raise ValueError('Conditional exact value must be a canonical decimal')
+    try:
+        number = Decimal(percent) / Decimal(100)
+    except InvalidOperation as error:
+        raise ValueError('Conditional exact value must be a canonical decimal') from error
+    if not number.is_finite() or number == 0:
+        text = '0'
+    else:
+        body = format(abs(number), 'f')
+        if '.' in body:
+            body = body.rstrip('0').rstrip('.')
+        text = '-' + body if number < 0 else body
+    if text == '-0' or _CANONICAL.fullmatch(text) is None:
+        raise ValueError('Conditional exact value must be a canonical decimal')
+    return text
 
 
 def _object(value, fields, label):
@@ -50,7 +74,8 @@ def evaluate(combat, ledger, *, condition, coverage):
         if damage is not None and any(value['id'] == identity or value['affix'] == pool for value in damage['more']):
             raise ValueError('Conditional damage source or pool is already present in the scenario')
         if condition['cursed'] is True and coverage['status'] == 'confirmed' and damage is not None:
-            modifier = {'id': identity, 'affix': pool, 'value': float(row['values'][0]['fraction']),
+            fraction = _exact_value(row['values'][0]['exact'])
+            modifier = {'id': identity, 'affix': pool, 'value': float(fraction), 'exact_value': fraction,
                         'stacks': 1, 'mode': 'add', 'scope': 'all'}
             # Original rows are checked separately; two ledger instances intentionally share a pool
             applied.append(modifier)

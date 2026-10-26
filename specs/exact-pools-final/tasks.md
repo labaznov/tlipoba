@@ -1,0 +1,5 @@
+- [x] Baseline and extended tests RED
+- [x] Minimal repairs and149 GREEN
+- [x] Eleven-method semantic proof matrix
+- [x] Final pins and lease release
+- [ ] Independent reviews and root integration suite (external)

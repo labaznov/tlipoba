@@ -1,9 +1,38 @@
 """Pure damage arithmetic; all combat conditions are explicit inputs."""
 
 import math
+import re
 from fractions import Fraction
 
 from .formulas import additional, product
+
+_CANONICAL = re.compile(r"-?(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{0,10}[1-9])?")
+
+
+def substitute(rows):
+    """Use exact decimals in a pool, or the legacy float, but never both in one affix."""
+    flags, prepared = {}, []
+    for row in rows:
+        if type(row) is not dict or not all(field in row for field in ("id", "affix", "value", "stacks", "mode")):
+            raise ValueError("Additional modifier requires id, affix, value, stacks and mode")
+        if "exact_value" not in row:
+            flags.setdefault(row["affix"], set()).add(False)
+            prepared.append(row)
+            continue
+        text = row["exact_value"]
+        if row.get("mode") != "add" or type(text) is not str or text == "-0" or _CANONICAL.fullmatch(text) is None:
+            raise ValueError("exact_value must be a canonical decimal on an additive damage row")
+        number = Fraction(text)
+        if float(number) != row["value"]:
+            raise ValueError("exact_value disagrees with its numeric value")
+        if not -1 <= number <= 10**6:
+            raise ValueError("exact_value is outside the supported range")
+        flags.setdefault(row["affix"], set()).add(True)
+        prepared.append({**row, "value": number})
+    for kinds in flags.values():
+        if kinds == {True, False}:
+            raise ValueError("An affix pool cannot mix exact and plain rows")
+    return prepared
 
 
 def bounded(value, minimum, maximum, name):
@@ -52,7 +81,7 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
         bounded(value, -1, 1e6, name)
     pools = {"all": [], "physical": [], "cold": []}
     identities = set()
-    for modifier in modifiers:
+    for modifier in substitute(modifiers):
         if not all(field in modifier for field in ("id", "affix", "scope", "value", "stacks", "mode")):
             raise ValueError("Cold modifier requires id, affix, scope, value, stacks and mode")
         if modifier["id"] in identities:
@@ -62,7 +91,8 @@ def cold(base, physical, flat, effectiveness, increased, origin, destination, mo
             raise ValueError(f"Unknown damage scope {modifier['scope']}")
         pools[modifier["scope"]].append({
             "id": modifier["id"], "affix": modifier["affix"],
-            "value": bounded(modifier["value"], -1, 1e6, "More damage"),
+            "value": modifier["value"] if type(modifier["value"]) is Fraction
+            else bounded(modifier["value"], -1, 1e6, "More damage"),
             "stacks": modifier["stacks"], "mode": modifier["mode"],
         })
     converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"])

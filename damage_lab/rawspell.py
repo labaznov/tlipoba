@@ -5,7 +5,7 @@ import math
 import re
 from fractions import Fraction
 
-from .engine import cold, critical
+from .engine import cold, critical, substitute
 from .formulas import additional, product, tangle_rate
 
 
@@ -48,8 +48,15 @@ def _rows(value, damage):
     if type(value) is not list or len(value) > 1000:
         raise ValueError("Additional modifiers must be a bounded list")
     for row in value:
-        _object(row, "id affix value stacks mode scope" if damage else "id affix value stacks mode",
-                "Additional modifier")
+        fields = "id affix value stacks mode scope" if damage else "id affix value stacks mode"
+        allowed = set(fields.split())
+        shapes = {frozenset(allowed)}
+        if damage:
+            shapes.add(frozenset(allowed | {"exact_value"}))
+        if type(row) is not dict or frozenset(row) not in shapes:
+            raise ValueError("Additional modifier has missing or unsupported fields")
+        if "exact_value" in row and row["mode"] != "add":
+            raise ValueError("exact_value is only valid on additive damage rows")
         _text(row["id"], "Modifier identity")
         _text(row["affix"], "Affix identity")
         _number(row["value"], -1, 1e6, "Additional modifier")
@@ -59,7 +66,7 @@ def _rows(value, damage):
             raise ValueError("Modifier mode must be add or multiply")
         if damage and row["scope"] not in ("all", "physical", "cold"):
             raise ValueError("Damage modifier scope must be all, physical or cold")
-    additional(value)
+    additional(substitute(value))
 
 
 def _context(value):

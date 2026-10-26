@@ -2314,5 +2314,228 @@ class LoadoutSkillConsistencyTest(unittest.TestCase):
                          (1, False, True, False, False))
 
 
+GEM = "gem-0316"
+
+
+def rolled(root, groups):
+    """Package one producer layout: sourceTab selects the array, slot 2..6 selects the gem."""
+    directory = package(root)
+    guide = json.loads((directory / "guide-data.json").read_text(encoding="utf-8"))
+    active = [slot() for _ in range(5)]
+    passive = [slot() for _ in range(4)]
+    written = []
+    for group in groups:
+        written.append({
+            "kind": group["kind"], "sourceTab": group["sourceTab"],
+            "main": {"name": group["name"], "guid": group["guid"], "level": group["level"], "slot": 1,
+                     "category": "Active" if group["kind"] == "active" else "Passive"},
+            "supports": [{"name": f"Support {guid}", "guid": guid, "level": 1, "slot": number,
+                          "category": "Noble_Support"}
+                         for number, guid, _rolls in group["supports"]]})
+        target = slot(group["guid"], group["level"])
+        gems = [None] * 5
+        for number, guid, rolls in group["supports"]:
+            if rolls is None:
+                gems[number - 2] = {"supportGuid": guid, "type": "support", "icon": "gem", "level": 1}
+            else:
+                gems[number - 2] = {"supportGuid": guid, "type": "noble_support", "icon": "gem", "rank": 1,
+                                    "lineTiers": {"line": 1}, "lineRolls": {"line": list(rolls)}}
+        target["supports"] = gems
+        (active if group["kind"] == "active" else passive)[group["sourceTab"] - (1 if group["kind"] == "active" else 6)] = target
+    guide["skillGroups"] = written
+    write(directory / "guide-data.json", guide)
+    build = json.loads((directory / "build.json").read_text(encoding="utf-8"))
+    build["loadouts"]["loadouts"][0]["skills"] = {"activeSkills": active, "passiveSkills": passive}
+    write(directory / "build.json", build)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["buildSha256"] = hashlib.sha256((directory / "build.json").read_bytes()).hexdigest()
+    write(directory / "manifest.json", manifest)
+    return directory
+
+
+def distinct():
+    return ({"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+             "supports": [(6, GEM, [1]), (2, GEM, [9])]},
+            {"kind": "aura", "sourceTab": 6, "guid": "skill-c", "level": 15, "name": "Aura skill",
+             "supports": [(2, GEM, [3])]})
+
+
+class SupportInstanceRollTests(unittest.TestCase):
+    """Each producer support keeps the rolls of its own slot."""
+
+    def stored(self, groups):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = rolled(root, groups)
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "build.sqlite")) as connection:
+                rows = connection.execute(
+                    "SELECT name, details FROM inventory WHERE section = 'skills' ORDER BY position").fetchall()
+            return result["inventory"]["skills"], [(name, json.loads(details)) for name, details in rows]
+
+    def test_the_same_guid_keeps_separate_rolls_across_groups_and_sparse_slots(self):
+        shown, rows = self.stored(distinct())
+        active, aura = shown
+        self.assertEqual((active["details"][1:], aura["details"][1:], rows[0][1][1:], rows[1][1][1:]),
+                         (["Support gem-0316 (level 1); rolls 1", "Support gem-0316 (level 1); rolls 9"],
+                          ["Support gem-0316 (level 1); rolls 3"],
+                          ["Support gem-0316 (level 1); rolls 1", "Support gem-0316 (level 1); rolls 9"],
+                          ["Support gem-0316 (level 1); rolls 3"]))
+        self.assertNotIn("rolls", active["name"] + aura["name"])
+
+    def test_reordered_groups_keep_the_producer_slot(self):
+        second = {"kind": "active", "sourceTab": 2, "guid": "skill-b", "level": 18, "name": "Second skill",
+                  "supports": [(2, GEM, [8])]}
+        first = {"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+                 "supports": [(2, GEM, [2])]}
+        shown, _rows = self.stored((second, first))
+        self.assertEqual([entry["details"][1] for entry in shown],
+                         ["Support gem-0316 (level 1); rolls 8", "Support gem-0316 (level 1); rolls 2"])
+
+    def test_identical_rolls_stay_on_every_instance(self):
+        groups = ({"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+                   "supports": [(2, GEM, [4])]},
+                  {"kind": "active", "sourceTab": 2, "guid": "skill-b", "level": 18, "name": "Second skill",
+                   "supports": [(2, GEM, [4])]})
+        shown, rows = self.stored(groups)
+        self.assertEqual(([entry["details"][1] for entry in shown], [row[1][1] for row in rows]),
+                         (["Support gem-0316 (level 1); rolls 4", "Support gem-0316 (level 1); rolls 4"],
+                          ["Support gem-0316 (level 1); rolls 4", "Support gem-0316 (level 1); rolls 4"]))
+
+    def test_a_support_without_rolls_does_not_inherit_another_instance(self):
+        groups = ({"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+                   "supports": [(2, GEM, [9])]},
+                  {"kind": "aura", "sourceTab": 6, "guid": "skill-c", "level": 15, "name": "Aura skill",
+                   "supports": [(2, GEM, None)]})
+        shown, _rows = self.stored(groups)
+        self.assertEqual(shown[1]["details"][1], "Support gem-0316 (level 1)")
+
+    def test_a_main_skill_does_not_inherit_support_rolls(self):
+        group = {"kind": "active", "sourceTab": 1, "guid": GEM, "level": 20, "name": "First skill",
+                 "supports": [(2, GEM, [9])]}
+        shown, rows = self.stored((group,))
+        self.assertEqual((shown[0]["name"], rows[0][0], "rolls" in shown[0]["details"][1]),
+                         ("First skill (level 20)", "First skill (level 20)", True))
+
+    def test_an_untraceable_roll_binding_is_refused(self):
+        def refuse(change):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = rolled(root, distinct())
+                change(directory)
+                with self.assertRaisesRegex(ValueError, "^Support rolls cannot be traced to one producer slot$"):
+                    archive(directory, observations(root), facts(root), root / "build.sqlite")
+                self.assertFalse((root / "build.sqlite").exists())
+
+        def guide(change):
+            def apply(directory):
+                path = directory / "guide-data.json"
+                value = json.loads(path.read_text(encoding="utf-8"))
+                change(value)
+                write(path, value)
+            return apply
+
+        def loadout(change):
+            def apply(directory):
+                path = directory / "build.json"
+                value = json.loads(path.read_text(encoding="utf-8"))
+                change(value["loadouts"]["loadouts"][0]["skills"])
+                write(path, value)
+                manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+                manifest["buildSha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                write(directory / "manifest.json", manifest)
+            return apply
+
+        def shared(directory):
+            path = directory / "guide-data.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["skillGroups"][1].update(kind="active", sourceTab=1)
+            write(path, value)
+            build = directory / "build.json"
+            document = json.loads(build.read_text(encoding="utf-8"))
+            skills = document["loadouts"]["loadouts"][0]["skills"]
+            skills["activeSkills"][1] = skills["passiveSkills"][0]
+            skills["passiveSkills"][0] = slot()
+            write(build, document)
+            manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+            manifest["buildSha256"] = hashlib.sha256(build.read_bytes()).hexdigest()
+            write(directory / "manifest.json", manifest)
+
+        for label, change in (
+                ("slot is 7", guide(lambda value: value["skillGroups"][0]["supports"][0].update(slot=7))),
+                ("guid disagrees", guide(lambda value: value["skillGroups"][0]["supports"][0].update(guid="other"))),
+                ("slot is repeated", guide(lambda value: value["skillGroups"][0]["supports"][1].update(slot=6))),
+                ("source tab is shared", shared),
+                ("source tab is outside the layout", guide(lambda value: value["skillGroups"][0].update(sourceTab=9))),
+                ("the main at that tab differs", guide(lambda value: value["skillGroups"][0].update(sourceTab=2))),
+                ("a roll has no guide support", loadout(
+                    lambda skills: skills["activeSkills"][0]["supports"].__setitem__(
+                        2, {"supportGuid": "other", "type": "noble_support", "rank": 1,
+                            "lineRolls": {"line": [5]}})))):
+            with self.subTest(label):
+                refuse(change)
+
+    def test_the_import_command_renders_each_support_instance(self):
+        from damage_lab.__main__ import main
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = rolled(root, distinct())
+            output = root / "result"
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                code = main(["import", "--package", str(directory), "--output", str(output)])
+            html = (output / "index.html").read_text(encoding="utf-8") if output.exists() else ""
+            section = html.split("<h3>Навыки и поддержки</h3>", 1)[-1].split("<h3>", 1)[0]
+            articles = section.split("<article>")
+            active = next((part for part in articles if "First skill" in part), "")
+            aura = next((part for part in articles if "Aura skill" in part), "")
+        self.assertEqual((code, errors.getvalue(), "rolls 1" in active, "rolls 9" in active, "rolls 3" in active,
+                          "rolls 3" in aura, "rolls 9" in aura),
+                         (0, "", True, True, False, True, False))
+
+    def refused(self, groups, edit):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = rolled(root, groups)
+            path = directory / "guide-data.json"
+            guide = json.loads(path.read_text(encoding="utf-8"))
+            edit(guide)
+            write(path, guide)
+            with self.assertRaisesRegex(ValueError, "^Support rolls cannot be traced to one producer slot$"):
+                archive(directory, observations(root), facts(root), root / "build.sqlite")
+            self.assertFalse((root / "build.sqlite").exists())
+
+    def test_an_empty_group_still_occupies_its_producer_tab(self):
+        filled = {"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+                  "supports": [(2, GEM, [13.25])]}
+        blank = {"kind": "active", "sourceTab": 2, "guid": "skill-a", "level": 20, "name": "Second skill",
+                 "supports": []}
+        for label, groups in (("filled first", (filled, blank)), ("empty first", (blank, filled))):
+            with self.subTest(label):
+                self.refused(groups, lambda guide: next(
+                    group for group in guide["skillGroups"] if group["supports"] == []).update(sourceTab=1))
+
+    def test_two_occupied_groups_cannot_claim_one_tab(self):
+        groups = ({"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+                   "supports": [(2, GEM, [1])]},
+                  {"kind": "active", "sourceTab": 2, "guid": "skill-a", "level": 20, "name": "Same skill",
+                   "supports": [(2, GEM, None)]})
+        self.refused(groups, lambda guide: guide["skillGroups"][1].update(sourceTab=1))
+
+    def test_mains_swapped_at_the_same_level_are_refused(self):
+        groups = ({"kind": "active", "sourceTab": 1, "guid": "skill-a", "level": 20, "name": "First skill",
+                   "supports": [(2, GEM, [1])]},
+                  {"kind": "active", "sourceTab": 2, "guid": "skill-b", "level": 20, "name": "Second skill",
+                   "supports": [(2, GEM, [2])]})
+
+        def swap(guide):
+            first, second = guide["skillGroups"]
+            first["main"]["guid"], second["main"]["guid"] = second["main"]["guid"], first["main"]["guid"]
+            first["main"]["name"], second["main"]["name"] = second["main"]["name"], first["main"]["name"]
+
+        self.refused(groups, swap)
+
+
 if __name__ == "__main__":
     unittest.main()

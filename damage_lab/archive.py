@@ -235,21 +235,87 @@ def gear(guide):
 
 
 def skills(guide, loadout):
-    rolls = {support["supportGuid"]: support["lineRolls"]
-             for group in ("activeSkills", "passiveSkills") for skill in loadout["skills"][group]
-             for support in skill.get("supports", []) if support and support.get("lineRolls")}
+    """Label guide skills and keep each support roll on the producer slot that owns it."""
 
-    def label(skill):
+    def text(skill, rolls):
         parts = [f"level {skill['level']}" if "level" in skill else None,
                  f"rank {skill['rank']}" if "rank" in skill else None]
-        text = f"{skill['name']} ({', '.join(part for part in parts if part)})" if any(parts) else skill["name"]
-        if skill.get("guid") in rolls:
-            text += "; rolls " + "; ".join(", ".join(format(value, "g") for value in values)
-                                           for values in rolls[skill["guid"]].values())
-        return text
+        label = f"{skill['name']} ({', '.join(part for part in parts if part)})" if any(parts) else skill["name"]
+        if rolls:
+            label += "; rolls " + "; ".join(", ".join(format(value, "g") for value in values)
+                                             for values in rolls.values())
+        return label
 
-    return [{"name": label(group["main"]), "details": [group["kind"]] + [label(support) for support in group["supports"]]}
-            for group in guide["skillGroups"]]
+    def entry(group, annotations):
+        supports = group.get("supports") or []
+        return {"name": text(group["main"], None),
+                "details": [group["kind"]] + [text(support, rolls)
+                                               for support, rolls in zip(supports, annotations)]}
+
+    arrays = loadout["skills"]
+    if arrays["activeSkills"] == [] and arrays["passiveSkills"] == []:
+        return [entry(group, [None] * len(group.get("supports") or [])) for group in guide["skillGroups"]]
+    message = "Support rolls cannot be traced to one producer slot"
+    placed = {"active": arrays["activeSkills"], "aura": arrays["passiveSkills"]}
+    consumed, seen, annotated = set(), set(), []
+    for group in guide["skillGroups"]:
+        supports = group.get("supports") or []
+        if type(supports) is not list:
+            raise ValueError(message)
+        if not supports:
+            kind, tab = group.get("kind"), group.get("sourceTab")
+            if type(tab) is int and kind in placed:
+                if (kind, tab) in seen:
+                    raise ValueError(message)
+                seen.add((kind, tab))
+            annotated.append([])
+            continue
+        kind, tab = group.get("kind"), group.get("sourceTab")
+        if kind not in placed or type(tab) is not int or (kind, tab) in seen:
+            raise ValueError(message)
+        seen.add((kind, tab))
+        slots = placed[kind]
+        index = tab - 1 if kind == "active" else tab - 6
+        if not 0 <= index < len(slots):
+            raise ValueError(message)
+        target, main = slots[index], group.get("main")
+        if (type(target) is not dict or target.get("enabled") is not True or type(main) is not dict
+                or target.get("skillGuid") != main.get("guid") or target.get("level") != main.get("level")):
+            raise ValueError(message)
+        gems = target.get("supports")
+        if type(gems) is not list:
+            raise ValueError(message)
+        used, notes = set(), []
+        for support in supports:
+            slot = support.get("slot") if type(support) is dict else None
+            guid = support.get("guid") if type(support) is dict else None
+            if type(slot) is not int or not 2 <= slot <= 6 or slot in used or type(guid) is not str or not guid:
+                raise ValueError(message)
+            used.add(slot)
+            offset = slot - 2
+            if offset >= len(gems):
+                raise ValueError(message)
+            gem = gems[offset]
+            rolls = gem.get("lineRolls") if type(gem) is dict else None
+            if type(gem) is not dict or gem.get("supportGuid") != guid or (rolls is not None and type(rolls) is not dict):
+                raise ValueError(message)
+            notes.append(rolls or None)
+            if rolls:
+                consumed.add((kind, index, offset))
+        annotated.append(notes)
+    for kind, slots in placed.items():
+        if type(slots) is not list:
+            raise ValueError(message)
+        for index, target in enumerate(slots):
+            gems = target.get("supports") if type(target) is dict else None
+            if gems is None:
+                continue
+            if type(gems) is not list:
+                raise ValueError(message)
+            for offset, gem in enumerate(gems):
+                if type(gem) is dict and gem.get("lineRolls") and (kind, index, offset) not in consumed:
+                    raise ValueError(message)
+    return [entry(group, notes) for group, notes in zip(guide["skillGroups"], annotated)]
 
 
 def consistent(guide, loadout):

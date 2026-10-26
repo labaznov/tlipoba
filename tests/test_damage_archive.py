@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import hashlib
+import io
 import json
 import sqlite3
 import tempfile
@@ -2132,6 +2133,185 @@ class SyntheticObservationsTest(unittest.TestCase):
                                                "cast_rate": 4.73, "crit_chance": 0.4137,
                                                "crit_multiplier": 2.87, "max_tangles": 2,
                                                "extra_attachments": 1, "cold_penetration": 0.07})
+
+
+FOREIGN = "LOADOUT-CANARY-0259-GUID"
+
+
+def slot(guid=None, level=20, *, enabled=None):
+    """One exporter-shaped skill slot (planner_transfer.py): disabled unless it names a skill."""
+    return {"skillGuid": guid, "enabled": guid is not None if enabled is None else enabled, "level": level,
+            "supports": [None] * 5}
+
+
+def producer(root, groups, active, passive):
+    """Rewrite package() into the exporter shape: guide groups with guids, loadout slots, refreshed hash."""
+    directory = package(root)
+    guide = json.loads((directory / "guide-data.json").read_text(encoding="utf-8"))
+    guide["skillGroups"] = [{"kind": kind, "main": {"name": f"Synthetic skill {index}", "guid": guid, "level": level},
+                             "supports": []} for index, (kind, guid, level) in enumerate(groups)]
+    write(directory / "guide-data.json", guide)
+    build = json.loads((directory / "build.json").read_text(encoding="utf-8"))
+    build["loadouts"]["loadouts"][0]["skills"] = {"activeSkills": active, "passiveSkills": passive}
+    write(directory / "build.json", build)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    manifest["buildSha256"] = hashlib.sha256((directory / "build.json").read_bytes()).hexdigest()
+    write(directory / "manifest.json", manifest)
+    return directory
+
+
+GROUPS = [("active", "skill-a", 20), ("active", "skill-b", 18), ("aura", "skill-c", 15)]
+
+
+def matching():
+    return ([slot("skill-a", 20), slot("skill-b", 18)] + [slot() for _ in range(3)],
+            [slot("skill-c", 15)] + [slot() for _ in range(3)])
+
+
+class LoadoutSkillConsistencyTest(unittest.TestCase):
+    """The current loadout skills and the guide groups of one package describe the same composition."""
+
+    MESSAGE = "^Current loadout skills differ between build.json and guide-data.json$"
+
+    def refused(self, groups, active, passive):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = producer(root, groups, active, passive)
+            with self.assertRaisesRegex(ValueError, self.MESSAGE):
+                archive(directory, observations(root), facts(root), root / "build.sqlite")
+            self.assertFalse((root / "build.sqlite").exists())
+
+    def test_matching_producer_slots_import_unchanged(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = producer(root, GROUPS, *matching())
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite")
+            with contextlib.closing(sqlite3.connect(root / "build.sqlite")) as connection:
+                row = connection.execute("SELECT status FROM systems WHERE name = 'skills'").fetchone()
+        self.assertEqual(([entry["name"] for entry in result["inventory"]["skills"]], row),
+                         (["Synthetic skill 0 (level 20)", "Synthetic skill 1 (level 18)",
+                           "Synthetic skill 2 (level 15)"], ("build_only",)))
+
+    def test_a_foreign_loadout_skill_is_refused(self):
+        active, passive = matching()
+        active[0] = slot(FOREIGN, 20)
+        self.refused(GROUPS, active, passive)
+
+    def test_a_guide_skill_missing_from_the_loadout_is_refused(self):
+        active, passive = matching()
+        passive[0] = slot()
+        self.refused(GROUPS, active, passive)
+
+    def test_a_loadout_level_disagreement_is_refused(self):
+        active, passive = matching()
+        active[1] = slot("skill-b", 19)
+        self.refused(GROUPS, active, passive)
+
+    def test_active_and_passive_groups_do_not_cross_match(self):
+        active, passive = matching()
+        active[2], passive[0] = slot("skill-c", 15), slot()
+        self.refused(GROUPS, active, passive)
+
+    def test_duplicate_instances_keep_their_multiplicity(self):
+        active, passive = matching()
+        active[2] = slot("skill-a", 20)
+        self.refused(GROUPS, active, passive)
+        self.refused(GROUPS + [("active", "skill-a", 20)], *matching())
+
+    def test_disabled_slots_cannot_hide_guide_groups(self):
+        self.refused(GROUPS, [slot() for _ in range(5)], [slot() for _ in range(4)])
+
+    def test_the_same_skill_at_two_levels_matches_each_instance(self):
+        groups = [("active", "skill-a", 20), ("active", "skill-a", 7)]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = producer(root, groups, [slot("skill-a", 7), slot("skill-a", 20)] + [slot() for _ in range(3)],
+                                 [slot() for _ in range(4)])
+            result = archive(directory, observations(root), facts(root), root / "build.sqlite")
+        self.assertEqual([entry["name"] for entry in result["inventory"]["skills"]],
+                         ["Synthetic skill 0 (level 20)", "Synthetic skill 1 (level 7)"])
+
+    def test_malformed_canonical_slots_and_groups_are_refused(self):
+        for label, change in (("enabled is an integer", lambda a, p, g: a[0].update(enabled=1)),
+                              ("enabled is text", lambda a, p, g: a[0].update(enabled="true")),
+                              ("enabled slot without a guid", lambda a, p, g: a.__setitem__(0, slot(None, 20, enabled=True))),
+                              ("empty guid", lambda a, p, g: a[0].update(skillGuid="")),
+                              ("boolean level", lambda a, p, g: a[0].update(level=True)),
+                              ("text level", lambda a, p, g: a[0].update(level="20")),
+                              ("slot is not an object", lambda a, p, g: a.__setitem__(4, None)),
+                              ("float slot level", lambda a, p, g: a[0].update(level=20.0)),
+                              ("guide main without a guid", lambda a, p, g: g.__setitem__(0, ("active", None, 20))),
+                              ("float guide level", lambda a, p, g: g.__setitem__(0, ("active", "skill-a", 20.0))),
+                              ("boolean guide level", lambda a, p, g: (g.__setitem__(0, ("active", "skill-a", True)),
+                                                                       a.__setitem__(0, slot("skill-a", 1)))),
+                              ("unknown guide kind", lambda a, p, g: g.__setitem__(2, ("module", "skill-c", 15)))):
+            with self.subTest(label):
+                active, passive = matching()
+                groups = list(GROUPS)
+                change(active, passive, groups)
+                self.refused(groups, active, passive)
+
+    def test_malformed_guide_groups_are_refused_safely(self):
+        # Revision 0265: each shape below escaped as TypeError, AttributeError or KeyError (captures/20261026-0264).
+        def guid(value):
+            return lambda guide: guide["skillGroups"][0]["main"].update(guid=value)
+
+        for label, change in (("guid is a list", guid([])), ("guid is an object", guid({})),
+                              ("guid is an integer", guid(7)), ("guid is empty", guid("")),
+                              ("main is null", lambda guide: guide["skillGroups"][0].update(main=None)),
+                              ("group is null", lambda guide: guide["skillGroups"].__setitem__(0, None)),
+                              ("main is missing", lambda guide: guide["skillGroups"][0].pop("main")),
+                              ("kind is missing", lambda guide: guide["skillGroups"][0].pop("kind")),
+                              ("groups are not a list", lambda guide: guide.update(skillGroups={"0": guide["skillGroups"][0]})),
+                              ("groups are null", lambda guide: guide.update(skillGroups=None))):
+            with self.subTest(label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = producer(root, GROUPS, *matching())
+                guide = json.loads((directory / "guide-data.json").read_text(encoding="utf-8"))
+                change(guide)
+                write(directory / "guide-data.json", guide)
+                with self.assertRaisesRegex(ValueError, self.MESSAGE):
+                    archive(directory, observations(root), facts(root), root / "build.sqlite")
+                self.assertFalse((root / "build.sqlite").exists())
+
+    def test_the_import_command_refuses_a_malformed_guide_guid_safely(self):
+        from damage_lab.__main__ import main
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = producer(root, GROUPS, *matching())
+            guide = json.loads((directory / "guide-data.json").read_text(encoding="utf-8"))
+            guide["skillGroups"][0]["main"]["guid"] = [FOREIGN]
+            write(directory / "guide-data.json", guide)
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                code = main(["import", "--package", str(directory), "--output", str(root / "result")])
+            published = (root / "result").exists()
+        self.assertEqual((code, published, "differ between build.json and guide-data.json" in errors.getvalue(),
+                          FOREIGN in errors.getvalue(), "Synthetic skill" in errors.getvalue()),
+                         (1, False, True, False, False))
+
+    def test_legacy_empty_arrays_keep_the_guide_inventory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = archive(package(root), observations(root), facts(root), root / "build.sqlite")
+        self.assertEqual([entry["name"] for entry in result["inventory"]["skills"]], ["Chromatic Shot (level 20)"])
+
+    def test_the_import_command_publishes_nothing_for_a_mismatch(self):
+        from damage_lab.__main__ import main
+
+        active, passive = matching()
+        active[0] = slot(FOREIGN, 20)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = producer(root, GROUPS, active, passive)
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                code = main(["import", "--package", str(directory), "--output", str(root / "result")])
+            published = (root / "result").exists()
+        self.assertEqual((code, published, "differ between build.json and guide-data.json" in errors.getvalue(),
+                          FOREIGN in errors.getvalue(), "Synthetic skill" in errors.getvalue()),
+                         (1, False, True, False, False))
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import sqlite3
+from collections import Counter
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -249,6 +250,39 @@ def skills(guide, loadout):
 
     return [{"name": label(group["main"]), "details": [group["kind"]] + [label(support) for support in group["supports"]]}
             for group in guide["skillGroups"]]
+
+
+def consistent(guide, loadout):
+    """Refuse a loadout whose enabled main skills are not the guide groups of the same package.
+
+    Both empty arrays are the legacy synthetic shape and prove no current composition.
+    """
+    message = "Current loadout skills differ between build.json and guide-data.json"
+    arrays = loadout["skills"]
+    if arrays["activeSkills"] == [] and arrays["passiveSkills"] == []:
+        return
+    observed, expected = Counter(), Counter()
+    for name in ("activeSkills", "passiveSkills"):
+        if type(arrays[name]) is not list:
+            raise ValueError(message)
+        for slot in arrays[name]:
+            if type(slot) is not dict or type(slot.get("enabled")) is not bool:
+                raise ValueError(message)
+            if not slot["enabled"]:
+                continue
+            if type(slot.get("skillGuid")) is not str or not slot["skillGuid"] or type(slot.get("level")) is not int:
+                raise ValueError(message)
+            observed[name, slot["skillGuid"], slot["level"]] += 1
+    if type(guide.get("skillGroups")) is not list:
+        raise ValueError(message)
+    for group in guide["skillGroups"]:
+        main = group.get("main") if type(group) is dict else None
+        if (type(main) is not dict or group.get("kind") not in ("active", "aura") or type(main.get("guid")) is not str
+                or not main["guid"] or type(main.get("level")) is not int):
+            raise ValueError(message)
+        expected["activeSkills" if group["kind"] == "active" else "passiveSkills", main["guid"], main["level"]] += 1
+    if observed != expected:
+        raise ValueError(message)
 
 
 def talents(guide, loadout, coverage):
@@ -519,6 +553,15 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         raise ValueError("build.json does not match buildSha256 in manifest.json")
     guide = load(files["guide"])
     guide.pop("sourceSections", None)
+    # The guide groups must describe the current loadout before any guide-derived extraction
+    loadouts = build["loadouts"]
+    if not loadouts["loadouts"]:
+        raise ValueError("No loadouts are available in build.json")
+    selection = [item for item in loadouts["loadouts"] if item["id"] == loadouts.get("currentLoadoutId")]
+    if len(selection) != 1:
+        raise ValueError(f"Current loadout {loadouts.get('currentLoadoutId')!r} is not uniquely present in build.json")
+    loadout = selection[0]
+    consistent(guide, loadout)
     documents["skill_values"] = extract(guide)
     developer = load(observations) if observations is not None else {"evidence": {}, "panel": [], "benchmark": {"values": []}}
     facts_data = load(facts)
@@ -704,13 +747,6 @@ def archive(package: Path, observations: Path | None, facts: Path, database: Pat
         pending = [key for key in REQUIRED_STATS if key not in keys]
         pending += [key for key in stats if key not in keys and key not in pending]
         coverage.append("Native stats missing automatic fields: " + ", ".join(pending))
-    loadouts = build["loadouts"]
-    if not loadouts["loadouts"]:
-        raise ValueError("No loadouts are available in build.json")
-    selection = [item for item in loadouts["loadouts"] if item["id"] == loadouts.get("currentLoadoutId")]
-    if len(selection) != 1:
-        raise ValueError(f"Current loadout {loadouts.get('currentLoadoutId')!r} is not uniquely present in build.json")
-    loadout = selection[0]
     character = guide["character"]
 
     if synthetic:

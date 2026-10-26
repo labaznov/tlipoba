@@ -125,3 +125,92 @@ class ConditionalCliTests(unittest.TestCase):
             except OSError:
                 return
             self.assertEqual((main(args + ['--output', str(link)]), link.is_symlink()), (1, True))
+
+    def test_v2_command_publishes_a_spell_blocked_report_with_exact_file_hashes(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            declared = context()
+            declared['format'] = 'tli-conditional-combat-context-v2'
+            declared['topology'] = dict(declared['topology'], base=None)
+            declared['gates']['hit_topology'] = {'status': 'unknown', 'evidence': []}
+            imported = json.dumps(record()).encode('utf-8')
+            raw_context = json.dumps(declared).encode('utf-8')
+            (root / 'import.json').write_bytes(imported)
+            (root / 'context.json').write_bytes(raw_context)
+            code = main(['--import', str(root / 'import.json'), '--skill', 'gem[1]',
+                         '--context', str(root / 'context.json'), '--output', str(root / 'result')])
+            self.assertEqual(code, 0)
+            body = json.loads((root / 'result' / 'conditional-combat.json').read_text(encoding='utf-8'))
+            page = (root / 'result' / 'index.html').read_text(encoding='utf-8')
+            spell = body['automatic_inputs']['raw_spell']
+            self.assertEqual((code, body['version'], body['context']['topology']['base'],
+                              body['calculation']['scenario']['format'], body['calculation']['scenario']['topology']['base'],
+                              body['origins']['import']['sha256'], body['origins']['context']['sha256'],
+                              body['calculation']['dps'], [spell[name] for name in ('damage', 'critical', 'casting', 'double_damage')],
+                              '<p>База Tangle: неизвестно</p>' in page, (root / 'result' / 'foreign').exists()),
+                             (0, '0.1.1', None, 'tli-raw-cold-combat-v2', None,
+                              hashlib.sha256(imported).hexdigest(), hashlib.sha256(raw_context).hexdigest(),
+                              None, [None] * 4, True, False))
+
+    def test_v2_command_keeps_known_bases_zero_and_two_without_numeric_geometry(self):
+        import hashlib
+
+        for base in (0, 2):
+            with self.subTest(base=base), tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+                root = Path(folder)
+                declared = context()
+                declared['format'] = 'tli-conditional-combat-context-v2'
+                declared['topology'] = dict(declared['topology'], base=base)
+                imported = json.dumps(record()).encode('utf-8')
+                raw_context = json.dumps(declared).encode('utf-8')
+                (root / 'import.json').write_bytes(imported)
+                (root / 'context.json').write_bytes(raw_context)
+                code = main(['--import', str(root / 'import.json'), '--skill', 'gem[1]',
+                             '--context', str(root / 'context.json'), '--output', str(root / 'result')])
+                self.assertEqual(code, 0)
+                body = json.loads((root / 'result' / 'conditional-combat.json').read_text(encoding='utf-8'))
+                spell = body['automatic_inputs']['raw_spell']
+                published = body['context']['topology']['base']
+                scenario = body['calculation']['scenario']['topology']['base']
+                self.assertEqual((body['version'], type(published) is int, published, type(scenario) is int, scenario,
+                                  body['calculation']['scenario']['format'], body['calculation']['dps'],
+                                  body['calculation']['result']['topology'], body['calculation']['result']['factors'],
+                                  'topology.base: unavailable' in body['calculation']['gaps'],
+                                  [spell[name] for name in ('damage', 'critical', 'casting', 'double_damage')],
+                                  body['origins']['import']['sha256'], body['origins']['context']['sha256']),
+                                 ('0.1.1', True, base, True, base, 'tli-raw-cold-combat-v2', None, None, None, False,
+                                  [None] * 4, hashlib.sha256(imported).hexdigest(), hashlib.sha256(raw_context).hexdigest()))
+
+    def test_checked_in_v2_example_keeps_the_unknown_base_and_refuses_overwrite(self):
+        import hashlib
+
+        example = Path(__file__).resolve().parents[1] / 'examples' / 'conditional-context-v2.json'
+        raw_context = example.read_bytes()
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            imported = json.dumps(record()).encode('utf-8')
+            (root / 'import.json').write_bytes(imported)
+            code = main(['--import', str(root / 'import.json'), '--skill', 'gem[1]',
+                         '--context', str(example), '--output', str(root / 'result')])
+            self.assertEqual(code, 0)
+            body = json.loads((root / 'result' / 'conditional-combat.json').read_text(encoding='utf-8'))
+            spell = body['automatic_inputs']['raw_spell']
+            self.assertEqual((body['version'], body['context']['topology']['base'],
+                              body['calculation']['scenario']['topology']['base'],
+                              'topology.base: unavailable' in body['calculation']['gaps'],
+                              body['calculation']['dps'], body['calculation']['result']['topology'],
+                              body['calculation']['result']['factors'],
+                              [spell[name] for name in ('damage', 'critical', 'casting', 'double_damage')],
+                              body['origins']['context']['sha256'], body['origins']['import']['sha256'],
+                              body['origins']['context']['bytes']),
+                             ('0.1.1', None, None, True, None, None, None, [None] * 4,
+                              hashlib.sha256(raw_context).hexdigest(), hashlib.sha256(imported).hexdigest(), len(raw_context)))
+            existing = root / 'existing'
+            existing.mkdir()
+            (existing / 'foreign').write_text('preserve', encoding='utf-8')
+            with contextlib.redirect_stderr(io.StringIO()):
+                refused = main(['--import', str(root / 'import.json'), '--skill', 'gem[1]',
+                                '--context', str(example), '--output', str(existing)])
+            self.assertEqual((refused, (existing / 'foreign').read_text(encoding='utf-8')), (1, 'preserve'))

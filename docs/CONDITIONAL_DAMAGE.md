@@ -60,9 +60,12 @@ context or the import has no static ledger, the command refuses the operation.
 
 The context contains only explicit combat choices and evidence: `format`,
 `topology`, `target`, `uptime`, `gates`, `missing`, `notes`, `condition` and
-`coverage`. Its format is `tli-conditional-combat-context-v1`. Extra fields such as
-`spell`, `ledger` or damage rolls are rejected. The example is illustrative;
-its unknown gates and unknown Cursed state are deliberate, not confirmations.
+`coverage`. Version `tli-conditional-combat-context-v1` has no `topology.base`
+and publishes report `0.1.0`. Version `tli-conditional-combat-context-v2` adds
+`topology.base` and publishes report `0.1.1` in the same container. Extra fields
+such as `spell`, `ledger` or damage rolls are rejected. The examples are
+illustrative; their unknown gates and unknown Cursed state are deliberate, not
+confirmations.
 
 The import file is limited to 4 MiB and the context to 1 MiB. Duplicate keys,
 nonfinite numbers, underflow, malformed JSON and invalid contracts are refused.
@@ -74,3 +77,22 @@ A fresh output directory receives `conditional-combat.json` and an escaped
 actually applied by the calculation, and shows all blocking gaps. Existing output
 paths are not replaced. This command does not read the game, obtain market prices,
 infer an active curse or require manually entered character statistics.
+
+## Tangle base
+
+`topology.base` is absent from context v1. HTML labels that case as an unverified
+legacy assumption of one Tangle. The JSON report stays version `0.1.0` and its
+raw scenario stays `tli-raw-cold-combat-v1`.
+
+Context v2 requires `topology.base` to be an integer from 0 through 1000, or
+null. The assembler builds `tli-raw-cold-combat-v2` and report version `0.1.1`.
+Null keeps the existing `topology.base: unavailable` gap and is rejected when
+`hit_topology` is confirmed. A known integer is stored on the context and on
+`calculation.scenario.topology.base`. It is a scenario assertion, not an imported
+fact and not a confirmation of Carino geometry.
+
+Automatic imports still leave damage, critical, casting and double-damage groups
+null. Every automatic report stays spell-blocked, so DPS, result topology and
+factors stay null for base null, 0 and 2. No rank is added.
+`examples/conditional-context-v2.json` uses `base: null` and an unknown hit
+topology.

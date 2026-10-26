@@ -11,6 +11,11 @@ from .report import staticdetails, text
 from .staticcombat import summary
 
 FORMAT = 'tli-automatic-conditional-combat-report-v1'
+_CONTEXTS = {
+    'tli-conditional-combat-context-v1': ('0.1.0', 'tli-raw-cold-combat-v1'),
+    'tli-conditional-combat-context-v2': ('0.1.1', 'tli-raw-cold-combat-v2'),
+}
+_PAIRS = {('tli-conditional-combat-context-v1', '0.1.0'), ('tli-conditional-combat-context-v2', '0.1.1')}
 
 
 def _object(value, fields):
@@ -34,8 +39,10 @@ def build(record, context, *, skill_alias, origins):
     """Assemble the imported spell unchanged and apply only explicitly declared fight context."""
     _origins(origins)
     _object(context, 'format topology target uptime gates missing notes condition coverage')
-    if context['format'] != 'tli-conditional-combat-context-v1':
+    name = context['format']
+    if type(name) is not str or name not in _CONTEXTS:
         raise ValueError('Unsupported automatic conditional combat context format')
+    version, raw_format = _CONTEXTS[name]
     record = snapshot(record)
     if 'static_combat' not in record:
         raise ValueError('Automatic conditional combat requires an imported static ledger')
@@ -43,23 +50,39 @@ def build(record, context, *, skill_alias, origins):
     inputs = assemble(record, skill_alias=skill_alias)
     if inputs['raw_spell'] is None:
         raise ValueError('Selected automatic spell context is unavailable')
-    combat = {'format': 'tli-raw-cold-combat-v1', 'spell': copy.deepcopy(inputs['raw_spell']),
+    combat = {'format': raw_format, 'spell': copy.deepcopy(inputs['raw_spell']),
               **{key: copy.deepcopy(context[key]) for key in ('topology', 'target', 'uptime', 'gates', 'missing', 'notes')}}
     calculation = evaluate(combat, ledger, condition=context['condition'], coverage=context['coverage'])
-    return {'format': FORMAT, 'version': '0.1.0', 'origins': copy.deepcopy(origins), 'context': copy.deepcopy(context),
+    return {'format': FORMAT, 'version': version, 'origins': copy.deepcopy(origins), 'context': copy.deepcopy(context),
             'automatic_inputs': inputs, 'calculation': calculation,
             'import_complete': False, 'runtime_verified': False, 'identity_verified': False}
+
+
+def _canonical(value):
+    return json.dumps(value, sort_keys=True, allow_nan=False)
+
+
+def _base(expected):
+    if expected['version'] == '0.1.0':
+        return '<p>База Tangle: 1, непроверенное допущение legacy</p>'
+    base = expected['context']['topology']['base']
+    shown = 'неизвестно' if base is None else text(base)
+    return f'<p>База Tangle: {shown}</p>'
 
 
 def render(report):
     """Rebuild accepted observations before displaying gaps and unapplied versus applied inventory."""
     _object(report, 'format version origins context automatic_inputs calculation import_complete runtime_verified identity_verified')
-    if report['format'] != FORMAT or report['version'] != '0.1.0' or any(
-            report[key] is not False for key in ('import_complete', 'runtime_verified', 'identity_verified')):
+    context = report['context']
+    version = report['version']
+    name = context['format'] if type(context) is dict and 'format' in context else None
+    if (type(name) is not str or type(version) is not str or report['format'] != FORMAT
+            or (name, version) not in _PAIRS or any(
+            report[key] is not False for key in ('import_complete', 'runtime_verified', 'identity_verified'))):
         raise ValueError('Unsupported or promoted automatic conditional report')
     expected = build(report['automatic_inputs']['record'], report['context'],
                      skill_alias=report['automatic_inputs']['selection']['alias'], origins=report['origins'])
-    if report != expected:
+    if _canonical(report) != _canonical(expected):
         raise ValueError('Automatic conditional report differs from its source-bound reconstruction')
     result = expected['calculation']
     pretty = lambda value: text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False))
@@ -69,7 +92,8 @@ def render(report):
             '<style>body{font:16px system-ui;max-width:1100px;margin:2rem auto;padding:1rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>'
             '<h1>Автоматический условный расчёт</h1><p>Текущий персонаж, полный импорт и точный DPS не подтверждены.</p>'
             f'<p>Статус: {text(result["status"])}; DPS: {text(result["dps"]) if result["dps"] is not None else "Неизвестно"}</p>'
-            f'<h2>Происхождение файлов</h2><pre>{pretty(expected["origins"])}</pre>'
+            + _base(expected)
+            + f'<h2>Происхождение файлов</h2><pre>{pretty(expected["origins"])}</pre>'
             '<p>Хеши связывают сохранённые файлы; текущий персонаж и свежесть не подтверждены.</p>'
             f'<h2>Явные условия и покрытие</h2><pre>{pretty({"condition": result["condition"], "coverage": result["coverage"]})}</pre>'
             f'<h2>Пробелы автоматических входов</h2><pre>{pretty(expected["automatic_inputs"]["gaps"])}</pre>'

@@ -1,5 +1,14 @@
 # Project purpose
 
+## Current delegation cost policy (human update 2026-10-26)
+
+Ordinary work uses the subscription agents Codex, Claude Code, Z.ai and Grok-Cursor. Prioritize Grok and Z.ai for implementation and use a different vendor for review. DeepSeek is outside the primary rotation: assign it only explicit last-stage void work that remains unfinished after the subscription agents. Do not run paid DeepSeek heartbeat/inference polling while idle. A safety or permission stop is still held for review, never cleared by vendor/model fallback. This paragraph supersedes earlier ordinary-task routing orders that included DeepSeek.
+
+
+## Current autonomous mission and parallelism (human update 2026-10-25)
+
+Read `C:/Repos/tli-build-exporter/handoff/CONTROL.md` and the current addressed task at start and safe checkpoints. Autonomous handoff was accepted and released as private prerelease v0.1.0 on 2026-10-26; the current priority is Carino automatic import and traceable DPS. The human superseded the old global one-heavy-job limit: allow five independent isolated local jobs, initially 16 CPU units and 64 GiB requested memory, with exclusive locks only on genuinely shared resources. The tested runtime pool is active. Do not remove existing owned locks, duplicate watchers or expand game/safety permissions.
+
 Build an independent local Torchlight Infinite planner, inspired by the capabilities of Path of Building Community. Start with Carino / Zealot of War / Cold Chromatic Shot / Tangle in SS14. Read `docs/VISION.md` and `docs/ROADMAP.md` before substantial work. Keep replies short and direct.
 
 ## Planning and parallel work
@@ -11,12 +20,38 @@ Build an independent local Torchlight Infinite planner, inspired by the capabili
 - Never edit a file owned by an active agent; coordinate scope changes explicitly
 - On ambiguity, state the interpretation and resolve material unknowns; do not hide assumptions
 
+## Local resource budget
+
+The owner reported severe slowdown and rebooted after accumulated worker processes. Keep parallel reasoning within this shared Windows budget
+
+- Use the coordinator, the three primary external agents Grok, ZCode and Claude, and at most one Codex subagent at a time; DeepSeek is reserved for explicitly assigned last-stage void work under the cost policy above; keep each external queue serial and do not nest delegation
+- Run up to five independent isolated local jobs across both repositories within the initial aggregate budget of 16 CPU units and 65536 MiB; serialize conflicting shared resources by their explicit keys
+- The coordinator explicitly assigns bounded job budgets and shared resource keys before launch, including previously queued work; use the accepted runtime resource pool
+- Independent assigned jobs may overlap; preserve another owner's locks and do not overlap conflicting paths, Git indexes, installs or Reader sessions
+- Reuse returned terminal session IDs and existing verified watchers/servers; do not start replacement loops or servers while an earlier instance may still run
+- Keep commands in the foreground with bounded timeouts; account for owned children when a command fails or times out
+- Before starting and after finishing a long job, check that its owned processes ended; identify them by PID, start time and task ownership, never just an image name
+- Never kill all Python, Node, shell or Claude processes; preserve unrelated applications and needed helper sessions
+- Hash only the task's declared inputs and outputs; do not recursively inventory historical captures, catalogs, caches or Git objects for routine edits
+- If the owner reports slowdown or workers accumulate, stop launching jobs and inspect ownership before continuing
+
+## Game experiment windows
+
+- Control the game UI only during a user-authorized window when the owner is not playing; input inactivity alone is not authorization
+- The owner permits passive read-only memory acquisition while playing; keep it bounded within the shared resource budget and never take mouse or keyboard focus
+- Prefer saved inputs for development; a new passive scan must answer a concrete missing-data question rather than run continuously
+- Map character/build roots, field types, links and relocation/validation rules; do not treat a cached address or completed reads as proof of global uniqueness or an atomic live snapshot
+- Start with read-only navigation and stat acquisition; reversible build changes need a saved baseline, one changed variable and verified restoration
+- Pause on user return, focus loss, ambiguity or unexpected dialogs; record incomplete restoration instead of silently assuming success
+- Do not buy, sell, craft, spend currency or delete items as part of a routine experiment
+- Use ordinary UI and the existing read-only exporter; do not write to game memory
+
 ## External Claude helper
 
 The user provides Claude Code Opus 5.5 Extra through the file queue in the separate exporter repository. The protocol is `C:/Repos/tli-build-exporter/handoff/README.md`; read it before first use and follow its exact templates and permission boundaries.
 
 - Before substantial work, check the modification time of `C:/Repos/tli-build-exporter/handoff/.claude-alive`
-- When the heartbeat is no older than 2 minutes, actively delegate as much useful independent work as possible, including difficult research, implementation, diagnosis and review
+- When the heartbeat is no older than 2 minutes, delegate useful independent work, including difficult research, implementation, diagnosis and review, within the local resource budget
 - Supply complete tasks with exact paths, context, expected outputs, ownership and verification commands
 - Keep ready independent tasks queued when useful; the external watcher processes its queue serially, so order tasks by dependency and priority
 - Continue local work while Claude runs; read reports at dependency boundaries and verify their claims
@@ -24,6 +59,17 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 - Request results or proposed changes inside the helper's repository, then have the coordinating agent review and integrate them here
 - If the heartbeat is stale or missing, tell the user and continue available work locally instead of waiting
 - This rule does not expand the helper's permissions or authorize publishing, uploads or changes to its protocol
+
+## Delegation priority and independent review
+
+- Use the shared roster and addressed queue in `C:/Repos/tli-build-exporter/handoff/README.md` sections 9-10 for Grok, ZCode, DeepSeek and Claude availability, ownership and stopped-task records
+- Assign ordinary new and unclaimed unfinished technical tasks to Grok (`to: grok`) first, then z.ai / ZCode (`to: zcode`), using fresh presence and capabilities; provide exact inputs, acceptance criteria, file ownership and the resource assignment; DeepSeek follows the last-stage void policy above
+- After Grok, ZCode or DeepSeek reports `done`, assign Claude an independent review of the requirements and resulting diff; the author cannot approve its own work
+- Conserve Codex limits: delegate implementation and research first; use the coordinator for decomposition, verification and integration, and keep active file ownership intact
+- The coordinator verifies source hashes, failing/passing test evidence and owned-process completion, resolves review findings, and integrates only the reviewed result
+- Keep unfinished tasks visible and check completed successors before reassignment; record permission and safety stops for review rather than silently losing or automatically retrying them
+- A missing permission is requested from the human by the agent that needs it; a model change or user approval does not override system or provider restrictions
+- External agents remain inside the exporter repository; transfer reviewed proposals here through the coordinator, preserving the assigned parallel resource budget and Windows-only validation
 
 ## Git and scope
 
@@ -36,9 +82,11 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Implementation and tests
 
+- Run checks locally on the user's Windows machine; do not configure or trigger GitHub Actions runners or Linux/macOS checks unless the user changes this preference
+- Run `python scripts/test.py` once with the configured Python executable for the full local test suite; it invokes `python -m unittest discover -s tests -v`, so do not repeat discovery separately without a new change or failure
 - Use Python 3.13 or newer and the standard library unless a dependency is justified and authorized
 - Follow TDD for functional changes: first demonstrate the behavior with a failing test, then implement the smallest passing change
-- Run `python -m unittest discover -s tests -v` before reporting a functional change complete
+- Complete that full suite before reporting a functional change complete; do not install a self-hosted runner service as a substitute
 - Keep tests deterministic and independent of the game, Internet and user exports; use synthetic inputs and temporary directories
 - Map test files to feature files, keep each test focused on one behavior, and prefer short tests with one assertion
 - Prefer fakes over mocks and real temporary filesystem inputs over filesystem mocking
@@ -48,10 +96,17 @@ The user provides Claude Code Opus 5.5 Extra through the file queue in the separ
 
 ## Calculation integrity
 
+- Automatic import is a product requirement: acquire the complete build and available stats through a verified game API, build export or local read-only game adapter
+- Never make screenshots or manually transcribed character values a required player workflow; optional development evidence does not replace an importer
+- Treat missing hero ranks, rolls and stats as importer coverage gaps to investigate; do not declare the feature complete by asking players to fill them in
+- Investigate code/ID import first and verify the actual endpoint contract; do not invent server routes or send real build codes to unrelated services
+
 - Separate observed character values, source facts and scenario assumptions
 - Keep season, source URL and verification date with facts; preserve conflicting evidence instead of silently choosing it
 - Unknown mappings or mechanics must produce an explicit omission, conditional result or error
 - Never fabricate rolls, identifiers, skill levels, combat rotations, effect uptime or unsupported formula semantics
+- Resolve skill values from the exact level/rank table and verified parameter bindings; rendered descriptions can contain level-one or stale numbers
+- Parse catalog rational cells as numbers without evaluating expressions; preserve unresolved levels and flat progression tails as explicit gaps
 - Do not apply item or support multipliers again when a panel aggregate already includes them
 - Never fit a hidden coefficient to reproduce a benchmark; measurements validate the model
 - Show modifier coverage and a calculation trace; do not claim exact total DPS while material effects remain unsupported

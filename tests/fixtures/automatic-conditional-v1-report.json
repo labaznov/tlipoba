@@ -1,0 +1,1844 @@
+{
+  "format": "tli-automatic-conditional-combat-report-v1",
+  "version": "0.1.0",
+  "origins": {
+    "import": {
+      "kind": "automatic_import_json",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "bytes": 177
+    },
+    "context": {
+      "kind": "conditional_combat_context",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "bytes": 311
+    }
+  },
+  "context": {
+    "format": "tli-conditional-combat-context-v1",
+    "topology": {
+      "maximum": 3,
+      "extra": 1,
+      "active": 3,
+      "hits": 3,
+      "retention": 0.25
+    },
+    "target": {
+      "cold_resistance": 0.4,
+      "cold_penetration": 0.1,
+      "armor": 0,
+      "armor_effectiveness": 1,
+      "armor_penetration": 0,
+      "armor_penetration_order": "after_effectiveness",
+      "increased_taken": 0.2,
+      "more_taken": [
+        {
+          "id": "target-more",
+          "affix": "exposure",
+          "value": 0.1,
+          "stacks": 1,
+          "mode": "add"
+        }
+      ]
+    },
+    "uptime": 0.5,
+    "gates": {
+      "inheritance": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:inheritance"
+        ]
+      },
+      "hit_topology": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:hit_topology"
+        ]
+      },
+      "target_state": {
+        "status": "confirmed",
+        "evidence": [
+          "synthetic:target_state"
+        ]
+      }
+    },
+    "missing": [],
+    "notes": [
+      "Synthetic topology and target assertions"
+    ],
+    "condition": {
+      "cursed": null,
+      "evidence": []
+    },
+    "coverage": {
+      "status": "unknown",
+      "evidence": []
+    }
+  },
+  "automatic_inputs": {
+    "format": "tli-build-input-report-v1",
+    "status": "blocked",
+    "arithmetic_ready": false,
+    "runtime_verified": false,
+    "identity_verified": false,
+    "import_complete": false,
+    "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "selection": {
+      "alias": "gem[1]",
+      "basis": "explicit_alias",
+      "status": "observed"
+    },
+    "skill": {
+      "alias": "gem[1]",
+      "group": "group[1]",
+      "tab_position": 0,
+      "slot": 1,
+      "path": "sections.SkillLayout.data[0][0]",
+      "skill_id": 90017,
+      "gem_level": 7,
+      "effective_level": null,
+      "lookup_level_meaning": "observed_gem_level_not_effective",
+      "catalog_category": "Active",
+      "status": "profiled",
+      "reason": null,
+      "profile": {
+        "format": "tli-skill-profile-v0",
+        "version": "0.2.1",
+        "runtimeVerified": false,
+        "level": 7,
+        "identity": {
+          "status": "exact",
+          "tlidbId": 90017,
+          "guid": "synthetic-guid",
+          "guidStatus": "ok"
+        },
+        "tags": {
+          "status": "supplied",
+          "skill": [
+            "activation_medium",
+            "projectile",
+            "spell"
+          ],
+          "damageTypes": [
+            "physical"
+          ],
+          "reserved": []
+        },
+        "mainStat": {
+          "status": "supplied",
+          "attributes": [
+            "intelligence"
+          ]
+        },
+        "effectivenessOfAddedDamage": {
+          "status": "stated",
+          "text": "117.5%",
+          "value": "1.175"
+        },
+        "castSpeedField": {
+          "status": "stated",
+          "text": "0.73 s",
+          "seconds": "0.73"
+        },
+        "hit": {
+          "status": "catalog_render_consistent",
+          "type": "physical",
+          "min": "11",
+          "max": "19",
+          "level": 7,
+          "binding": {
+            "min": "value1Min",
+            "max": "value1Max"
+          },
+          "checkedAtLevel": 20
+        }
+      },
+      "ordinary_support": null,
+      "passive_effect": null
+    },
+    "modifiers": {
+      "format": "tli-ledger-inputs-v1",
+      "status": "inventory_unverified",
+      "arithmetic_ready": false,
+      "runtime_verified": false,
+      "identity_verified": false,
+      "import_complete": false,
+      "skill": {
+        "tags": [
+          "activation_medium",
+          "projectile",
+          "spell"
+        ],
+        "inferred": false
+      },
+      "ledger": {
+        "format": "tli-static-combat-modifiers-v1",
+        "version": "0.4.4",
+        "source": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "section": "captured"
+        },
+        "catalog": {
+          "documents": {
+            "legendaries/helmet/int_helmet/master": {
+              "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "ok",
+              "issue": null,
+              "season_id": "SS14",
+              "schema_version": 1
+            }
+          },
+          "flags": []
+        },
+        "runtime": {
+          "verified": false,
+          "selection_verified": false,
+          "source_patch": "unknown",
+          "activation": "unverified"
+        },
+        "accounting": {
+          "items": 1,
+          "empty_rows": 0,
+          "observed": 1,
+          "compiled": 1,
+          "omitted": 0,
+          "structural_gaps": 0,
+          "reconciles": true,
+          "scope": "all_rows"
+        },
+        "omitted": [],
+        "structural_gaps": []
+      },
+      "added": [],
+      "increased": [],
+      "attributes": [],
+      "speed": [],
+      "excluded": [
+        {
+          "item": "gear[0]",
+          "path": "sections.WearItems.data[0].sourceData.AffixList.PrefixInfoList[0]",
+          "list": "PrefixInfoList",
+          "native_id": 51423041,
+          "family": "conditional_damage_more",
+          "targets": [
+            "damage"
+          ],
+          "scope": "any",
+          "owner": "player",
+          "applies_to_player_spell": true,
+          "unit": "percent",
+          "values": [
+            {
+              "exact": "20",
+              "source": "DynArgs[0]",
+              "fraction": "0.2",
+              "source_path": "sections.WearItems.data[0].sourceData.AffixList.PrefixInfoList[0].DynArgs[0]"
+            }
+          ],
+          "definition": {
+            "catalog": "legendaries/helmet/int_helmet/master",
+            "id": "82e70ff7-cec2-538b-a379-44cae35d31a4",
+            "template_source": "descriptionTemplate",
+            "variant": "normal"
+          },
+          "pool": {
+            "id": "82e70ff7-cec2-538b-a379-44cae35d31a4",
+            "status": "exact",
+            "basis": "legendary_mod"
+          },
+          "template_sign": "+",
+          "status": "compiled_unverified_runtime",
+          "condition": {
+            "kind": "target_cursed",
+            "state": "unknown"
+          },
+          "reason": "family_not_mapped"
+        }
+      ],
+      "gaps": [
+        {
+          "kind": "runtime_unverified"
+        },
+        {
+          "kind": "selection_unverified"
+        },
+        {
+          "kind": "source_patch_unknown"
+        },
+        {
+          "kind": "activation_unverified"
+        },
+        {
+          "kind": "family_not_mapped",
+          "count": 1
+        }
+      ]
+    },
+    "installation": {
+      "status": "observed_group_only",
+      "members": [
+        {
+          "alias": "gem[1]",
+          "group": "group[1]",
+          "tab_position": 0,
+          "group_status": "ok",
+          "slot": 1,
+          "path": "sections.SkillLayout.data[0][0]",
+          "base_id": 90017,
+          "gem_level": {
+            "value": 7,
+            "meaning": "observed_gem_level_not_effective"
+          },
+          "category": "active_skill",
+          "status": "excluded_category",
+          "reason": null,
+          "effects": null
+        },
+        {
+          "alias": "gem[2]",
+          "group": "group[1]",
+          "tab_position": 0,
+          "group_status": "ok",
+          "slot": 4,
+          "path": "sections.SkillLayout.data[0][2]",
+          "base_id": 90029,
+          "gem_level": {
+            "value": 13,
+            "meaning": "observed_gem_level_not_effective"
+          },
+          "category": "noble_support",
+          "status": "effect_candidates",
+          "reason": null,
+          "effects": {
+            "format": "tli-support-effects-canonical-v1",
+            "version": "0.2.0",
+            "identity": {
+              "status": "supplied_data_exact",
+              "catalog_tlidb_id": 90029,
+              "native_base_id": 90029,
+              "category": "Noble_Support",
+              "guid": "synthetic-support"
+            },
+            "arithmetic_ready": false,
+            "activation": "unknown",
+            "effective_level": "unknown",
+            "patch": "unknown",
+            "runtime_verified": false,
+            "additional_group_identity": "unresolved",
+            "prefix": {
+              "status": "supplied",
+              "rows": 2,
+              "null_rows": 1
+            },
+            "catalog_schema": "ok",
+            "rolled_lines": [
+              {
+                "origin": "native_prefix_row",
+                "path": "prefix[1]",
+                "line_id": "X9",
+                "native_id": "X91",
+                "tier": 1,
+                "role": "additional_hit_damage",
+                "unit": "percent",
+                "template": "+#% additional Hit Damage for the supported skill",
+                "values": [
+                  {
+                    "exact": "24.125",
+                    "fraction": "0.24125",
+                    "range": {
+                      "min": "23",
+                      "max": "29"
+                    }
+                  }
+                ],
+                "native_version": {
+                  "value": 7,
+                  "meaning": "unverified"
+                },
+                "status": "native_roll_exact"
+              }
+            ],
+            "omissions": [],
+            "constants": [
+              {
+                "origin": "catalog_literal",
+                "source": {
+                  "field": "templateDescription",
+                  "line": 0
+                },
+                "kind": "support_restriction",
+                "parameters": {},
+                "status": "catalog_literal_unverified_runtime"
+              },
+              {
+                "origin": "catalog_literal",
+                "source": {
+                  "field": "templateDescription",
+                  "line": 1
+                },
+                "kind": "additional_damage",
+                "parameters": {
+                  "percent": "20"
+                },
+                "status": "catalog_literal_unverified_runtime"
+              },
+              {
+                "origin": "catalog_literal",
+                "source": {
+                  "field": "templateDescription",
+                  "line": 2
+                },
+                "kind": "conversion",
+                "parameters": {
+                  "from": "physical",
+                  "to": "cold",
+                  "percent": "100"
+                },
+                "status": "catalog_literal_unverified_runtime"
+              },
+              {
+                "origin": "catalog_literal",
+                "source": {
+                  "field": "templateDescription",
+                  "line": 3
+                },
+                "kind": "tag_grant",
+                "parameters": {
+                  "tag": "cold"
+                },
+                "status": "catalog_literal_unverified_runtime"
+              }
+            ],
+            "constant_issues": [],
+            "medium_trigger": {
+              "status": "legacy_absent"
+            }
+          }
+        }
+      ]
+    },
+    "gaps": [
+      "effective_level_unknown",
+      "current_patch_unverified",
+      "base_damage_unverified",
+      "main_attributes_unresolved",
+      "critical_pools_unresolved",
+      "cast_pools_unresolved",
+      "double_damage_unresolved",
+      "conversion_unverified",
+      "support_activation_unverified",
+      "combat_context_unresolved",
+      "modifiers:runtime_unverified",
+      "modifiers:selection_unverified",
+      "modifiers:source_patch_unknown",
+      "modifiers:activation_unverified",
+      "modifiers:family_not_mapped"
+    ],
+    "raw_spell": {
+      "format": "tli-raw-cold-spell-v2",
+      "context": {
+        "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "skill_id": "synthetic-guid",
+        "effective_level": null,
+        "gates": {
+          "version": {
+            "status": "unknown",
+            "evidence": [
+              "skill/Active/master"
+            ]
+          },
+          "level": {
+            "status": "unknown",
+            "evidence": [
+              "sections.SkillLayout.data[0][0]"
+            ]
+          },
+          "base": {
+            "status": "unknown",
+            "evidence": [
+              "skill/Active/master.skills[synthetic-guid]"
+            ]
+          },
+          "conversion": {
+            "status": "unknown",
+            "evidence": []
+          }
+        }
+      },
+      "damage": null,
+      "critical": null,
+      "casting": null,
+      "double_damage": null,
+      "missing": [
+        "main_attributes_unresolved",
+        "critical_pools_unresolved",
+        "cast_pools_unresolved",
+        "double_damage_unresolved",
+        "support_activation_unverified",
+        "modifiers:runtime_unverified",
+        "modifiers:selection_unverified",
+        "modifiers:source_patch_unknown",
+        "modifiers:activation_unverified",
+        "modifiers:family_not_mapped"
+      ],
+      "notes": [
+        "Imported candidate rows are not complete damage, critical, casting or Double Damage groups",
+        "No panel or benchmark supplies unavailable raw inputs"
+      ]
+    },
+    "raw_result": {
+      "format": "tli-raw-cold-spell-report-v2",
+      "status": "blocked",
+      "pre_defence_dps": null,
+      "gaps": [
+        "version: unknown",
+        "level: unknown",
+        "base: unknown",
+        "conversion: unknown",
+        "main_attributes_unresolved",
+        "critical_pools_unresolved",
+        "cast_pools_unresolved",
+        "double_damage_unresolved",
+        "support_activation_unverified",
+        "modifiers:runtime_unverified",
+        "modifiers:selection_unverified",
+        "modifiers:source_patch_unknown",
+        "modifiers:activation_unverified",
+        "modifiers:family_not_mapped",
+        "double_damage: unavailable",
+        "damage: unavailable",
+        "critical: unavailable",
+        "casting: unavailable"
+      ],
+      "scenario": {
+        "format": "tli-raw-cold-spell-v2",
+        "context": {
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "skill_id": "synthetic-guid",
+          "effective_level": null,
+          "gates": {
+            "version": {
+              "status": "unknown",
+              "evidence": [
+                "skill/Active/master"
+              ]
+            },
+            "level": {
+              "status": "unknown",
+              "evidence": [
+                "sections.SkillLayout.data[0][0]"
+              ]
+            },
+            "base": {
+              "status": "unknown",
+              "evidence": [
+                "skill/Active/master.skills[synthetic-guid]"
+              ]
+            },
+            "conversion": {
+              "status": "unknown",
+              "evidence": []
+            }
+          }
+        },
+        "damage": null,
+        "critical": null,
+        "casting": null,
+        "double_damage": null,
+        "missing": [
+          "main_attributes_unresolved",
+          "critical_pools_unresolved",
+          "cast_pools_unresolved",
+          "double_damage_unresolved",
+          "support_activation_unverified",
+          "modifiers:runtime_unverified",
+          "modifiers:selection_unverified",
+          "modifiers:source_patch_unknown",
+          "modifiers:activation_unverified",
+          "modifiers:family_not_mapped"
+        ],
+        "notes": [
+          "Imported candidate rows are not complete damage, critical, casting or Double Damage groups",
+          "No panel or benchmark supplies unavailable raw inputs"
+        ]
+      },
+      "trace": [],
+      "assumptions": [
+        "Evidence gates are caller assertions; runtime identity and freshness are not verified",
+        "Base Physical damage uses ordinary complete conversion to Cold",
+        "Each damage component has the stated midpoint mean; Lucky applies only to critical chance",
+        "All supplied pools are complete for this scenario and applied once without a panel",
+        "The result is one caster before enemy defence, damage taken, Tangle topology and uptime",
+        "Tick rounding, when selected, is a separate unverified 30 Hz hypothesis",
+        "Critical chance is supplied before the scenario Lucky adjustment",
+        "Negative pooled increased damage factors are clamped to zero as a scenario rule, not verified game behavior",
+        "Double Damage uses caller-asserted conditional probabilities and the same midpoint in every crit/DD branch"
+      ]
+    },
+    "record": {
+      "name": "Synthetic import",
+      "import_status": "partial",
+      "missing_stats": [
+        "cast_rate"
+      ],
+      "coverage": [
+        "Synthetic unmapped effect"
+      ],
+      "capturedAt": "2001-02-03T04:05:06Z",
+      "character": "Synthetic Carino",
+      "synthetic": true,
+      "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "stats": {
+        "spell_dps": 84317
+      },
+      "benchmark": {
+        "survival": 9217
+      },
+      "inventory": {
+        "gear": [
+          {
+            "name": "Synthetic wand",
+            "details": [
+              "Fictional modifier"
+            ]
+          }
+        ]
+      },
+      "observations": [
+        {
+          "key": "spell_dps",
+          "label": "Spell DPS",
+          "value": 84317,
+          "unit": "damage/s",
+          "precision": "exact integer",
+          "evidence": "native fixture"
+        }
+      ],
+      "native_stats": {
+        "format": "tli-native-stats-v1",
+        "status": "decoded",
+        "known": 2,
+        "unknown_stat_ids": 1,
+        "protocol_verified": false
+      },
+      "static_combat": {
+        "format": "tli-static-combat-modifiers-v1",
+        "version": "0.4.4",
+        "source": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "section": "captured"
+        },
+        "catalog": {
+          "documents": {
+            "legendaries/helmet/int_helmet/master": {
+              "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "ok",
+              "issue": null,
+              "season_id": "SS14",
+              "schema_version": 1
+            }
+          },
+          "flags": []
+        },
+        "runtime": {
+          "verified": false,
+          "selection_verified": false,
+          "source_patch": "unknown",
+          "activation": "unverified"
+        },
+        "items": [
+          {
+            "alias": "gear[0]",
+            "path": "sections.WearItems.data[0]",
+            "identity": {
+              "status": "exact",
+              "kind": "legendary",
+              "catalog": "legendaries/helmet/int_helmet/master",
+              "definition": "b4aa6245-131d-57ba-88cf-64f2d452a8d4",
+              "tlidb_id": "112230"
+            }
+          }
+        ],
+        "modifiers": [
+          {
+            "item": "gear[0]",
+            "path": "sections.WearItems.data[0].sourceData.AffixList.PrefixInfoList[0]",
+            "list": "PrefixInfoList",
+            "native_id": 51423041,
+            "family": "conditional_damage_more",
+            "targets": [
+              "damage"
+            ],
+            "scope": "any",
+            "owner": "player",
+            "applies_to_player_spell": true,
+            "unit": "percent",
+            "values": [
+              {
+                "exact": "20",
+                "source": "DynArgs[0]",
+                "fraction": "0.2"
+              }
+            ],
+            "definition": {
+              "catalog": "legendaries/helmet/int_helmet/master",
+              "id": "82e70ff7-cec2-538b-a379-44cae35d31a4",
+              "template_source": "descriptionTemplate",
+              "variant": "normal"
+            },
+            "pool": {
+              "id": "82e70ff7-cec2-538b-a379-44cae35d31a4",
+              "status": "exact",
+              "basis": "legendary_mod"
+            },
+            "template_sign": "+",
+            "status": "compiled_unverified_runtime",
+            "condition": {
+              "kind": "target_cursed",
+              "state": "unknown"
+            }
+          }
+        ],
+        "omitted": [],
+        "structural_gaps": [],
+        "accounting": {
+          "items": 1,
+          "empty_rows": 0,
+          "observed": 1,
+          "compiled": 1,
+          "omitted": 0,
+          "structural_gaps": 0,
+          "reconciles": true,
+          "scope": "all_rows"
+        }
+      },
+      "installed_skills": {
+        "format": "tli-support-inventory-v0",
+        "version": "0.1.2",
+        "source": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "binding": "caller_supplied"
+        },
+        "runtime": {
+          "verified": false,
+          "identity_verified": false,
+          "freshness": "unknown",
+          "activation": "unknown",
+          "panel_skill": "unverified"
+        },
+        "domains": {
+          "client": {
+            "status": "captured",
+            "tabs": 4,
+            "null_tabs": 1,
+            "rows": 4,
+            "null_rows": 1
+          },
+          "server": {
+            "status": "captured",
+            "slots": 7,
+            "null_slots": 1,
+            "reconciled": 4,
+            "unmatched": 1
+          }
+        },
+        "groups": [
+          {
+            "alias": "group[1]",
+            "tab_position": 0,
+            "tab_idx": 1,
+            "status": "ok",
+            "members": [
+              {
+                "alias": "gem[1]",
+                "slot": 1,
+                "skill_id": 90017,
+                "gem_level": 7,
+                "level_status": "ok",
+                "client_flags": {
+                  "valid": true,
+                  "is_active": false
+                },
+                "path": "sections.SkillLayout.data[0][0]",
+                "membership": "exact_instance",
+                "server_key": 17,
+                "server_status": "Activating",
+                "server_path": "sections.ServerSource.data.featuresInfo.skillLayout.slots[0]"
+              },
+              {
+                "alias": "gem[2]",
+                "slot": 4,
+                "skill_id": 90029,
+                "gem_level": 13,
+                "level_status": "ok",
+                "client_flags": {
+                  "valid": true,
+                  "is_active": false
+                },
+                "path": "sections.SkillLayout.data[0][2]",
+                "membership": "exact_instance",
+                "server_key": 231,
+                "server_status": null,
+                "server_path": "sections.ServerSource.data.featuresInfo.skillLayout.slots[2]"
+              }
+            ]
+          },
+          {
+            "alias": "group[2]",
+            "tab_position": 2,
+            "tab_idx": 3,
+            "status": "ok",
+            "members": [
+              {
+                "alias": "gem[3]",
+                "slot": 1,
+                "skill_id": 90041,
+                "gem_level": 19,
+                "level_status": "ok",
+                "client_flags": {
+                  "valid": true,
+                  "is_active": false
+                },
+                "path": "sections.SkillLayout.data[2][0]",
+                "membership": "exact_instance",
+                "server_key": 59,
+                "server_status": null,
+                "server_path": "sections.ServerSource.data.featuresInfo.skillLayout.slots[3]"
+              },
+              {
+                "alias": "gem[4]",
+                "slot": 6,
+                "skill_id": 90053,
+                "gem_level": null,
+                "level_status": "invalid_level",
+                "client_flags": {
+                  "valid": true,
+                  "is_active": false
+                },
+                "path": "sections.SkillLayout.data[2][1]",
+                "membership": "exact_instance",
+                "server_key": 401,
+                "server_status": null,
+                "server_path": "sections.ServerSource.data.featuresInfo.skillLayout.slots[4]"
+              }
+            ]
+          }
+        ],
+        "relationships": [
+          {
+            "group": "group[1]",
+            "primary": "gem[1]",
+            "secondary": "gem[2]",
+            "status": "installed_observed",
+            "basis": "client_tab_co_membership",
+            "activation": "unknown",
+            "effective_level": null,
+            "effective_level_reason": "gem_level_is_not_effective_level",
+            "panel_skill": "unverified"
+          },
+          {
+            "group": "group[2]",
+            "primary": "gem[3]",
+            "secondary": "gem[4]",
+            "status": "installed_observed",
+            "basis": "client_tab_co_membership",
+            "activation": "unknown",
+            "effective_level": null,
+            "effective_level_reason": "gem_level_is_not_effective_level",
+            "panel_skill": "unverified"
+          }
+        ],
+        "unmatched_server_slots": [
+          {
+            "path": "sections.ServerSource.data.featuresInfo.skillLayout.slots[5]",
+            "reason": "no_exact_instance_match"
+          }
+        ],
+        "issues": [
+          {
+            "path": "sections.SkillLayout.data[0][1]",
+            "reason": "null_row"
+          },
+          {
+            "path": "sections.ServerSource.data.featuresInfo.skillLayout.slots[6]",
+            "reason": "invalid_server_slot"
+          }
+        ]
+      },
+      "installed_support_effects": {
+        "format": "tli-installed-support-effects-canonical-v1",
+        "version": "0.2.0",
+        "inventory_version": "0.1.2",
+        "effects_version": "0.2.0",
+        "source": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "binding": "caller_supplied_document_only"
+        },
+        "arithmetic_ready": false,
+        "runtime_verified": false,
+        "identity_verified": false,
+        "import_complete": false,
+        "activation": "unknown",
+        "patch": "unknown",
+        "effective_level": null,
+        "client_layer": "captured",
+        "server_layer": "captured",
+        "members": [
+          {
+            "alias": "gem[1]",
+            "group": "group[1]",
+            "tab_position": 0,
+            "group_status": "ok",
+            "slot": 1,
+            "path": "sections.SkillLayout.data[0][0]",
+            "base_id": 90017,
+            "gem_level": {
+              "value": 7,
+              "meaning": "observed_gem_level_not_effective"
+            },
+            "category": "active_skill",
+            "status": "excluded_category",
+            "reason": null,
+            "effects": null
+          },
+          {
+            "alias": "gem[2]",
+            "group": "group[1]",
+            "tab_position": 0,
+            "group_status": "ok",
+            "slot": 4,
+            "path": "sections.SkillLayout.data[0][2]",
+            "base_id": 90029,
+            "gem_level": {
+              "value": 13,
+              "meaning": "observed_gem_level_not_effective"
+            },
+            "category": "noble_support",
+            "status": "effect_candidates",
+            "reason": null,
+            "effects": {
+              "format": "tli-support-effects-canonical-v1",
+              "version": "0.2.0",
+              "identity": {
+                "status": "supplied_data_exact",
+                "catalog_tlidb_id": 90029,
+                "native_base_id": 90029,
+                "category": "Noble_Support",
+                "guid": "synthetic-support"
+              },
+              "arithmetic_ready": false,
+              "activation": "unknown",
+              "effective_level": "unknown",
+              "patch": "unknown",
+              "runtime_verified": false,
+              "additional_group_identity": "unresolved",
+              "prefix": {
+                "status": "supplied",
+                "rows": 2,
+                "null_rows": 1
+              },
+              "catalog_schema": "ok",
+              "rolled_lines": [
+                {
+                  "origin": "native_prefix_row",
+                  "path": "prefix[1]",
+                  "line_id": "X9",
+                  "native_id": "X91",
+                  "tier": 1,
+                  "role": "additional_hit_damage",
+                  "unit": "percent",
+                  "template": "+#% additional Hit Damage for the supported skill",
+                  "values": [
+                    {
+                      "exact": "24.125",
+                      "fraction": "0.24125",
+                      "range": {
+                        "min": "23",
+                        "max": "29"
+                      }
+                    }
+                  ],
+                  "native_version": {
+                    "value": 7,
+                    "meaning": "unverified"
+                  },
+                  "status": "native_roll_exact"
+                }
+              ],
+              "omissions": [],
+              "constants": [
+                {
+                  "origin": "catalog_literal",
+                  "source": {
+                    "field": "templateDescription",
+                    "line": 0
+                  },
+                  "kind": "support_restriction",
+                  "parameters": {},
+                  "status": "catalog_literal_unverified_runtime"
+                },
+                {
+                  "origin": "catalog_literal",
+                  "source": {
+                    "field": "templateDescription",
+                    "line": 1
+                  },
+                  "kind": "additional_damage",
+                  "parameters": {
+                    "percent": "20"
+                  },
+                  "status": "catalog_literal_unverified_runtime"
+                },
+                {
+                  "origin": "catalog_literal",
+                  "source": {
+                    "field": "templateDescription",
+                    "line": 2
+                  },
+                  "kind": "conversion",
+                  "parameters": {
+                    "from": "physical",
+                    "to": "cold",
+                    "percent": "100"
+                  },
+                  "status": "catalog_literal_unverified_runtime"
+                },
+                {
+                  "origin": "catalog_literal",
+                  "source": {
+                    "field": "templateDescription",
+                    "line": 3
+                  },
+                  "kind": "tag_grant",
+                  "parameters": {
+                    "tag": "cold"
+                  },
+                  "status": "catalog_literal_unverified_runtime"
+                }
+              ],
+              "constant_issues": [],
+              "medium_trigger": {
+                "status": "legacy_absent"
+              }
+            }
+          },
+          {
+            "alias": "gem[3]",
+            "group": "group[2]",
+            "tab_position": 2,
+            "group_status": "ok",
+            "slot": 1,
+            "path": "sections.SkillLayout.data[2][0]",
+            "base_id": 90041,
+            "gem_level": {
+              "value": 19,
+              "meaning": "observed_gem_level_not_effective"
+            },
+            "category": "active_skill",
+            "status": "excluded_category",
+            "reason": null,
+            "effects": null
+          },
+          {
+            "alias": "gem[4]",
+            "group": "group[2]",
+            "tab_position": 2,
+            "group_status": "ok",
+            "slot": 6,
+            "path": "sections.SkillLayout.data[2][1]",
+            "base_id": 90053,
+            "gem_level": {
+              "value": null,
+              "meaning": "observed_gem_level_not_effective"
+            },
+            "category": "active_skill",
+            "status": "excluded_category",
+            "reason": null,
+            "effects": null
+          }
+        ],
+        "accounting": {
+          "members": 4,
+          "effect_candidates": 1,
+          "excluded": 3,
+          "gaps": 0,
+          "reconciles": true
+        },
+        "limitations": [
+          "source sha256 binds the caller-supplied document only; no source bytes are read or verified",
+          "catalog records are taken as supplied; no catalog bytes or hashes are verified",
+          "installation is observed membership only; activation, effective level and panel skill are unknown"
+        ]
+      },
+      "installed_support_catalog": {
+        "derivation": "cache_member_exact_slice",
+        "network_bytes_verified": false,
+        "current_patch_verified": false,
+        "identity_bridges": "none_applied",
+        "mapping_files": [
+          {
+            "file": "needed-bundles.json",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "bytes": 387
+          },
+          {
+            "file": "endgame-bundles.json",
+            "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "bytes": 73
+          }
+        ],
+        "documents": [
+          {
+            "role": "master",
+            "category": "Active",
+            "logical_path": "skill/Active/master",
+            "address": "/data/SS14/skill/Active/master.json",
+            "cache_file": "a19e73bc52d08f46.json",
+            "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "member": "skill/Active/master",
+            "byte_range": [
+              19,
+              87
+            ],
+            "member_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "encoding": "utf-8"
+          },
+          {
+            "role": "english",
+            "category": "Active",
+            "logical_path": "skill/Active/i18n/en",
+            "address": "/data/SS14/skill/Active/i18n/en.json",
+            "cache_file": "a19e73bc52d08f46.json",
+            "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "member": "skill/Active/i18n/en",
+            "byte_range": [
+              101,
+              211
+            ],
+            "member_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "encoding": "utf-8"
+          },
+          {
+            "role": "master",
+            "category": "Noble_Support",
+            "logical_path": "skill/Noble_Support/master",
+            "address": "/data/SS14/skill/Noble_Support/master.json",
+            "cache_file": "a19e73bc52d08f46.json",
+            "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "member": "skill/Noble_Support/master",
+            "byte_range": [
+              241,
+              381
+            ],
+            "member_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "encoding": "utf-8"
+          },
+          {
+            "role": "english",
+            "category": "Noble_Support",
+            "logical_path": "skill/Noble_Support/i18n/en",
+            "address": "/data/SS14/skill/Noble_Support/i18n/en.json",
+            "cache_file": "a19e73bc52d08f46.json",
+            "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "member": "skill/Noble_Support/i18n/en",
+            "byte_range": [
+              411,
+              612
+            ],
+            "member_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "encoding": "utf-8"
+          }
+        ],
+        "categories": {
+          "Active": {
+            "master": "present",
+            "english": "present"
+          },
+          "Noble_Support": {
+            "master": "present",
+            "english": "present"
+          },
+          "Ignored_English": {
+            "master": "missing",
+            "english": "missing"
+          }
+        },
+        "records": 17,
+        "skills": 9,
+        "invalid_records": 2,
+        "withheld_records": 6,
+        "reconciles": true,
+        "records_without_english": 5,
+        "withheld_record_ids": [
+          3169,
+          9023,
+          7108
+        ]
+      },
+      "installed_skill_profiles": {
+        "format": "tli-installed-skill-profiles-v1",
+        "version": "0.1.2",
+        "profile_version": "0.2.1",
+        "source": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "binding": "caller_supplied"
+        },
+        "catalog": {
+          "derivation": "cache_member_exact_slice",
+          "network_bytes_verified": false,
+          "current_patch_verified": false,
+          "identity_bridges": "none_applied",
+          "mapping_files": [
+            {
+              "file": "needed-bundles.json",
+              "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "bytes": 387
+            },
+            {
+              "file": "endgame-bundles.json",
+              "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "bytes": 73
+            }
+          ],
+          "documents": [
+            {
+              "role": "master",
+              "category": "Active",
+              "logical_path": "skill/Active/master",
+              "address": "/data/SS14/skill/Active/master.json",
+              "cache_file": "a19e73bc52d08f46.json",
+              "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "member": "skill/Active/master",
+              "byte_range": [
+                19,
+                87
+              ],
+              "member_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "encoding": "utf-8"
+            },
+            {
+              "role": "english",
+              "category": "Active",
+              "logical_path": "skill/Active/i18n/en",
+              "address": "/data/SS14/skill/Active/i18n/en.json",
+              "cache_file": "a19e73bc52d08f46.json",
+              "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "member": "skill/Active/i18n/en",
+              "byte_range": [
+                101,
+                211
+              ],
+              "member_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+              "encoding": "utf-8"
+            },
+            {
+              "role": "master",
+              "category": "Noble_Support",
+              "logical_path": "skill/Noble_Support/master",
+              "address": "/data/SS14/skill/Noble_Support/master.json",
+              "cache_file": "a19e73bc52d08f46.json",
+              "wrapper_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "member": "skill/Noble_Support/master",
+              "byte_range": [
+                241,
+                381
+              ],
+              "member_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "encoding": "utf-8"
+            }
+          ],
+          "categories": {
+            "Active": {
+              "master": "present",
+              "english": "present"
+            },
+            "Noble_Support": {
+              "master": "present",
+              "english": "missing"
+            },
+            "Ignored_English": {
+              "master": "missing",
+              "english": "missing"
+            }
+          },
+          "records": 17,
+          "skills": 9,
+          "invalid_records": 2,
+          "withheld_records": 6,
+          "reconciles": true,
+          "records_without_english": 5,
+          "withheld_record_ids": [
+            3169,
+            9023,
+            7108
+          ]
+        },
+        "arithmetic_ready": false,
+        "runtime_verified": false,
+        "identity_verified": false,
+        "import_complete": false,
+        "activation": "unknown",
+        "patch": "unknown",
+        "effective_level": null,
+        "client_layer": "captured",
+        "members": [
+          {
+            "alias": "gem[1]",
+            "group": "group[1]",
+            "tab_position": 0,
+            "slot": 1,
+            "path": "sections.SkillLayout.data[0][0]",
+            "skill_id": 90017,
+            "gem_level": 7,
+            "effective_level": null,
+            "lookup_level_meaning": "observed_gem_level_not_effective",
+            "catalog_category": "Active",
+            "status": "profiled",
+            "reason": null,
+            "profile": {
+              "format": "tli-skill-profile-v0",
+              "version": "0.2.1",
+              "runtimeVerified": false,
+              "level": 7,
+              "identity": {
+                "status": "exact",
+                "tlidbId": 90017,
+                "guid": "synthetic-guid",
+                "guidStatus": "ok"
+              },
+              "tags": {
+                "status": "supplied",
+                "skill": [
+                  "activation_medium",
+                  "projectile",
+                  "spell"
+                ],
+                "damageTypes": [
+                  "physical"
+                ],
+                "reserved": []
+              },
+              "mainStat": {
+                "status": "supplied",
+                "attributes": [
+                  "intelligence"
+                ]
+              },
+              "effectivenessOfAddedDamage": {
+                "status": "stated",
+                "text": "117.5%",
+                "value": "1.175"
+              },
+              "castSpeedField": {
+                "status": "stated",
+                "text": "0.73 s",
+                "seconds": "0.73"
+              },
+              "hit": {
+                "status": "catalog_render_consistent",
+                "type": "physical",
+                "min": "11",
+                "max": "19",
+                "level": 7,
+                "binding": {
+                  "min": "value1Min",
+                  "max": "value1Max"
+                },
+                "checkedAtLevel": 20
+              }
+            },
+            "ordinary_support": null,
+            "passive_effect": null
+          },
+          {
+            "alias": "gem[2]",
+            "group": "group[1]",
+            "tab_position": 0,
+            "slot": 4,
+            "path": "sections.SkillLayout.data[0][2]",
+            "skill_id": 90029,
+            "gem_level": 13,
+            "effective_level": null,
+            "lookup_level_meaning": "observed_gem_level_not_effective",
+            "catalog_category": null,
+            "status": "gap",
+            "reason": "catalog_record_missing",
+            "profile": null,
+            "ordinary_support": null,
+            "passive_effect": null
+          },
+          {
+            "alias": "gem[3]",
+            "group": "group[2]",
+            "tab_position": 2,
+            "slot": 1,
+            "path": "sections.SkillLayout.data[2][0]",
+            "skill_id": 90041,
+            "gem_level": 19,
+            "effective_level": null,
+            "lookup_level_meaning": "observed_gem_level_not_effective",
+            "catalog_category": null,
+            "status": "gap",
+            "reason": "catalog_record_missing",
+            "profile": null,
+            "ordinary_support": null,
+            "passive_effect": null
+          },
+          {
+            "alias": "gem[4]",
+            "group": "group[2]",
+            "tab_position": 2,
+            "slot": 6,
+            "path": "sections.SkillLayout.data[2][1]",
+            "skill_id": 90053,
+            "gem_level": null,
+            "effective_level": null,
+            "lookup_level_meaning": "observed_gem_level_not_effective",
+            "catalog_category": null,
+            "status": "gap",
+            "reason": "invalid_gem_level",
+            "profile": null,
+            "ordinary_support": null,
+            "passive_effect": null
+          }
+        ],
+        "accounting": {
+          "members": 4,
+          "profiled": 1,
+          "gaps": 3,
+          "reconciles": true
+        }
+      },
+      "facts": {
+        "patch": "SS14",
+        "checkedAt": "2001-02-03",
+        "sources": {}
+      }
+    },
+    "assumptions": [
+      "Selection names an observed gem alias and does not verify the panel skill",
+      "Catalog values belong to the observed gem level and not the effective level",
+      "Projected modifier rows are candidates and not complete character pools",
+      "Group co-membership does not confirm enabled support effects",
+      "No panel value or benchmark fills missing raw damage inputs"
+    ]
+  },
+  "calculation": {
+    "format": "tli-conditional-combat-report-v1",
+    "source": {
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "section": "captured"
+    },
+    "condition": {
+      "cursed": null,
+      "evidence": []
+    },
+    "coverage": {
+      "status": "unknown",
+      "evidence": []
+    },
+    "applied_rows": [],
+    "scenario": {
+      "format": "tli-raw-cold-combat-v1",
+      "spell": {
+        "format": "tli-raw-cold-spell-v2",
+        "context": {
+          "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "skill_id": "synthetic-guid",
+          "effective_level": null,
+          "gates": {
+            "version": {
+              "status": "unknown",
+              "evidence": [
+                "skill/Active/master"
+              ]
+            },
+            "level": {
+              "status": "unknown",
+              "evidence": [
+                "sections.SkillLayout.data[0][0]"
+              ]
+            },
+            "base": {
+              "status": "unknown",
+              "evidence": [
+                "skill/Active/master.skills[synthetic-guid]"
+              ]
+            },
+            "conversion": {
+              "status": "unknown",
+              "evidence": []
+            }
+          }
+        },
+        "damage": null,
+        "critical": null,
+        "casting": null,
+        "double_damage": null,
+        "missing": [
+          "main_attributes_unresolved",
+          "critical_pools_unresolved",
+          "cast_pools_unresolved",
+          "double_damage_unresolved",
+          "support_activation_unverified",
+          "modifiers:runtime_unverified",
+          "modifiers:selection_unverified",
+          "modifiers:source_patch_unknown",
+          "modifiers:activation_unverified",
+          "modifiers:family_not_mapped"
+        ],
+        "notes": [
+          "Imported candidate rows are not complete damage, critical, casting or Double Damage groups",
+          "No panel or benchmark supplies unavailable raw inputs"
+        ]
+      },
+      "topology": {
+        "maximum": 3,
+        "extra": 1,
+        "active": 3,
+        "hits": 3,
+        "retention": 0.25
+      },
+      "target": {
+        "cold_resistance": 0.4,
+        "cold_penetration": 0.1,
+        "armor": 0,
+        "armor_effectiveness": 1,
+        "armor_penetration": 0,
+        "armor_penetration_order": "after_effectiveness",
+        "increased_taken": 0.2,
+        "more_taken": [
+          {
+            "id": "target-more",
+            "affix": "exposure",
+            "value": 0.1,
+            "stacks": 1,
+            "mode": "add"
+          }
+        ]
+      },
+      "uptime": 0.5,
+      "gates": {
+        "inheritance": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:inheritance"
+          ]
+        },
+        "hit_topology": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:hit_topology"
+          ]
+        },
+        "target_state": {
+          "status": "confirmed",
+          "evidence": [
+            "synthetic:target_state"
+          ]
+        }
+      },
+      "missing": [
+        "target_cursed: unknown",
+        "conditional_coverage: unknown"
+      ],
+      "notes": [
+        "Synthetic topology and target assertions"
+      ]
+    },
+    "result": {
+      "format": "tli-raw-cold-combat-report-v1",
+      "status": "blocked",
+      "dps": null,
+      "spell": {
+        "format": "tli-raw-cold-spell-report-v2",
+        "status": "blocked",
+        "pre_defence_dps": null,
+        "gaps": [
+          "version: unknown",
+          "level: unknown",
+          "base: unknown",
+          "conversion: unknown",
+          "main_attributes_unresolved",
+          "critical_pools_unresolved",
+          "cast_pools_unresolved",
+          "double_damage_unresolved",
+          "support_activation_unverified",
+          "modifiers:runtime_unverified",
+          "modifiers:selection_unverified",
+          "modifiers:source_patch_unknown",
+          "modifiers:activation_unverified",
+          "modifiers:family_not_mapped",
+          "double_damage: unavailable",
+          "damage: unavailable",
+          "critical: unavailable",
+          "casting: unavailable"
+        ],
+        "scenario": {
+          "format": "tli-raw-cold-spell-v2",
+          "context": {
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "skill_id": "synthetic-guid",
+            "effective_level": null,
+            "gates": {
+              "version": {
+                "status": "unknown",
+                "evidence": [
+                  "skill/Active/master"
+                ]
+              },
+              "level": {
+                "status": "unknown",
+                "evidence": [
+                  "sections.SkillLayout.data[0][0]"
+                ]
+              },
+              "base": {
+                "status": "unknown",
+                "evidence": [
+                  "skill/Active/master.skills[synthetic-guid]"
+                ]
+              },
+              "conversion": {
+                "status": "unknown",
+                "evidence": []
+              }
+            }
+          },
+          "damage": null,
+          "critical": null,
+          "casting": null,
+          "double_damage": null,
+          "missing": [
+            "main_attributes_unresolved",
+            "critical_pools_unresolved",
+            "cast_pools_unresolved",
+            "double_damage_unresolved",
+            "support_activation_unverified",
+            "modifiers:runtime_unverified",
+            "modifiers:selection_unverified",
+            "modifiers:source_patch_unknown",
+            "modifiers:activation_unverified",
+            "modifiers:family_not_mapped"
+          ],
+          "notes": [
+            "Imported candidate rows are not complete damage, critical, casting or Double Damage groups",
+            "No panel or benchmark supplies unavailable raw inputs"
+          ]
+        },
+        "trace": [],
+        "assumptions": [
+          "Evidence gates are caller assertions; runtime identity and freshness are not verified",
+          "Base Physical damage uses ordinary complete conversion to Cold",
+          "Each damage component has the stated midpoint mean; Lucky applies only to critical chance",
+          "All supplied pools are complete for this scenario and applied once without a panel",
+          "The result is one caster before enemy defence, damage taken, Tangle topology and uptime",
+          "Tick rounding, when selected, is a separate unverified 30 Hz hypothesis",
+          "Critical chance is supplied before the scenario Lucky adjustment",
+          "Negative pooled increased damage factors are clamped to zero as a scenario rule, not verified game behavior",
+          "Double Damage uses caller-asserted conditional probabilities and the same midpoint in every crit/DD branch"
+        ]
+      },
+      "topology": null,
+      "factors": null,
+      "armor_mitigation": null,
+      "scenario": {
+        "format": "tli-raw-cold-combat-v1",
+        "spell": {
+          "format": "tli-raw-cold-spell-v2",
+          "context": {
+            "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "skill_id": "synthetic-guid",
+            "effective_level": null,
+            "gates": {
+              "version": {
+                "status": "unknown",
+                "evidence": [
+                  "skill/Active/master"
+                ]
+              },
+              "level": {
+                "status": "unknown",
+                "evidence": [
+                  "sections.SkillLayout.data[0][0]"
+                ]
+              },
+              "base": {
+                "status": "unknown",
+                "evidence": [
+                  "skill/Active/master.skills[synthetic-guid]"
+                ]
+              },
+              "conversion": {
+                "status": "unknown",
+                "evidence": []
+              }
+            }
+          },
+          "damage": null,
+          "critical": null,
+          "casting": null,
+          "double_damage": null,
+          "missing": [
+            "main_attributes_unresolved",
+            "critical_pools_unresolved",
+            "cast_pools_unresolved",
+            "double_damage_unresolved",
+            "support_activation_unverified",
+            "modifiers:runtime_unverified",
+            "modifiers:selection_unverified",
+            "modifiers:source_patch_unknown",
+            "modifiers:activation_unverified",
+            "modifiers:family_not_mapped"
+          ],
+          "notes": [
+            "Imported candidate rows are not complete damage, critical, casting or Double Damage groups",
+            "No panel or benchmark supplies unavailable raw inputs"
+          ]
+        },
+        "topology": {
+          "maximum": 3,
+          "extra": 1,
+          "active": 3,
+          "hits": 3,
+          "retention": 0.25
+        },
+        "target": {
+          "cold_resistance": 0.4,
+          "cold_penetration": 0.1,
+          "armor": 0,
+          "armor_effectiveness": 1,
+          "armor_penetration": 0,
+          "armor_penetration_order": "after_effectiveness",
+          "increased_taken": 0.2,
+          "more_taken": [
+            {
+              "id": "target-more",
+              "affix": "exposure",
+              "value": 0.1,
+              "stacks": 1,
+              "mode": "add"
+            }
+          ]
+        },
+        "uptime": 0.5,
+        "gates": {
+          "inheritance": {
+            "status": "confirmed",
+            "evidence": [
+              "synthetic:inheritance"
+            ]
+          },
+          "hit_topology": {
+            "status": "confirmed",
+            "evidence": [
+              "synthetic:hit_topology"
+            ]
+          },
+          "target_state": {
+            "status": "confirmed",
+            "evidence": [
+              "synthetic:target_state"
+            ]
+          }
+        },
+        "missing": [
+          "target_cursed: unknown",
+          "conditional_coverage: unknown"
+        ],
+        "notes": [
+          "Synthetic topology and target assertions"
+        ]
+      },
+      "trace": [],
+      "gaps": [
+        "spell: version: unknown",
+        "spell: level: unknown",
+        "spell: base: unknown",
+        "spell: conversion: unknown",
+        "spell: main_attributes_unresolved",
+        "spell: critical_pools_unresolved",
+        "spell: cast_pools_unresolved",
+        "spell: double_damage_unresolved",
+        "spell: support_activation_unverified",
+        "spell: modifiers:runtime_unverified",
+        "spell: modifiers:selection_unverified",
+        "spell: modifiers:source_patch_unknown",
+        "spell: modifiers:activation_unverified",
+        "spell: modifiers:family_not_mapped",
+        "spell: double_damage: unavailable",
+        "spell: damage: unavailable",
+        "spell: critical: unavailable",
+        "spell: casting: unavailable",
+        "target_cursed: unknown",
+        "conditional_coverage: unknown"
+      ],
+      "ownership": {
+        "spell": [
+          "base and complete damage pools",
+          "ordinary full Physical to Cold conversion",
+          "critical expectation",
+          "cast speed",
+          "per-caster cap and selected tick hypothesis",
+          "joint critical and conditional Double Damage expectation"
+        ],
+        "combat": [
+          "Tangle attachment and hit topology",
+          "Cold resistance and penetration",
+          "explicit nonphysical armor policy",
+          "complete target damage-taken pools",
+          "uptime"
+        ],
+        "not_applied": [
+          "panel anchors",
+          "reference-state ratios",
+          "Heat or inferred buffs",
+          "repeated critical or casting factors",
+          "global multi-caster cast cap"
+        ]
+      },
+      "assumptions": [
+        "Gate confirmations are caller assertions, not verified runtime identity or freshness",
+        "Tangle inheritance and accepted hits are explicit scenario assertions, not projectile-count inference",
+        "The selected armor penetration order is a conditional hypothesis",
+        "Target damage-taken rows are complete explicit pools and are applied once",
+        "Several casters retain their individual cast caps without a second global cap"
+      ]
+    },
+    "dps": null,
+    "status": "blocked",
+    "gaps": [
+      "spell: version: unknown",
+      "spell: level: unknown",
+      "spell: base: unknown",
+      "spell: conversion: unknown",
+      "spell: main_attributes_unresolved",
+      "spell: critical_pools_unresolved",
+      "spell: cast_pools_unresolved",
+      "spell: double_damage_unresolved",
+      "spell: support_activation_unverified",
+      "spell: modifiers:runtime_unverified",
+      "spell: modifiers:selection_unverified",
+      "spell: modifiers:source_patch_unknown",
+      "spell: modifiers:activation_unverified",
+      "spell: modifiers:family_not_mapped",
+      "spell: double_damage: unavailable",
+      "spell: damage: unavailable",
+      "spell: critical: unavailable",
+      "spell: casting: unavailable",
+      "target_cursed: unknown",
+      "conditional_coverage: unknown"
+    ],
+    "runtime_verified": false,
+    "identity_verified": false,
+    "import_complete": false,
+    "arithmetic_ready": false
+  },
+  "import_complete": false,
+  "runtime_verified": false,
+  "identity_verified": false
+}

@@ -1,0 +1,963 @@
+{
+  "format": "tli-help-review-chunk-v1",
+  "checkedAt": "2026-10-21T20:51:35Z",
+  "source": "https://tlidb.com/en/Help (Help_Handbook positions 49-72)",
+  "sourceClassification": "unofficial-game-help-datamine-mirror; client/version correspondence not verified",
+  "articles": [
+    {
+      "url": "https://tlidb.com/en/Whispering_Mist",
+      "title": "Whispering Mist - Help",
+      "positions": [
+        49
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:36Z",
+      "sections": [
+        "Whispering Mist /3",
+        "Whispering Mist - Help"
+      ],
+      "summary": "Drop-quantity rules for the Whispering Mist mode; a second tab lists 3 items (Mistville Intel, Mist Essence, Resident's Eye).",
+      "findings": [
+        "From Day 9, Chests of Folklores may also drop Rare Activation Mediums.",
+        "Activation Mediums and Mistville Intel ignore all Drop Quantity bonuses.",
+        "All other drops scale only with mode bonuses: Mistosis, Chest of Folklores bonuses, monthly bonus.",
+        "Netherrealm Infection Progress ignores Pactspirit Drop Quantity bonuses."
+      ],
+      "unknowns": [
+        "How the three permitted bonus sources combine (additive or multiplicative) is not stated.",
+        "No drop chance or base quantity numbers, including for the Day 9 Rare Activation Medium chance.",
+        "Whether non-Pactspirit bonuses affect Netherrealm Infection Progress is not stated.",
+        "Item tab mentions a July mode; season/patch not stated. Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "qty(Activation Medium, Mistville Intel) = baseQty; no Drop Quantity bonus applies",
+          "domain": "Whispering Mist drops",
+          "assumptions": [
+            "baseQty not given on page"
+          ],
+          "status": "documented"
+        },
+        {
+          "expression": "qty(other items) = g(baseQty, Mistosis, ChestOfFolkloresBonus, MonthlyBonus); every other Drop Quantity bonus excluded",
+          "domain": "Whispering Mist drops",
+          "assumptions": [
+            "combination function g not stated"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "qty(Infection Progress, Netherrealm) is independent of Pactspirit Drop Quantity bonuses",
+          "domain": "Whispering Mist / Netherrealm",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Clockwork_Ballet",
+      "title": "Clockwork Ballet - Help",
+      "positions": [
+        50
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:38Z",
+      "sections": [
+        "Clockwork Ballet - Help"
+      ],
+      "summary": "Rating ladder of Doll Employee bonuses in Clockwork Ballet.",
+      "findings": [
+        "E: +20% Max Life as Energy Shield.",
+        "D: Giantism, +20% additional Max Life.",
+        "C: +50% additional life, +30% additional movement/attack/cast speed.",
+        "B: +85% life. A: +100% life plus the 30% speeds.",
+        "S: +100% life. SS: +100% life plus the 30% speeds. SSS: +115% life."
+      ],
+      "unknowns": [
+        "Whether each rating replaces or stacks on lower-rating bonuses is not stated.",
+        "How the rating is earned and whether Doll Employees are allies or enemies is not explained.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "DollMaxLife = base x (1 + L_r); L = {D:0.20, C:0.50, B:0.85, A:1.00, S:1.00, SS:1.00, SSS:1.15}",
+          "domain": "Doll Employee life by rating",
+          "assumptions": [
+            "'additional' read as a separate multiplier",
+            "ratings assumed non-cumulative; page does not say"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Legendary_Vision",
+      "title": "Legendary Vision - Help",
+      "positions": [
+        51
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:38Z",
+      "sections": [
+        "Legendary Vision - Help"
+      ],
+      "summary": "Outlook lets you pick one Legendary item to make it much more likely among Legendary drops for a limited time.",
+      "findings": [
+        "Outlook changes drop weight only; total Legendary drop quantity stays the same.",
+        "After expiry a new item must be chosen.",
+        "List order: best-sellers first (re-ranked periodically from Trade House prices), then all Legendaries of the selected Pro Build."
+      ],
+      "unknowns": [
+        "Weight multiplier is unquantified ('greatly').",
+        "Outlook duration and cost not given.",
+        "Best-seller refresh interval is an unfilled 'x hour(s)' placeholder on the page.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "P(item i | a Legendary drops) = m*w_i / (m*w_i + sum_{j!=i} w_j); number of Legendary drops unchanged",
+          "domain": "Legendary gear selection under Outlook",
+          "assumptions": [
+            "drop weight interpreted as relative weight in a weighted random pick",
+            "multiplier m and base weights w not on page"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Supreme_Showdown",
+      "title": "Supreme Showdown - Help",
+      "positions": [
+        52
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:39Z",
+      "sections": [
+        "Supreme Showdown /21",
+        "Supreme Showdown - Help"
+      ],
+      "summary": "Seasonal ladder of 21 increasingly hard boss stages; a tab names the 21 bosses.",
+      "findings": [
+        "Clears pay base rewards; clearing under the time target adds Star Rating rewards.",
+        "Ranking favors higher stages, more stars and quicker clears.",
+        "Bosses, rewards and mechanics refresh each season.",
+        "Hardcore/SSF Hardcore deaths here keep the character for the season.",
+        "Rewards claimable only in Normal Mode on seasonal servers."
+      ],
+      "unknowns": [
+        "Time targets, star counts, reward amounts and ranking tie-break order are not given.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "loot",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Boss_Conquest",
+      "title": "Boss Conquest - Help",
+      "positions": [
+        53
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:39Z",
+      "sections": [
+        "Boss Conquest - Help"
+      ],
+      "summary": "Repeatable ranked fight versus Aureate Calamity Ordrak in Rusted Abyss.",
+      "findings": [
+        "2 revive chances per entry; dying or leaving and re-entering costs 1; run ends at zero chances or timer expiry.",
+        "Unlimited attempts.",
+        "First boss attempt each day grants a daily reward tied to the best rank reached.",
+        "Hardcore/SSF Hardcore deaths here keep the character for the season.",
+        "Rewards claimable only in Normal Mode on seasonal servers."
+      ],
+      "unknowns": [
+        "Whether the run ends on the death that spends the last chance or on the next death is ambiguous.",
+        "Timer length, number of ranks and reward tables not given.",
+        "Whether the daily reward needs a successful attempt is not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "reviveChances = 2 at entry; -1 per defeat or exit/re-entry; end when 0 or timer = 0",
+          "domain": "Boss Conquest - Rusted Abyss",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "dailyReward = table(highestRankEver) on the first challenge of the day",
+          "domain": "Boss Conquest",
+          "assumptions": [
+            "reward table not on page"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Tarot_Path",
+      "title": "Tarot Path - Help",
+      "positions": [
+        54
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:40Z",
+      "sections": [
+        "Tarot Path",
+        "Tarot Path - Help"
+      ],
+      "summary": "Board sub-mode unlocked by Netherrealm Tarot Trials: move with Notes of Arcana, gather Chests of Destiny, open them in Fateful Contest.",
+      "findings": [
+        "Carry cap: 7 chests.",
+        "Chest rarities: Green, Blue, Purple, Orange, Red, Rainbow; Notes or cell events upgrade them.",
+        "Trap cells cost Life; at 0, Fateful Contest begins and collecting stops.",
+        "Stage Lv.86 (Timemark 8): chests may give Rare Fates, Kismets, Dual Kismets, Star Net; Lv.89 (Profound Timemark 8): Undetermined Fates."
+      ],
+      "unknowns": [
+        "Trial counts needed to unlock the path or open chests are not given.",
+        "Per-rarity drop chances and whether Drop Quantity bonuses affect chest contents are not stated.",
+        "What happens to an 8th chest (lost or blocked) is not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "chestsCarried <= 7",
+          "domain": "Tarot Path",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "Rare Fate/Kismet/Dual Kismet/Star Net drops require stageLevel >= 86; Undetermined Fate requires stageLevel >= 89",
+          "domain": "Chest of Destiny contents",
+          "assumptions": [
+            "'reach' read as at-or-above"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/City_Defense",
+      "title": "City Defense - Help",
+      "positions": [
+        55
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:40Z",
+      "sections": [
+        "City Defense - Help"
+      ],
+      "summary": "Co-op wave defense of a Core: 7 difficulty levels, each 15 waves, with a leaderboard.",
+      "findings": [
+        "A reward step every 3 waves repelled.",
+        "Ranking favors higher difficulty, more waves and faster clears.",
+        "Hardcore/SSF Hardcore deaths here keep the character for the season.",
+        "Rewards claimable in Normal and Solo Self Found modes on seasonal servers (wider than the Normal-only boss modes)."
+      ],
+      "unknowns": [
+        "Reward contents, whether milestones pay again on repeat runs, and ranking tie-breaks are not given.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "rewardSteps = floor(wavesRepelled / 3), at most 15/3 = 5 per difficulty",
+          "domain": "City Defense",
+          "assumptions": [
+            "steps counted per difficulty run"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Blending_Rituals",
+      "title": "Blending Rituals - Help",
+      "positions": [
+        56
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:40Z",
+      "sections": [
+        "Blending Rituals /97",
+        "Blending Rituals - Help"
+      ],
+      "summary": "Belt crafting: mix Aromatic Materials by recipe to add Medium, Core or Aromatic Talent Blending Affixes. Recipe tab: 97 rows (36 Medium, 55 Core, 6 Aromatic) using 9 materials tiered Lv.1-9.",
+      "findings": [
+        "Works on any Belt, including crafted, Dream Interpretation, Corroded or Branded ones; those processes remain usable afterwards, per gear type.",
+        "A started blend cannot be stopped; abandoning still spends the materials."
+      ],
+      "unknowns": [
+        "How many Blending Affixes one Belt can hold is not stated.",
+        "Meaning of the 'Lv.0' label on every recipe row is unclear.",
+        "Recipe tab includes damage modifiers (e.g. additional Max Damage); exporter mapping of Blending Affixes is not covered.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Gear_Imprinting",
+      "title": "Gear Imprinting - Help",
+      "positions": [
+        57
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:41Z",
+      "sections": [
+        "Gear Imprinting - Help"
+      ],
+      "summary": "Imprinting transfers base affixes from a same-base Priceless item to a target item.",
+      "findings": [
+        "The material must be Priceless with the same base; it is destroyed.",
+        "The target's affixes are overwritten by the material's base affixes."
+      ],
+      "unknowns": [
+        "Whether all target affixes or only base affixes are replaced is ambiguous.",
+        "Cost and target eligibility are not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/TOWER_Sequence",
+      "title": "TOWER Sequence - Help",
+      "positions": [
+        58
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:42Z",
+      "sections": [
+        "TOWER Sequence /111",
+        "TOWER Sequence",
+        "TOWER Sequence - Help"
+      ],
+      "summary": "R&D minigame granting one Sequence effect to a non-Legendary weapon (overview tab: shields included, base affixes kept). Table: 111 sequences, 51 Intermediate, 60 Advanced.",
+      "findings": [
+        "Each attempt costs a fixed Mod amount.",
+        "Chosen chip colors must match a target sequence in any order, else failure.",
+        "Basic: 3 chips, Intermediate only. In-Depth: 4 chips, needed for Advanced.",
+        "One sequence per weapon; retry allowed.",
+        "Interruption forfeits materials."
+      ],
+      "unknowns": [
+        "Mod cost, chip pool size and odds are not given.",
+        "Table encodes colors as digits 1-7; colour mapping not shown.",
+        "Whether a new success overwrites the old sequence is implied, not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "success iff multiset(chosenChips) equals the multiset of some target sequence",
+          "domain": "TOWER Sequence R&D",
+          "assumptions": [
+            "'any order' read as multiset match because table rows repeat digits, e.g. 1|1|1|5"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Hot_Streak",
+      "title": "Hot Streak - Help",
+      "positions": [
+        59
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:42Z",
+      "sections": [
+        "Hot Streak - Help",
+        "Hot Streak - Help > 1. Re-roll Gear Energy",
+        "Hot Streak - Help > 2. Re-roll All Pre-fix and Suffix Values of Non-Legendary Gear, Granting Luckier Results.",
+        "Hot Streak - Help > 3. Re-roll Base Affixes of Priceless Gear",
+        "Hot Streak - Help > 4. Re-roll Corrosion Base Affixes of Corroded Legendary Gear",
+        "Hot Streak - Help > 5. Re-roll Undetermined Fate",
+        "Hot Streak - Help > 6. Re-roll Fluorescent Memory Quantity"
+      ],
+      "summary": "Six TOWER Token gambles.",
+      "findings": [
+        "Energy: success maxes it; failure no change.",
+        "Non-Legendary affixes (plus Truth Fossils): one random 0-100% roll positions every prefix/suffix in its range, rounded; 100% = all max.",
+        "Priceless: success rerolls every base affix (count kept); failure deletes one.",
+        "Corroded Legendary: success rerolls corrosion bases; failure strips them and binds.",
+        "Undetermined Fate: success rerolls slot types/count; failure destroys it.",
+        "Fluorescent Memory: stake 1 to half (floor); result 0 to double."
+      ],
+      "unknowns": [
+        "No success probabilities for any of the six gambles.",
+        "Distribution of the 0-100% roll and the rounding rule for halves are not stated.",
+        "Whether the Fluorescent double/zero applies to the staked part or the whole stack is ambiguous; stacks of 1 cannot be staked.",
+        "Import relevance: defines max roll as the top of each affix range, but the page gives no ranges.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "value_k = round(min_k + p*(max_k - min_k)), single p in [0,1] shared by all prefixes/suffixes",
+          "domain": "Hot Streak affix re-roll, non-Legendary gear",
+          "assumptions": [
+            "'scaled by the percentage' read as position within each affix range, consistent with the page's 100% = max-roll example",
+            "distribution of p not stated"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "stake s in [1, floor(Q/2)], Q = exchanged quantity >= 2; outcome in [0, 2s]",
+          "domain": "Fluorescent Memory quantity re-roll",
+          "assumptions": [
+            "bounds read as applying to the staked amount"
+          ],
+          "status": "unresolved"
+        },
+        {
+          "expression": "PricelessBaseAffixCount: success -> n (all rerolled); failure -> n - 1",
+          "domain": "Priceless base-affix re-roll",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "economy",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Crime_Rating",
+      "title": "Crime Rating - Help",
+      "positions": [
+        60
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:43Z",
+      "sections": [
+        "Crime Rating - Help"
+      ],
+      "summary": "Carjack progression: 5 Crime Ratings raised by meeting requirements.",
+      "findings": [
+        "Higher rating: harder carjacks, bigger Drop Quantity bonus, more frequent and better Bounty Orders.",
+        "3 Stars unlocks TOWER Co. Central Vault.",
+        "Carjack drops ignore item-type-specific Drop Quantity bonuses."
+      ],
+      "unknowns": [
+        "Per-rating Drop Quantity values and the requirements are not given.",
+        "Whether '3 Stars' equals Crime Rating 3 is not stated.",
+        "Whether general Drop Quantity bonuses still apply to Carjack is implied but not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "carjackQty = h(base, generalDropQty, crimeRatingBonus(r)), r in 1..5; item-type-specific Drop Quantity bonuses excluded",
+          "domain": "Carjack drops",
+          "assumptions": [
+            "h and crimeRatingBonus values not given"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/TOWER_Co._Central_Vault",
+      "title": "TOWER Co. Central Vault - Help",
+      "positions": [
+        61
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:43Z",
+      "sections": [
+        "TOWER Co. Central Vault",
+        "TOWER Co. Central Vault - Area /3",
+        "TOWER Co. Central Vault - Help"
+      ],
+      "summary": "Outlaw-season endgame heist: raid timed Small Strongrooms, then beat the Chief Security Officer for the final reward.",
+      "findings": [
+        "3 difficulties, unlocked in order; each needs its own Vault Keycard.",
+        "Officer appears on timeout, all rooms opened, any room failed, or manual end.",
+        "Area tab: levels 86, 89, 90.",
+        "Overview tab Pactspirits: replicate-once chance for Carjack/Vault reward units: Lumidrake 1%, Shro-Shroom 2%, Prof. SOURCE 28% (plus replicating recoded units again)."
+      ],
+      "unknowns": [
+        "Pactspirit tier/level behind the shown percentages is not stated; Prof. SOURCE shows an untranslated Chinese placeholder (S10 season text), suggesting stale or incomplete datamine.",
+        "Timer lengths, Robbery Progress targets and Keycard sources are not given.",
+        "Whether replication interacts with Drop Quantity, and how multiple Pactspirit chances combine, is not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "E[units] = base * (1 + p*(1 + q)); Prof. SOURCE p=0.28, q=1.0 -> x1.56; Shro-Shroom p=0.02 -> x1.02; Lumidrake p=0.01 -> x1.01",
+          "domain": "Carjack / Central Vault reward units in a Netherrealm stage",
+          "assumptions": [
+            "per-unit independent chance",
+            "'replicating 1 time' = +1 copy; Prof. SOURCE second line = +1 further copy for every recoded unit",
+            "single Pactspirit; stacking rule unknown"
+          ],
+          "status": "derived"
+        },
+        {
+          "expression": "Lumidrake, Shro-Shroom: pact skill +6% Drop Quantity; upgrade reward +8% Drop Quantity",
+          "domain": "Drop Pactspirit cards on overview tab",
+          "assumptions": [
+            "tier shown not stated"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Graft",
+      "title": "Graft - Help",
+      "positions": [
+        62
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:43Z",
+      "sections": [
+        "Affix /1061",
+        "Item /10",
+        "Graft",
+        "Graft - Help"
+      ],
+      "summary": "Organ-based affix crafting for Vorax Gear. Tabs: 1061 affixes (355 Base, 147 Basic, 155 Advanced, 404 Ultimate) and 10 Vorax limbs.",
+      "findings": [
+        "Normal Organs: Basic/Advanced. Special Organs: Ultimate, Lv.89+ gear. Core Organs plus Sutures: Legendary.",
+        "Source Legendary with 2 affixes offers 1 option; more offers 2; all Legendary affixes from one item.",
+        "Caps: 2 Advanced, 2 Ultimate, 2 Legendary.",
+        "Cutting Instruments reroll all random values.",
+        "One Vorax Gear equipped."
+      ],
+      "unknowns": [
+        "Overview tab omits the Lv.89 Ultimate requirement and adds: no duplicate Ultimate, possible Blemish, no Core Organ after 2 Legendary affixes.",
+        "Basic affix cap, Blemish effect and the 'high-level' threshold for some Core Organs are not given.",
+        "Vorax affix mapping for build import is not addressed.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "legendaryOptions = 1 if sourceAffixes == 2 else 2 (when > 2)",
+          "domain": "Core Organ grafting",
+          "assumptions": [],
+          "status": "documented"
+        },
+        {
+          "expression": "Advanced <= 2, Ultimate <= 2, Legendary <= 2 per Vorax Gear",
+          "domain": "Vorax Gear affix caps",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Vorax_Exchange",
+      "title": "Vorax Exchange - Help",
+      "positions": [
+        63
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:44Z",
+      "sections": [
+        "Vorax Exchange - Help"
+      ],
+      "summary": "Shops: Organ Exchange sells Organs and Sutures; Vorax Exchange trades Amputated Limbs from salvaged Vorax Gear for new Vorax Gear.",
+      "findings": [
+        "Decayed: from Lv.86-88 gear, buys Lv.86.",
+        "Engorged: from Lv.89, buys Lv.89.",
+        "Throbbing: from Lv.90, buys Lv.90.",
+        "So salvaging Lv.87-88 gear only yields Lv.86 replacements."
+      ],
+      "unknowns": [
+        "Limbs per salvage and limbs per exchange are not stated (one-to-one is not confirmed).",
+        "Organ Exchange prices not given.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "salvage(L) -> Decayed if 86<=L<=88, Engorged if L=89, Throbbing if L=90; Decayed->Lv86, Engorged->Lv89, Throbbing->Lv90",
+          "domain": "Vorax Exchange",
+          "assumptions": [
+            "exchange ratios not stated"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Vorax_Imprint",
+      "title": "Vorax Imprint - Help",
+      "positions": [
+        64
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:45Z",
+      "sections": [
+        "Vorax Imprint - Help"
+      ],
+      "summary": "The Gear Imprinting rule applied to Vorax gear.",
+      "findings": [
+        "A same-base Vorax item is destroyed to overwrite the target's affixes with its base affixes."
+      ],
+      "unknowns": [
+        "Whether all target affixes or only base affixes are replaced, and whether grafted affixes survive, is not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [],
+      "relevance": [
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Calibrate_Prism",
+      "title": "Calibrate Prism - Help",
+      "positions": [
+        65
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:45Z",
+      "sections": [
+        "Calibrate Prism - Help"
+      ],
+      "summary": "Calibration adds random affixes to Ethereal Prisms.",
+      "findings": [
+        "Each calibration offers 3 random options; pick 1.",
+        "Slot 1: Effect Area; slot 2: Additional Effect; slot 3: Legendary Mechanic.",
+        "Adding Prism Level material permits one manual reroll of the options.",
+        "Prisms with random affixes can be restored for materials, except at the Plasticity cap."
+      ],
+      "unknowns": [
+        "Plasticity cap value and per-action cost are not given.",
+        "Restoration cost and exactly what it removes are not stated.",
+        "Option pool weights not given.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "choices per calibration = 3 (+1 reroll of all 3 if Prism Level added)",
+          "domain": "Ethereal Prism calibration",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Lunar_Harp_Tuning",
+      "title": "Lunar Harp Tuning - Help",
+      "positions": [
+        66
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:46Z",
+      "sections": [
+        "Lunar Harp Tuning /11",
+        "Lunar Harp Tuning Affix /12",
+        "Lunar Harp Tuning - Help"
+      ],
+      "summary": "Lunar Harp (activates Lunar Stone Statues) grows via XP and slotted Lunar Strings; tabs list 11 strings and 12 string affixes.",
+      "findings": [
+        "XP from Lunari kills at matching difficulty; auto level-up, max Lv.5.",
+        "Levels raise the combo-based Drop Quantity bonus and open string slots.",
+        "Each string: unique effect plus 2 random affixes; untradeable, unreplicable.",
+        "Low-level stages may temporarily cut harp level.",
+        "Lunar Rhapsody string: Rhapsody chance -50%, Rhapsody Drop Quantity +100%."
+      ],
+      "unknowns": [
+        "Combo-count Drop Quantity values per harp level are not given.",
+        "XP requirements and which stages trigger the level reduction are not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "E[Rhapsody quantity] ratio with Lunar Rhapsody = 0.5*(1 + b + 1.0)/(1 + b); equals 1 when b = 0, below 1 when b > 0",
+          "domain": "Lunar Rhapsody string",
+          "assumptions": [
+            "-50% applied to Rhapsody chance multiplicatively",
+            "+100% adds to other increased Drop Quantity b for Rhapsody",
+            "both assumptions unverified"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Memory_Revival",
+      "title": "Memory Revival - Help",
+      "positions": [
+        67
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:46Z",
+      "sections": [
+        "Memory Revival Affix /83",
+        "Memory Revival",
+        "Memory Revival - Help"
+      ],
+      "summary": "Hero Memory crafting: Wax and Wane (base stats), Rising Moon (fixed-affix tiers), Young Moon (extra Revived Affix; Lunar Phase targets one). Affix tab: 83 rows, many hero-trait-exclusive.",
+      "findings": [
+        "Each effect rolls independently.",
+        "Re-revival rerolls from the original; keep old or new.",
+        "Per-memory attempt cap; cost climbs per attempt; keeping the old result still costs.",
+        "Max 1 revived memory installed per character.",
+        "Overview tab: Moon tiers gate effects; failed Full Moon Lunar Phase binds the memory."
+      ],
+      "unknowns": [
+        "Success rates, attempt caps and material costs are not given.",
+        "Attempt-count limits and the price-growth ceiling are separate; their numerical values are not established here.",
+        "Trait-rank relevance: affix tab lists a Youga-exclusive affix making a fourth Hero Trait max level and Artificial Moon slots for extra memories; how these appear in build/trait-rank data is not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "P(outcome set S) = prod_{e in S} p_e * prod_{e not in S} (1 - p_e)",
+          "domain": "one Memory Revival attempt",
+          "assumptions": [
+            "page states independent per-effect success rates",
+            "p_e values not given"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "trait_rank",
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Divine_Ascent",
+      "title": "Divine Ascent - Help",
+      "positions": [
+        68
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:48Z",
+      "sections": [
+        "Divine Ascent - Help",
+        "Divine Ascent - Help > Rules",
+        "Divine Ascent - Help > Gameplay Flow"
+      ],
+      "summary": "Timed push mode: kill enemies to fill Challenge Progress, defeat the spawned final boss, then jump difficulty tiers.",
+      "findings": [
+        "Base global countdown: 3 minutes.",
+        "Faster clears and fewer deaths give bigger tier jumps; higher level in less time raises leaderboard weight.",
+        "Random map challenges grant big progress or buffs.",
+        "Hardcore/SSF Hardcore deaths here keep the character for the season.",
+        "Rewards claimable only in Normal Mode on seasonal servers."
+      ],
+      "unknowns": [
+        "Tier-jump formula, what extends the 'base' countdown and progress amounts are not given.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "tierJump = f(clearTime, deaths), decreasing in both",
+          "domain": "Divine Ascent settlement",
+          "assumptions": [
+            "f not given"
+          ],
+          "status": "unresolved"
+        }
+      ],
+      "relevance": [
+        "other"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Brand_the_Nether_Kings_Divinity",
+      "title": "Brand the Nether King's Divinity - Help",
+      "positions": [
+        69
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:49Z",
+      "sections": [
+        "Brand the Nether King's Divinity",
+        "Brand the Nether King's Divinity - Help"
+      ],
+      "summary": "Branding inscribes Talent Nodes onto a Nether King's Divinity using Divine Remnants.",
+      "findings": [
+        "The chosen Remnant decides node type; one node per branding.",
+        "Empty slots fill in order; when full, a random occupied slot is overwritten.",
+        "When full, locking protects one random slot.",
+        "Overview tab: 2-3 slots, one per Offspring; Remnant rarity above the rolled slot fails; lock costs a Soul Nail and is permanent."
+      ],
+      "unknowns": [
+        "How many slots can be locked and the replacement odds are not stated.",
+        "Exporter mapping of branded nodes is not addressed.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "P(given unlocked slot replaced) = 1/(n - k), n = 2..3 slots, k = locked slots",
+          "domain": "Branding with all slots full",
+          "assumptions": [
+            "uniform choice among unlocked occupied slots; uniformity not stated"
+          ],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "dps",
+        "import"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Regular_Pactspirit_Setting",
+      "title": "Regular Pactspirit Setting - Help",
+      "positions": [
+        70
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:49Z",
+      "sections": [
+        "Regular Pactspirit Setting - Help"
+      ],
+      "summary": "Per-mode assignment of Regular Drop Pactspirits.",
+      "findings": [
+        "Assigned modes take drop effects solely from that Regular combination.",
+        "Unlocked by the Golden Season Pass; some modes free temporarily during the season.",
+        "Otherwise drops use the currently equipped Drop Pactspirit Plan.",
+        "Mode-specific drop rules are deferred to each mode."
+      ],
+      "unknowns": [
+        "Which modes are free and whether equipped non-drop Pactspirit effects still apply are not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "dropPactspirits(mode) = RegularSet(mode) if feature unlocked and set assigned, else EquippedDropPlan",
+          "domain": "drop bonus source selection",
+          "assumptions": [],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Vigil_Gameplay",
+      "title": "Vigil Gameplay - Help",
+      "positions": [
+        71
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:50Z",
+      "sections": [
+        "Vigil Gameplay - Help",
+        "Vigil Gameplay - Help > Gameplay Info",
+        "Vigil Gameplay - Help > Usher Mortuary"
+      ],
+      "summary": "Timed fight clearing Wraith waves around the Undead Vigil Procession; Usher Mortuary is the progression tree.",
+      "findings": [
+        "Waves spawn on intervals, pausing if overcrowded.",
+        "Lantern: blue, faster kills speed spawns; yellow, buildup; red, spawns paused and rewards at risk.",
+        "1 Remnant Soul per finished run, win or lose, up to a cap; Souls awaken Relics enabling Anomalies and Noble Coffins for better drops.",
+        "Relic resets refund fully; changes apply next map."
+      ],
+      "unknowns": [
+        "Soul cap, drop gains, lantern thresholds and how red-state reward loss works are not given.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "souls = min(cap, souls + 1) per completed run regardless of outcome",
+          "domain": "Usher Mortuary",
+          "assumptions": [
+            "cap not given"
+          ],
+          "status": "documented"
+        }
+      ],
+      "relevance": [
+        "loot"
+      ]
+    },
+    {
+      "url": "https://tlidb.com/en/Pactspirit_Rally",
+      "title": "Pactspirit Rally - Help",
+      "positions": [
+        72
+      ],
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21T20:43:50Z",
+      "sections": [
+        "Pactspirit Rally - Help",
+        "Pactspirit Rally"
+      ],
+      "summary": "Paid event feature granting account-wide, season-long Rally Pactspirits.",
+      "findings": [
+        "Pick 3 sets, each a T1 Legendary, T4 Rare and T6 Magic Drop Pactspirit for the seasonal mode.",
+        "Rally copies are separate; tiers don't interact with owned copies; same-name pairs can't pact together.",
+        "Each set: 24h change cooldown; changing removes it and cancels pacts.",
+        "No upgrades or Insight Essence conversion; expire at season end."
+      ],
+      "unknowns": [
+        "Price and per-tier effect values are not given.",
+        "Whether all sets can be pacted at once under pact-slot limits is not stated.",
+        "Page carries no patch/season/version label; site footer says it is built from beta-test data and is fan-made, so client correspondence is unverified."
+      ],
+      "formulas": [
+        {
+          "expression": "rallyPactspirits = 3 sets x 3 = 9",
+          "domain": "Pactspirit Rally",
+          "assumptions": [],
+          "status": "derived"
+        }
+      ],
+      "relevance": [
+        "loot",
+        "economy"
+      ]
+    }
+  ]
+}

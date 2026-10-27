@@ -1,0 +1,36 @@
+{
+  "format": "tli-help-review-chunk-v1",
+  "checkedAt": "2026-10-21",
+  "articles": [
+    {
+      "url": "https://tlidb.com/en/Exclusive_Support_Skill_Magnificent",
+      "title": "Exclusive Support Skill (Magnificent)",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Magnificent supports match a named active skill and require support slot 3. They can change damage, form or special effects and upgrade through Inspiration Essence plus matching skills rather than battle experience.",
+      "findings": [],
+      "unknowns": [
+        "The Frozen Canvas acquisition statement is historical and does not prove current exclusive sourcing",
+        "Actual effective tier, rolled values and activation still require source-bound build data"
+      ],
+      "formulas": [],
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "reviewScope": "Help body obtained through the original Help index hyperlink using the normal web tool; no restricted request bypass"
+    },
+    {
+      "url": "https://tlidb.com/en/Exclusive_Support_Skill_Noble",
+      "title": "Exclusive Support Skill (Noble)",
+      "status": "body_reviewed",
+      "checkedAt": "2026-10-21",
+      "summary": "Noble supports match a named active skill and require support slot 5. They can change damage, form or special effects and upgrade through Inspiration Essence plus matching skills rather than battle experience.",
+      "findings": [],
+      "unknowns": [
+        "The Frozen Canvas acquisition statement is historical and does not prove current exclusive sourcing",
+        "Actual effective tier, rolled values and activation still require source-bound build data"
+      ],
+      "formulas": [],
+      "sourceClassification": "unofficial-game-help-datamine-mirror",
+      "reviewScope": "Help body obtained through the original Help index hyperlink using the normal web tool; no restricted request bypass"
+    }
+  ]
+}

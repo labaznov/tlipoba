@@ -1,6 +1,38 @@
 """Pure damage arithmetic; all combat conditions are explicit inputs."""
 
 import math
+import re
+from fractions import Fraction
+
+from .formulas import additional, product
+
+_CANONICAL = re.compile(r"-?(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{0,10}[1-9])?")
+
+
+def substitute(rows):
+    """Use exact decimals in a pool, or the legacy float, but never both in one affix."""
+    flags, prepared = {}, []
+    for row in rows:
+        if type(row) is not dict or not all(field in row for field in ("id", "affix", "value", "stacks", "mode")):
+            raise ValueError("Additional modifier requires id, affix, value, stacks and mode")
+        if "exact_value" not in row:
+            flags.setdefault(row["affix"], set()).add(False)
+            prepared.append(row)
+            continue
+        text = row["exact_value"]
+        if row.get("mode") != "add" or type(text) is not str or text == "-0" or _CANONICAL.fullmatch(text) is None:
+            raise ValueError("exact_value must be a canonical decimal on an additive damage row")
+        number = Fraction(text)
+        if float(number) != row["value"]:
+            raise ValueError("exact_value disagrees with its numeric value")
+        if not -1 <= number <= 10**6:
+            raise ValueError("exact_value is outside the supported range")
+        flags.setdefault(row["affix"], set()).add(True)
+        prepared.append({**row, "value": number})
+    for kinds in flags.values():
+        if kinds == {True, False}:
+            raise ValueError("An affix pool cannot mix exact and plain rows")
+    return prepared
 
 
 def bounded(value, minimum, maximum, name):
@@ -9,17 +41,30 @@ def bounded(value, minimum, maximum, name):
     return value
 
 
-def critical(chance, multiplier, *, lucky, more=0):
+def _admitted(value):
+    if type(value) is Fraction:
+        return value
+    if type(value) is bool or type(value) not in (int, float):
+        raise ValueError("Exact operand must be an admitted number")
+    return Fraction(value)
+
+
+def critical(chance, multiplier, *, lucky, more=0, exact=False):
     if lucky is not True and lucky is not False:
         raise ValueError("Lucky must be a boolean")
     bounded(chance, 0, 1, "Critical chance")
     bounded(multiplier, 0, 100, "Critical multiplier")
     bounded(more, -1, 100, "Critical-only more damage")
-    probability = 1 - (1 - chance) ** 2 if lucky else chance
-    return (1 - probability) + probability * multiplier * (1 + more)
+    if exact:
+        lifted = _admitted(chance)
+        probability = lifted * (_admitted(2) - lifted) if lucky else lifted
+        return ((_admitted(1) - probability) + product(
+            (probability, multiplier, _admitted(1) + _admitted(more)), name="Critical damage", exact=True))
+    probability = chance * (2 - chance) if lucky else chance
+    return (1 - probability) + product((probability, multiplier, 1 + more), name="Critical damage")
 
 
-def topology(maximum, extra, active, hits, retention):
+def topology(maximum, extra, active, hits, retention, *, base=1):
     bounded(maximum, 0, 4, "Supported Tangle maximum")
     for name, value in (("Tangle maximum", maximum), ("Additional attachments", extra),
                         ("Active tangles", active), ("Hits", hits)):
@@ -27,33 +72,58 @@ def topology(maximum, extra, active, hits, retention):
         if value != math.floor(value):
             raise ValueError(f"{name} must be an integer")
     bounded(retention, 0, 1, "Shotgun retained fraction")
+    if type(base) is not int or not 0 <= base <= 1000:
+        raise ValueError("Tangle base requires an integer from 0 through 1000")
     if active > maximum:
         raise ValueError("Active tangles exceed the maximum")
-    attached = min(maximum, 1 + extra, active)
+    attached = min(maximum, base + extra, active)
     shotgun = 0 if hits == 0 else 1 + (hits - 1) * retention
     return {"attached": attached, "shotgun": shotgun, "factor": round(attached * shotgun, 12)}
 
 
-def cold(base, physical, flat, effectiveness, increased, origin, destination, modifiers):
-    """Calculate one noncritical hit after complete Physical to Cold conversion."""
+def cold(base, physical, flat, effectiveness, increased, origin, destination, modifiers, *, exact=False):
+    """Calculate one noncritical hit after complete Physical to Cold conversion.
+
+    Keep scope sums exact through clamping so Fraction inputs retain their residuals.
+    """
     for name, value in (("Base damage", base), ("Added physical damage", physical),
                         ("Added cold damage", flat), ("Added effectiveness", effectiveness)):
         bounded(value, 0, 1e15, name)
     for name, value in (("Global increased", increased), ("Physical increased", origin),
                         ("Cold increased", destination)):
         bounded(value, -1, 1e6, name)
-    factors = {"all": 1, "physical": 1, "cold": 1}
+    pools = {"all": [], "physical": [], "cold": []}
     identities = set()
-    for modifier in modifiers:
+    for modifier in substitute(modifiers):
+        if not all(field in modifier for field in ("id", "affix", "scope", "value", "stacks", "mode")):
+            raise ValueError("Cold modifier requires id, affix, scope, value, stacks and mode")
         if modifier["id"] in identities:
             raise ValueError(f"Duplicate modifier {modifier['id']}")
         identities.add(modifier["id"])
-        if modifier["scope"] not in factors:
+        if modifier["scope"] not in pools:
             raise ValueError(f"Unknown damage scope {modifier['scope']}")
-        factors[modifier["scope"]] *= 1 + bounded(modifier["value"], -1, 1e6, "More damage")
-    converted = (base + physical * effectiveness) * max(0, 1 + increased + origin + destination)
-    native = flat * effectiveness * max(0, 1 + increased + destination)
-    return (converted * factors["physical"] + native) * factors["all"] * factors["cold"]
+        pools[modifier["scope"]].append({
+            "id": modifier["id"], "affix": modifier["affix"],
+            "value": modifier["value"] if type(modifier["value"]) is Fraction
+            else bounded(modifier["value"], -1, 1e6, "More damage"),
+            "stacks": modifier["stacks"], "mode": modifier["mode"],
+        })
+    converted_factor = additional(pools["all"] + pools["physical"] + pools["cold"], exact=exact)
+    native_factor = additional(pools["all"] + pools["cold"], exact=exact)
+    if exact:
+        added = _admitted(base) + _admitted(physical) * _admitted(effectiveness)
+        scale = max(Fraction(0), sum(map(_admitted, (1, increased, origin, destination))))
+        native_scale = max(Fraction(0), sum(map(_admitted, (1, increased, destination))))
+        converted = product((added, scale), name="Converted hit", exact=True)
+        native = product((_admitted(flat), _admitted(effectiveness), native_scale), name="Native Cold hit", exact=True)
+    else:
+        converted = product((base + product((physical, effectiveness), name="Added physical hit"),
+                             max(0, sum(map(Fraction, (1, increased, origin, destination))))), name="Converted hit")
+        native = product((flat, effectiveness, max(0, sum(map(Fraction, (1, increased, destination))))), name="Native Cold hit")
+    result = product((converted, converted_factor), name="Cold hit", exact=exact) + product((native, native_factor), name="Cold hit", exact=exact)
+    if not math.isfinite(result):
+        raise ValueError("Cold hit must be finite")
+    return result
 
 
 def calculate(panel, condition):
@@ -92,8 +162,9 @@ def calculate(panel, condition):
             "assumptions": [
                 "Исходная величина трактуется как один снаряд одного Tangle; семантика Spell DPS не подтверждена",
                 "Попадания, оставшаяся доля shotgun, сопротивление и время боя заданы сценарием",
+                "Сопротивление цели задано после применимых ограничений; пробивание вычитается из эффективного значения",
                 "Внешний taken применяется только если он ещё не учтён в исходной панели",
                 "Число созданных Tangle и прикреплённых к цели Tangle различаются",
                 "Баффы Heat Up, Burning Red, проклятие, Frostbite и Euphoria зависят от состояния боя",
-                "Броня цели и её ослабление пока не моделируются, расчёт предполагает нулевую броню",
+                "Броня учитывается только при явном боевом контексте; пробивание брони не реализовано",
             ]}

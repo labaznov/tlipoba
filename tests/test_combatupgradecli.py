@@ -1,0 +1,508 @@
+import contextlib
+import copy
+import io
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import ModuleType
+from unittest.mock import patch
+
+from damage_lab.combatupgradecli import main
+from test_combatupgrades import candidate, scenario, unit
+
+
+def goal_scenario():
+    return {"format": "tli-combat-upgrade-scenario-v1", "baseline": unit(1000),
+            "currency": "synthetic tokens",
+            "candidates": [candidate("efficient-expensive", unit(1500), 100),
+                           candidate("sufficient-cheap", unit(1100), 25)]}
+
+
+class CombatUpgradeCliTests(unittest.TestCase):
+    """Publish only complete conditional comparisons while preserving local inputs and existing paths."""
+
+    def test_existing_cli_publishes_a_v2_goal(self):
+        # Spec 6 and 7: no new command
+        baseline = unit(100)
+        baseline["format"] = "tli-raw-cold-combat-v2"
+        baseline["topology"].update(maximum=4, extra=0, active=4, hits=1, retention=1, base=1)
+        better = copy.deepcopy(baseline)
+        better["topology"]["base"] = 2
+        document = {"format": "tli-combat-upgrade-scenario-v1", "baseline": baseline,
+                    "currency": "synthetic tokens", "candidates": [candidate("wider", better, 5)]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "50", "--budget", "10"])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["goal"]["selected"]), (0, "wider"))
+
+    def test_budget_goal_selects_the_cheapest_sufficient_upgrade_without_reordering_efficiency(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "30"])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            goal = report["goal"]
+            self.assertEqual((status, report["ranking"], goal["format"], goal["minimum_gain"],
+                              goal["budget"], goal["currency"], goal["quantity_scope"],
+                              goal["ranking"], goal["selected"]),
+                             (0, ["efficient-expensive", "sufficient-cheap"],
+                              "tli-combat-upgrade-goal-v1", 100, 30, "synthetic tokens",
+                              "conditional_combat_dps", ["sufficient-cheap"], "sufficient-cheap"))
+
+    def test_goal_html_escapes_the_selected_name_and_currency_in_its_own_section(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = goal_scenario()
+            document["currency"] = "token <script>currency</script>"
+            document["candidates"][1]["name"] = "Choice <img src=x onerror=alert(1)> & gain"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "30"])
+            page = (target / "index.html").read_text(encoding="utf-8")
+            section = page[page.index('id="upgrade-goal"'):].partition("</section>")[0]
+            self.assertEqual((status, 'id="goal-selected"' in section,
+                              "Choice &lt;img src=x onerror=alert(1)&gt; &amp; gain" in section,
+                              "token &lt;script&gt;currency&lt;/script&gt;" in section,
+                              "<img src=x" in page, "<script>currency" in page),
+                             (0, True, True, True, False, False))
+
+    def test_each_goal_flag_requires_its_partner_before_any_output_is_created(self):
+        outcomes = []
+        for flags in (["--minimum-gain", "100"], ["--budget", "30"]):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                raw = json.dumps(goal_scenario()).encode("utf-8")
+                source.write_bytes(raw)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(root / "new/result"), *flags])
+                outcomes.append((status, (root / "new").exists(), source.read_bytes()))
+        self.assertEqual([(status, created, raw == json.dumps(goal_scenario()).encode("utf-8"))
+                          for status, created, raw in outcomes], [(1, False, True)] * 2)
+
+    def test_invalid_goal_numbers_leave_no_output_or_new_parent(self):
+        outcomes = []
+        for minimum, budget in (("0", "30"), ("-1", "30"), ("NaN", "30"),
+                                ("Infinity", "30"), ("1e400", "30"), ("1e-400", "30"),
+                                ("100", "-1"), ("100", "NaN"), ("100", "Infinity"),
+                                ("100", "1e400"), ("100", "1e-400"), ("100", "-1e-400"),
+                                ("true", "30")):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+                errors = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    status = main(["--scenario", str(source), "--output", str(root / "new/result"),
+                                   "--minimum-gain", minimum, "--budget", budget])
+                outcomes.append((status, (root / "new").exists(), len(errors.getvalue().splitlines())))
+        self.assertEqual(outcomes, [(1, False, 1)] * 13)
+
+    def test_duplicate_goal_flags_are_refused_without_publication(self):
+        outcomes = []
+        for extra in (["--minimum-gain", "200"], ["--budget", "40"]):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(root / "new/result"),
+                                   "--minimum-gain", "100", "--budget", "30", *extra])
+                outcomes.append((status, (root / "new").exists()))
+        self.assertEqual(outcomes, [(1, False)] * 2)
+
+    def test_default_comparison_keeps_the_existing_report_without_a_goal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, "goal" in report, 'id="upgrade-goal"' in page, report["ranking"]),
+                             (0, False, False, ["efficient-expensive", "sufficient-cheap"]))
+
+    def test_equivalent_integral_goal_flags_produce_identical_reports_and_html(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "scenario.json"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            outputs = []
+            for index, (minimum, budget) in enumerate((("100", "30"), ("100.0", "30.0"), ("1e2", "3e1"))):
+                target = root / str(index)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(target),
+                                   "--minimum-gain", minimum, "--budget", budget])
+                outputs.append((status, (target / "comparison.json").read_bytes(),
+                                (target / "index.html").read_bytes()))
+            self.assertEqual(outputs[1:], [outputs[0], outputs[0]])
+
+    def test_a_budget_integer_above_binary64_precision_is_preserved_exactly(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "9007199254740993"])
+            goal = json.loads((target / "comparison.json").read_text(encoding="utf-8"))["goal"]
+            self.assertEqual((status, type(goal["budget"]), goal["budget"], goal["selected"]),
+                             (0, int, 9007199254740993, "sufficient-cheap"))
+
+    def test_zero_budget_can_select_an_explicit_free_supported_upgrade(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = goal_scenario()
+            document["candidates"][1]["cost"] = 0
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "0"])
+            goal = json.loads((target / "comparison.json").read_text(encoding="utf-8"))["goal"]
+            self.assertEqual((status, goal["budget"], goal["ranking"], goal["selected"]),
+                             (0, 0, ["sufficient-cheap"], "sufficient-cheap"))
+
+    def test_unaffordable_goal_reports_exclusion_reasons_without_a_fake_selection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(goal_scenario()), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "24"])
+            goal = json.loads((target / "comparison.json").read_text(encoding="utf-8"))["goal"]
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, goal["selected"], goal["ranking"],
+                              sorted((row["id"], bool(row["reasons"])) for row in goal["excluded"]),
+                              'id="upgrade-goal"' in page, 'id="goal-selected"' in page),
+                             (0, None, [], [("efficient-expensive", True), ("sufficient-cheap", True)], True, False))
+
+    def test_unknown_baseline_keeps_the_goal_blocked_with_reasons_and_no_selected_html(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = goal_scenario()
+            document["baseline"]["spell"]["context"]["effective_level"] = None
+            document["baseline"]["spell"]["context"]["gates"]["level"]["status"] = "unknown"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target),
+                               "--minimum-gain", "100", "--budget", "30"])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            goal = report["goal"]
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, report["baseline"]["dps"], goal["selected"], goal["ranking"],
+                              all(bool(row["reasons"]) for row in goal["excluded"]), len(goal["excluded"]),
+                              'id="upgrade-goal"' in page, 'id="goal-selected"' in page),
+                             (0, None, None, [], True, 2, True, False))
+
+    def test_unknown_effective_levels_remain_null_and_block_all_upgrade_rankings(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            document = scenario()
+            for target in [document["baseline"], *[candidate["scenario"] for candidate in document["candidates"]]]:
+                target["spell"]["context"]["effective_level"] = None
+                target["spell"]["context"]["gates"]["level"]["status"] = "unknown"
+            source = root / "scenario.json"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            status = main(["--scenario", str(source), "--output", str(root / "result")])
+            report = json.loads((root / "result/comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["baseline"]["dps"], report["ranking"],
+                              report["scenario"]["baseline"]["spell"]["context"]["effective_level"],
+                              [row["delta"] for row in report["candidates"]]), (0, None, [], None, [None, None]))
+
+    def test_missing_required_arguments_return_one_without_exiting_or_echoing_input(self):
+        outcomes = []
+        for arguments in ([], ["--scenario", "PRIVATE-COMBAT-CANARY"], ["--output", "PRIVATE-COMBAT-CANARY"], ["--scenario"]):
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                status = main(arguments)
+            outcomes.append((status, len(errors.getvalue().splitlines()), "PRIVATE-COMBAT-CANARY" in errors.getvalue(),
+                             errors.getvalue().rstrip().endswith(".")))
+        self.assertEqual(outcomes, [(1, 1, False, False)] * 4)
+
+    def test_unknown_abbreviated_and_repeated_flags_are_refused_without_payload_echo(self):
+        outcomes = []
+        for arguments in (["--scen", "PRIVATE-COMBAT-CANARY", "--output", "unused"],
+                          ["--scenario", "unused", "--output", "unused", "--override", "PRIVATE-COMBAT-CANARY"],
+                          ["--scenario", "unused", "--scenario", "PRIVATE-COMBAT-CANARY", "--output", "unused"],
+                          ["--scenario", "unused", "--output", "unused", "--output", "PRIVATE-COMBAT-CANARY"],
+                          ["--help", "--unknown", "PRIVATE-COMBAT-CANARY"]):
+            errors, output = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                status = main(arguments)
+            outcomes.append((status, output.getvalue(), len(errors.getvalue().splitlines()),
+                             "PRIVATE-COMBAT-CANARY" in errors.getvalue()))
+        self.assertEqual(outcomes, [(1, "", 1, False)] * 5)
+
+    def test_help_returns_zero_without_required_paths_or_system_exit(self):
+        output, errors = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            status = main(["--help"])
+        self.assertEqual((status, "--scenario" in output.getvalue(), "--output" in output.getvalue(), errors.getvalue()),
+                         (0, True, True, ""))
+
+    def test_existing_output_files_and_directories_are_preserved_byte_for_byte(self):
+        for directory in (False, True):
+            with self.subTest(directory=directory), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source, target = root / "scenario.json", root / "result"
+                source.write_bytes(b"PRIVATE-COMBAT-CANARY")
+                if directory:
+                    target.mkdir()
+                preserved = target / "comparison.json" if directory else target
+                preserved.write_bytes(b"existing result\x00\xff")
+                errors = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    status = main(["--scenario", str(source), "--output", str(target)])
+                self.assertEqual((status, preserved.read_bytes(), source.read_bytes(), errors.getvalue().strip()),
+                                 (1, b"existing result\x00\xff", b"PRIVATE-COMBAT-CANARY",
+                                  "Ошибка боевого сравнения: путь результата уже существует"))
+
+    def test_output_equal_to_the_input_cannot_replace_the_scenario(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "scenario.json"
+            source.write_bytes(b"preserve the source")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(source)])
+            self.assertEqual((status, source.read_bytes()), (1, b"preserve the source"))
+
+    def test_normalized_existing_output_is_refused_without_creating_an_extra_parent(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "scenario.json"
+            source.write_bytes(b"preserve input")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(root / "unused" / "..")])
+            self.assertEqual((status, sorted(path.name for path in root.iterdir()), source.read_bytes()),
+                             (1, ["scenario.json"], b"preserve input"))
+
+    def test_missing_or_directory_inputs_dont_create_an_output_parent(self):
+        outcomes = []
+        for directory in (False, True):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "source"
+                if directory:
+                    source.mkdir()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = main(["--scenario", str(source), "--output", str(root / "new" / "result")])
+                outcomes.append((status, (root / "new").exists(), source.is_dir()))
+        self.assertEqual(outcomes, [(1, False, False), (1, False, True)])
+
+    def test_strict_json_errors_are_refused_before_calling_the_evaluator(self):
+        def unexpected(document):
+            raise AssertionError("The evaluator cannot receive refused JSON")
+
+        for raw in (b'{"currency":"PRIVATE-COMBAT-CANARY","currency":"synthetic"}',
+                    b'{"candidate":{"cost":17,"cost":31}}', b'{"opaque":NaN}',
+                    b'{"opaque":Infinity}', b'{"opaque":1e400}', b'{"cost":1e-400}',
+                    b'{"cost":-1e-400}', b'{"cost":1e-999999999999999999999}',
+                    b'\xffPRIVATE-COMBAT-CANARY',
+                    b'{"PRIVATE-COMBAT-CANARY":'):
+            with self.subTest(size=len(raw)), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = root / "scenario.json"
+                source.write_bytes(raw)
+                errors = io.StringIO()
+                with patch("damage_lab.combatupgradecli.evaluate", unexpected), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    status = main(["--scenario", str(source), "--output", str(root / "new" / "result")])
+                self.assertEqual((status, sorted(path.name for path in root.iterdir()), source.read_bytes(),
+                                  len(errors.getvalue().splitlines()), "PRIVATE-COMBAT-CANARY" in errors.getvalue()),
+                                 (1, ["scenario.json"], raw, 1, False))
+
+    def test_nested_non_scenario_json_returns_one_without_output_or_source_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "scenario.json"
+            raw = b"[" * 1800 + b"0" + b"]" * 1800
+            source.write_bytes(raw)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(root / "new" / "result")])
+            self.assertEqual((status, sorted(path.name for path in root.iterdir()), source.read_bytes()),
+                             (1, ["scenario.json"], raw))
+
+    def test_an_input_above_eight_mebibytes_is_refused_before_evaluation(self):
+        def unexpected(document):
+            raise AssertionError("Oversize input cannot reach the evaluator")
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "scenario.json"
+            raw = json.dumps(scenario()).encode("utf-8")
+            source.write_bytes(raw + b" " * (8 * 1024 * 1024 + 1 - len(raw)))
+            with patch("damage_lab.combatupgradecli.evaluate", unexpected), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(root / "result")])
+            self.assertEqual((status, sorted(path.name for path in root.iterdir()), source.stat().st_size),
+                             (1, ["scenario.json"], 8 * 1024 * 1024 + 1))
+
+    def test_model_validation_failure_leaves_no_parent_or_result(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            document = scenario()
+            document["baseline"]["gates"]["inheritance"]["status"] = "unknown"
+            document["candidates"][1]["scenario"]["target"]["armor"] = "PRIVATE-COMBAT-CANARY"
+            source = root / "scenario.json"
+            raw = json.dumps(document).encode("utf-8")
+            source.write_bytes(raw)
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                status = main(["--scenario", str(source), "--output", str(root / "new" / "result")])
+            self.assertEqual((status, sorted(path.name for path in root.iterdir()), source.read_bytes(),
+                              "PRIVATE-COMBAT-CANARY" in errors.getvalue()), (1, ["scenario.json"], raw, False))
+
+    def test_renderer_failure_occurs_before_any_output_directory_is_created(self):
+        def unavailable(report):
+            raise ValueError("PRIVATE-COMBAT-CANARY")
+
+        renderer = ModuleType("damage_lab.combatupgradereport")
+        renderer.render = unavailable
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "scenario.json"
+            source.write_text(json.dumps(scenario()), encoding="utf-8")
+            errors = io.StringIO()
+            with patch.dict(sys.modules, {renderer.__name__: renderer}), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                status = main(["--scenario", str(source), "--output", str(root / "new" / "result")])
+            self.assertEqual((status, sorted(path.name for path in root.iterdir()), "PRIVATE-COMBAT-CANARY" in errors.getvalue()),
+                             (1, ["scenario.json"], False))
+
+    def test_a_target_created_before_publication_survives_and_only_owned_stage_is_cleaned(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            source.write_text(json.dumps(scenario()), encoding="utf-8")
+            preserved = root / ".tli-combat-upgrades-preserved"
+            preserved.mkdir()
+            (preserved / "sentinel").write_bytes(b"preexisting stage lookalike")
+
+            def competing(report):
+                target.write_bytes(b"another writer owns this result")
+                return "<html>synthetic renderer</html>"
+
+            renderer = ModuleType("damage_lab.combatupgradereport")
+            renderer.render = competing
+            with patch.dict(sys.modules, {renderer.__name__: renderer}), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            self.assertEqual((status, target.read_bytes(), (preserved / "sentinel").read_bytes(),
+                              sorted(path.name for path in root.iterdir())),
+                             (1, b"another writer owns this result", b"preexisting stage lookalike",
+                              [".tli-combat-upgrades-preserved", "result", "scenario.json"]))
+
+    def test_complete_comparisons_publish_full_combat_oracles_and_passive_html_together(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            raw = json.dumps(scenario()).encode("utf-8")
+            source.write_bytes(raw)
+            errors = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, errors.getvalue(), source.read_bytes(),
+                              sorted(path.name for path in target.iterdir()), report["format"], report["status"],
+                              round(report["baseline"]["dps"], 6),
+                              [round(row["delta"], 6) for row in report["candidates"]], report["ranking"],
+                              report["price_source"], report["quantity_scope"],
+                              page.startswith("<!doctype html>"), "<script" in page.lower()),
+                             (0, "", raw, ["comparison.json", "index.html"], "tli-combat-upgrade-report-v1",
+                              "conditional", 291.06, [291.06, 145.53], ["hit", "topology"], "caller",
+                              "conditional_combat_dps", True, False))
+
+    def test_utf8_bom_and_unicode_names_and_currency_survive_without_rewriting_input(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "сценарий.json", root / "новый каталог" / "результат"
+            document = scenario()
+            document["currency"] = "синтетический жетон"
+            document["candidates"][0]["name"] = "Синтетическое усиление"
+            raw = b"\xef\xbb\xbf" + json.dumps(document, ensure_ascii=False).encode("utf-8")
+            source.write_bytes(raw)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            page = (target / "index.html").read_text(encoding="utf-8")
+            self.assertEqual((status, source.read_bytes(), report["currency"], report["candidates"][0]["name"],
+                              "синтетический жетон" in page, "Синтетическое усиление" in page),
+                             (0, raw, "синтетический жетон", "Синтетическое усиление", True, True))
+
+    def test_exactly_eight_mebibytes_is_accepted_without_modifying_the_input(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            raw = json.dumps(scenario()).encode("utf-8")
+            raw += b" " * (8 * 1024 * 1024 - len(raw))
+            source.write_bytes(raw)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            self.assertEqual((status, source.read_bytes(), sorted(path.name for path in target.iterdir())),
+                             (0, raw, ["comparison.json", "index.html"]))
+
+    def test_blocked_baselines_still_publish_complete_reports_with_null_gains(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = scenario()
+            document["baseline"]["gates"]["inheritance"]["status"] = "unknown"
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["status"], report["baseline"]["dps"], report["ranking"],
+                              [(row["status"], row["delta"], row["relative"], row["per_cost"])
+                               for row in report["candidates"]], (target / "index.html").is_file()),
+                             (0, "blocked", None, [], [("blocked", None, None, None)] * 2, True))
+
+    def test_free_and_unpriced_comparisons_keep_null_ratios_and_distinct_statuses(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            document = scenario()
+            document["candidates"][0]["cost"] = None
+            document["candidates"][1]["cost"] = 0
+            source.write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, [(row["cost"], row["status"], row["per_cost"])
+                                      for row in report["candidates"]], report["ranking"]),
+                             (0, [(None, "unpriced", None), (0, "free", None)], ["topology"]))
+
+    def test_exact_zero_with_a_large_exponent_stays_zero_instead_of_becoming_an_input_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "scenario.json", root / "result"
+            raw = json.dumps(scenario()).replace('"cost": 17', '"cost": 0e-999999999999999999999').encode("utf-8")
+            source.write_bytes(raw)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(target)])
+            report = json.loads((target / "comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual((status, report["candidates"][0]["cost"], report["candidates"][0]["status"]),
+                             (0, 0, "free"))
+
+    def test_output_parent_files_are_preserved_when_publication_cannot_create_a_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, parent = root / "scenario.json", root / "parent"
+            raw = json.dumps(scenario()).encode("utf-8")
+            source.write_bytes(raw)
+            parent.write_bytes(b"existing parent file")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = main(["--scenario", str(source), "--output", str(parent / "result")])
+            self.assertEqual((status, source.read_bytes(), parent.read_bytes(), sorted(path.name for path in root.iterdir())),
+                             (1, raw, b"existing parent file", ["parent", "scenario.json"]))

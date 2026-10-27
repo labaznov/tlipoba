@@ -1,0 +1,19 @@
+{
+  "format": "tli-conditional-combat-context-v1",
+  "topology": {"maximum": 1, "extra": 0, "active": 1, "hits": 1, "retention": 0},
+  "target": {
+    "cold_resistance": 0, "cold_penetration": 0, "armor": 0,
+    "armor_effectiveness": 1, "armor_penetration": 0,
+    "armor_penetration_order": "after_effectiveness", "increased_taken": 0, "more_taken": []
+  },
+  "uptime": 1,
+  "gates": {
+    "inheritance": {"status": "unknown", "evidence": []},
+    "hit_topology": {"status": "unknown", "evidence": []},
+    "target_state": {"status": "unknown", "evidence": []}
+  },
+  "missing": [],
+  "notes": ["Illustrative context choices; these values are not observations of the imported character or target"],
+  "condition": {"cursed": null, "evidence": []},
+  "coverage": {"status": "unknown", "evidence": []}
+}

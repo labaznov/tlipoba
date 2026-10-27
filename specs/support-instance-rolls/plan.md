@@ -1,0 +1,1 @@
+Bind each lineRolls object through the producer position: kind, sourceTab, the enabled main at that tab, and the support slot. Confirm the guid. A named tab stays occupied when the group has no supports. Leave the published text, statuses and hashes unchanged.

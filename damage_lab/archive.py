@@ -528,6 +528,7 @@ def logged(data, path, native, *, raw=False):
     selection = select(document, anchors[0])
     summary = {key: selection["summary"][key] for key in (
         "format", "status", "known", "unknown_attributes", "cohort", "identity_verified", "source_sha256", "numeric_policy",
+        "newer_state_conflict", "stale_selection_warning",
     )}
     summary["cohort"] = {key: summary["cohort"][key] for key in ("timestamp", "frame")}
     summary["input_kind"] = "game_log" if raw else "panel_log"

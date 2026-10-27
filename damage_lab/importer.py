@@ -29,6 +29,20 @@ def logsummary(data):
     if "numeric_policy" in data:
         from .logstats import policy
         result["numeric_policy"] = policy(data["numeric_policy"])
+    from .logstats import CONFLICT_WARNING, UNKNOWN_WARNING
+    if "newer_state_conflict" in data or "stale_selection_warning" in data:
+        if "newer_state_conflict" not in data or "stale_selection_warning" not in data:
+            raise ValueError("Panel log conflict fields must appear together")
+        conflict, warning = data["newer_state_conflict"], data["stale_selection_warning"]
+        if conflict is not None and type(conflict) is not bool:
+            raise ValueError("Panel log newer-state conflict flag must be boolean or unknown")
+        if warning is not None and warning not in (CONFLICT_WARNING, UNKNOWN_WARNING):
+            raise ValueError("Panel log stale-selection warning must be the fixed contract text")
+        expected = CONFLICT_WARNING if conflict is True else UNKNOWN_WARNING if conflict is None else None
+        if warning != expected:
+            raise ValueError("Panel log conflict flag and warning must agree")
+        result["newer_state_conflict"] = conflict
+        result["stale_selection_warning"] = warning
     return result
 
 

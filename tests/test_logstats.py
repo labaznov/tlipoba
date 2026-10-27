@@ -22,7 +22,8 @@ def document():
                            "raw_values": tokens, "line_numbers": [11 + index * 2, 12 + index * 2]})
     return {"format": "tli-panel-log-v1", "source": {"sha256": "a" * 64},
             "cohorts": [{"timestamp": "2026-10-19T13:17:38.731Z", "frame": 731,
-                         "attributes": attributes, "issues": [], "status": "resolved"}], "gaps": []}
+                         "attributes": attributes, "issues": [], "status": "resolved"}],
+            "rejected": [], "gaps": []}
 
 
 class LogstatsTests(unittest.TestCase):
@@ -484,6 +485,7 @@ class LogstatsTests(unittest.TestCase):
             "numeric_policy": {"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
                                "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
                                                  "meaning": "selection_heuristic", "rounding_verified": False}},
+                           "newer_state_conflict": False, "stale_selection_warning": None,
         })
 
     def test_resolved_attributes_require_typed_lists_status_and_ordered_source_lines(self):
@@ -541,3 +543,192 @@ class LogstatsTests(unittest.TestCase):
         self.assertEqual({row["key"]: row["display"] for row in select(payload, 3217)["rows"]
                           if row["key"] in ("cast_rate", "crit_chance", "crit_multiplier")},
                          {"cast_rate": "4.8125 /s", "crit_chance": "31.75%", "crit_multiplier": "287.5%"})
+
+
+class PartialCohortUnknownTests(unittest.TestCase):
+    """A newer partial 10103 state leaves the comparison explicitly unknown (spec 9-11)."""
+
+    def test_a_newer_partial_anchor_state_is_unknown_not_conflict_free(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        payload["cohorts"][1]["attributes"][0].update(values=[4759.2], raw_values=["4759.2"])
+        payload["cohorts"][1]["attributes"][2].update(status="unresolved", values=None)
+        payload["cohorts"][1]["status"] = "partial"
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        from damage_lab.logstats import UNKNOWN_WARNING
+        self.assertEqual(summary["stale_selection_warning"], UNKNOWN_WARNING)
+
+    def test_a_newer_partial_state_without_the_anchor_still_blocks_false(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        for attribute in payload["cohorts"][1]["attributes"]:
+            if attribute["id"] == "10103":
+                attribute.update(id="99999")
+        payload["cohorts"][1]["status"] = "partial"
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        self.assertIn("current-state comparison is unknown", summary["stale_selection_warning"])
+
+
+class IncompleteCoverageTests(unittest.TestCase):
+    """No-conflict requires evidenced complete coverage (spec 12-13)."""
+
+    def test_a_snapshot_gap_beyond_the_fixed_sentences_blocks_false(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["gaps"].append("Final line 12 was unterminated at the snapshot boundary and was not parsed.")
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        self.assertIn("current-state comparison is unknown", summary["stale_selection_warning"])
+
+    def test_a_newer_partial_without_the_anchor_is_also_unknown(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        for attribute in payload["cohorts"][1]["attributes"]:
+            if attribute["id"] == "10103":
+                attribute.update(id="99999")
+        payload["cohorts"][1]["status"] = "partial"
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+
+    def test_a_tied_partial_with_the_anchor_cannot_be_ordered_so_is_unknown(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["attributes"][2].update(status="unresolved", values=None)
+        payload["cohorts"][1]["status"] = "partial"
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+
+    def test_a_strictly_older_partial_does_not_block(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:17:37.100Z"
+        payload["cohorts"][1]["attributes"][2].update(status="unresolved", values=None)
+        payload["cohorts"][1]["status"] = "partial"
+        summary = select(payload, 3217)["summary"]
+        self.assertFalse(summary["newer_state_conflict"])
+        self.assertIsNone(summary["stale_selection_warning"])
+
+
+class RejectedAndTieTests(unittest.TestCase):
+    """Rejected lines and resolved ties block complete coverage (spec 14-16)."""
+
+    def test_a_rejected_panel_line_without_any_gap_is_unknown(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["rejected"] = [{"line": 12, "reason": "unrecognized panel line"}]
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        self.assertEqual(summary["stale_selection_warning"],
+                         "Panel comparison coverage is incomplete; the current-state comparison is unknown")
+
+    def test_a_resolved_tie_with_a_differing_anchor_is_unknown(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        payload["cohorts"][1]["attributes"][0].update(values=[9999.0], raw_values=["9999"])
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        self.assertIn("current-state comparison is unknown", summary["stale_selection_warning"])
+
+    def test_a_resolved_tie_with_the_same_anchor_stays_false(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(deepcopy(payload["cohorts"][0]))
+        summary = select(payload, 3217)["summary"]
+        self.assertFalse(summary["newer_state_conflict"])
+        self.assertIsNone(summary["stale_selection_warning"])
+
+
+class LegacyRejectedFieldTests(unittest.TestCase):
+    """Missing or malformed rejected cannot prove complete coverage (spec 17)."""
+
+    def test_a_missing_rejected_field_is_unknown(self):
+        from damage_lab.logstats import select, UNKNOWN_WARNING
+
+        payload = document()
+        payload.pop("rejected")
+        summary = select(payload, 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        self.assertEqual(summary["stale_selection_warning"], UNKNOWN_WARNING)
+
+    def test_malformed_rejected_values_are_unknown_without_private_text(self):
+        from damage_lab.logstats import select
+
+        for malformed in (None, "PRIVATE-REJECTED-STRING", {"line": 1}):
+            with self.subTest(malformed=malformed):
+                payload = document()
+                payload["rejected"] = malformed
+                summary = select(payload, 3217)["summary"]
+                self.assertIsNone(summary["newer_state_conflict"])
+                self.assertIn("current-state comparison is unknown", summary["stale_selection_warning"])
+
+    def test_an_explicit_empty_rejected_list_stays_complete(self):
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["rejected"] = []
+        summary = select(payload, 3217)["summary"]
+        self.assertFalse(summary["newer_state_conflict"])
+        self.assertIsNone(summary["stale_selection_warning"])
+
+
+class TiedAnchorComparisonTests(unittest.TestCase):
+    """Tied states compare against the native anchor, not pairwise (spec 18)."""
+
+    def tied_payload(self, tied_value):
+        from copy import deepcopy as clone
+
+        payload = document()
+        payload["cohorts"][0]["attributes"][0].update(values=[3217.4], raw_values=["3217.4"])
+        payload["cohorts"].append(clone(payload["cohorts"][0]))
+        payload["cohorts"][1]["attributes"][0].update(values=[tied_value], raw_values=[str(tied_value)])
+        return payload
+
+    def test_a_tied_state_outside_the_anchor_tolerance_is_unknown(self):
+        from damage_lab.logstats import select
+
+        summary = select(self.tied_payload(3217.9), 3217)["summary"]
+        self.assertIsNone(summary["newer_state_conflict"])
+        self.assertIn("current-state comparison is unknown", summary["stale_selection_warning"])
+
+    def test_identical_tied_twins_inside_the_tolerance_do_not_block(self):
+        from damage_lab.logstats import select
+
+        summary = select(self.tied_payload(3217.4), 3217)["summary"]
+        self.assertFalse(summary["newer_state_conflict"])
+        self.assertIsNone(summary["stale_selection_warning"])
+
+    def test_a_later_resolved_cohort_without_the_target_has_unknown_coverage(self):
+        from copy import deepcopy as clone
+
+        from damage_lab.logstats import select
+
+        payload = document()
+        payload["cohorts"].append(clone(payload["cohorts"][0]))
+        payload["cohorts"][1]["timestamp"] = "2026-10-19T13:18:39.743Z"
+        for attribute in payload["cohorts"][1]["attributes"]:
+            if attribute["id"] == "10103":
+                attribute.update(id="99999")
+        summary = select(payload, 3217)["summary"]
+        from damage_lab.logstats import UNKNOWN_WARNING
+        self.assertEqual((summary["newer_state_conflict"], summary["stale_selection_warning"]),
+                         (None, UNKNOWN_WARNING))

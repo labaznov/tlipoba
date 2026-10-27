@@ -81,7 +81,19 @@ def logdetails(record):
             f"Подтверждённых полей: {text(data['known'])}; неизвестных атрибутов: {text(data['unknown_attributes'])}<br>"
             f"Состояние: {text(data['cohort']['timestamp'])}; кадр: {text(data['cohort']['frame'])}<br>"
             f"SHA-256 лога: {text(data['source_sha256'])}<br>identity_verified: false</p>"
-            "<p>Совпадение Spell DPS не подтверждает принадлежность лога персонажу</p>" + precision + "</section>")
+            "<p>Совпадение Spell DPS не подтверждает принадлежность лога персонажу</p>"
+            + stale_selection(data) + precision + "</section>")
+
+
+def stale_selection(data):
+    """Render the comparison result without inventing an identity or a conflict."""
+    if "newer_state_conflict" not in data:
+        return ""
+    flag = data["newer_state_conflict"]
+    label = "true" if flag is True else "false" if flag is False else "unknown"
+    warning = data.get("stale_selection_warning")
+    sentence = f"; {text(warning)}" if warning else ""
+    return f"<p>Сравнение с более новыми состояниями панели: {label}{sentence}</p>"
 
 
 def provenance(row):

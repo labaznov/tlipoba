@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import io
 import json
 import os
@@ -468,3 +469,178 @@ class DamageCliTests(unittest.TestCase):
                       "--active", "19", "--resistance", "0.47", "--taken", "0.19",
                       "--uptime", "0.83", "--basis", "panel"], archiver=archive)
             self.assertFalse((root / "result").exists())
+
+
+class StalePanelWarningTests(unittest.TestCase):
+    """The newer conflicting panel state survives into machine-facing calculation JSON."""
+
+    ARGS = ("--basis", "panel", "--active", "2", "--hits", "3",
+            "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87")
+
+    def calculation(self, root, name, package_path, native_path, panel_path):
+        from test_damage_archive import facts
+
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = main(["--package", str(package_path), "--native-stats", str(native_path),
+                         "--panel-log", str(panel_path), "--facts", str(facts(root)),
+                         "--output", str(root / name), *self.ARGS])
+        if code != 0:
+            return code, None
+        return code, json.loads((root / name / "calculation.json").read_text(encoding="utf-8"))
+
+    def stale_package(self, root):
+        from test_damage_archive import native, package, panel as written
+
+        path = package(root)
+        document = json.loads(written(root, "43721").read_text(encoding="utf-8"))
+        newer = copy.deepcopy(document["cohorts"][0])
+        newer.update(timestamp="2001-02-03T04:05:09.000Z", frame=715)
+        newer["attributes"][0].update(values=[99999.0], raw_values=["99999"])
+        document["cohorts"].append(newer)
+        (root / "stale-panel.json").write_text(json.dumps(document), encoding="utf-8")
+        return path, native(root, path), root / "stale-panel.json"
+
+    def test_a_newer_conflicting_panel_reaches_calculation_json(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            package_path, native_path, panel_path = self.stale_package(root)
+            code, result = self.calculation(root, "stale", package_path, native_path, panel_path)
+            self.assertEqual(code, 0)
+            self.assertEqual((result["status"], result["panel_log"]["identity_verified"],
+                              result["panel_log"]["newer_state_conflict"]),
+                             ("conditional", False, True))
+            self.assertIn("does not verify the current state", result["panel_log"]["stale_selection_warning"])
+            self.assertIn(result["panel_log"]["cohort"]["timestamp"], ("2001-02-03T04:05:07.000Z",))
+
+    def test_an_ordinary_panel_reports_no_conflict(self):
+        from test_damage_archive import native, package, panel as written
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = package(root)
+            code, result = self.calculation(root, "ordinary", path, native(root, path), written(root, "43721"))
+            self.assertEqual(code, 0)
+            self.assertIsNone(result["panel_log"]["newer_state_conflict"])
+            self.assertIn("current-state comparison is unknown",
+                          result["panel_log"]["stale_selection_warning"])
+
+    def test_logsummary_refuses_forged_warning_text(self):
+        from damage_lab.importer import logsummary
+
+        base = {"format": "tli-panel-log-v1", "status": "corroborated", "known": 8, "unknown_attributes": 0,
+                "identity_verified": False, "source_sha256": "b" * 64,
+                "cohort": {"timestamp": "2001-02-03T04:05:07.000Z", "frame": 713},
+                "newer_state_conflict": "yes", "stale_selection_warning": None}
+        with self.assertRaisesRegex(ValueError, "boolean"):
+            logsummary(base)
+        forged = dict(base, newer_state_conflict=True, stale_selection_warning="player swapped skills")
+        with self.assertRaisesRegex(ValueError, "fixed contract"):
+            logsummary(forged)
+        legacy = {key: value for key, value in base.items()
+                  if key not in ("newer_state_conflict", "stale_selection_warning")}
+        projected = logsummary(legacy)
+        self.assertNotIn("newer_state_conflict", projected)
+        self.assertNotIn("stale_selection_warning", projected)
+        bare = {key: value for key, value in base.items()
+                if key not in ("newer_state_conflict", "stale_selection_warning")}
+        with self.assertRaisesRegex(ValueError, "together"):
+            logsummary({**bare, "newer_state_conflict": True})
+        with self.assertRaisesRegex(ValueError, "together"):
+            logsummary({**bare, "stale_selection_warning": None})
+        from damage_lab.logstats import CONFLICT_WARNING
+        with self.assertRaisesRegex(ValueError, "agree"):
+            logsummary({**base, "newer_state_conflict": False,
+                        "stale_selection_warning": CONFLICT_WARNING})
+        consistent = logsummary({**base, "newer_state_conflict": False, "stale_selection_warning": None})
+        self.assertEqual((consistent["newer_state_conflict"], consistent["stale_selection_warning"]),
+                         (False, None))
+        from damage_lab.logstats import UNKNOWN_WARNING as unknown
+        accepted = logsummary({**base, "newer_state_conflict": None, "stale_selection_warning": unknown})
+        self.assertEqual((accepted["newer_state_conflict"], accepted["stale_selection_warning"]),
+                         (None, unknown))
+        for pair in ((None, None), (None, CONFLICT_WARNING), (True, unknown)):
+            with self.subTest(pair=pair):
+                with self.assertRaisesRegex(ValueError, "agree"):
+                    logsummary({**base, "newer_state_conflict": pair[0],
+                                "stale_selection_warning": pair[1]})
+
+
+class PartialCohortEndToEndTests(unittest.TestCase):
+    """A newer partial differing cohort surfaces unknown, not conflict-free, in JSON."""
+
+    ARGS = ("--basis", "panel", "--active", "2", "--hits", "3",
+            "--retention", "0.2", "--resistance", "0.23", "--taken", "0.11", "--uptime", "0.87")
+
+    def test_a_newer_partial_differing_cohort_reaches_calculation_json_as_unknown(self):
+        from test_damage_archive import facts, native, package, panel as written
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = package(root)
+            document = json.loads(written(root, "43721").read_text(encoding="utf-8"))
+            newer = copy.deepcopy(document["cohorts"][0])
+            newer.update(timestamp="2001-02-03T04:05:09.000Z", frame=715, status="partial")
+            newer["attributes"][0].update(values=[99999.0], raw_values=["99999"])
+            newer["attributes"][1].update(status="unresolved", values=None)
+            document["cohorts"].append(newer)
+            (root / "partial-panel.json").write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = main(["--package", str(path), "--native-stats", str(native(root, path)),
+                             "--panel-log", str(root / "partial-panel.json"), "--facts", str(facts(root)),
+                             "--output", str(root / "out"), *self.ARGS])
+            self.assertEqual(code, 0)
+            result = json.loads((root / "out" / "calculation.json").read_text(encoding="utf-8"))
+            self.assertEqual((result["status"], result["panel_log"]["identity_verified"],
+                              result["panel_log"]["newer_state_conflict"]),
+                             ("conditional", False, None))
+            self.assertIn("current-state comparison is unknown", result["panel_log"]["stale_selection_warning"])
+
+    def test_a_snapshot_gap_reaches_calculation_json_as_unknown(self):
+        from test_damage_archive import facts, native, package, panel as written
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = package(root)
+            document = json.loads(written(root, "43721").read_text(encoding="utf-8"))
+            document["gaps"].append(
+                "Final line 40 was unterminated at the snapshot boundary and was not parsed.")
+            (root / "gap-panel.json").write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = main(["--package", str(path), "--native-stats", str(native(root, path)),
+                             "--panel-log", str(root / "gap-panel.json"), "--facts", str(facts(root)),
+                             "--output", str(root / "out"), *self.ARGS])
+            self.assertEqual(code, 0)
+            result = json.loads((root / "out" / "calculation.json").read_text(encoding="utf-8"))
+            self.assertIsNone(result["panel_log"]["newer_state_conflict"])
+            self.assertIn("current-state comparison is unknown",
+                          result["panel_log"]["stale_selection_warning"])
+
+    def test_a_rejected_line_reaches_json_sqlite_and_html_as_unknown(self):
+        import sqlite3
+
+        from test_damage_archive import facts, native, package, panel as written
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = package(root)
+            document = json.loads(written(root, "43721").read_text(encoding="utf-8"))
+            document["rejected"] = [{"line": 40, "reason": "unrecognized panel line"}]
+            (root / "rejected-panel.json").write_text(json.dumps(document), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = main(["--package", str(path), "--native-stats", str(native(root, path)),
+                             "--panel-log", str(root / "rejected-panel.json"), "--facts", str(facts(root)),
+                             "--output", str(root / "out"), *self.ARGS])
+            self.assertEqual(code, 0)
+            result = json.loads((root / "out" / "calculation.json").read_text(encoding="utf-8"))
+            self.assertIsNone(result["panel_log"]["newer_state_conflict"])
+            self.assertIn("Panel comparison coverage is incomplete",
+                          result["panel_log"]["stale_selection_warning"])
+            with contextlib.closing(sqlite3.connect(root / "out" / "database.sqlite")) as connection:
+                stored = json.loads(connection.execute(
+                    "SELECT json FROM documents WHERE role='panel_log_selection'").fetchone()[0])
+            self.assertIsNone(stored["summary"]["newer_state_conflict"])
+            self.assertIn("Panel comparison coverage is incomplete",
+                          stored["summary"]["stale_selection_warning"])
+            page = (root / "out" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("unknown", page)
+            self.assertIn("Panel comparison coverage is incomplete", page)

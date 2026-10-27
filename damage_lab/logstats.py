@@ -25,6 +25,9 @@ _OPTIONAL = {
     "21604": ("Max Spell Burst", (("max_spell_burst", "count", 1),)),
 }
 _KNOWN = _BINDINGS | _OPTIONAL
+CONFLICT_WARNING = ("Newer panel states do not match the native Spell DPS anchor; "
+                    "the selected historical state does not verify the current state")
+UNKNOWN_WARNING = "Panel comparison coverage is incomplete; the current-state comparison is unknown"
 _POLICY = {"printer_precision": "unknown", "stored_numbers": "binary64", "raw_tokens": "preserved",
            "native_anchor": {"operator": "absolute_difference_lte", "tolerance": "0.5", "unit": "damage/s",
                              "meaning": "selection_heuristic", "rounding_verified": False}}
@@ -189,12 +192,14 @@ def select(document, expected_spell_dps):
     _issues(document["gaps"])
     _list(document["cohorts"])
     resolved = []
+    partial = []
     issues = document["gaps"][:]
     for cohort in document["cohorts"]:
         _cohort(cohort)
         issues.extend(cohort["issues"])
         if cohort["status"] != "resolved":
             issues.append("Partial panel cohort omitted")
+            partial.append(cohort)
             continue
         identities = set()
         for attribute in cohort["attributes"]:
@@ -218,11 +223,35 @@ def select(document, expected_spell_dps):
     if len(signatures) != 1:
         raise ValueError("Panel log matching cohorts are ambiguous")
     cohort = max(matches, key=lambda row: (row["timestamp"], row["frame"]))
-    if any((state["timestamp"], state["frame"]) > (cohort["timestamp"], cohort["frame"])
-           and any(attribute["id"] == "10103" for attribute in state["attributes"])
-           for state in resolved):
-        issues.append("Newer panel states do not match the native Spell DPS anchor; "
-                      "the selected historical state does not verify the current state")
+    conflict = any((state["timestamp"], state["frame"]) > (cohort["timestamp"], cohort["frame"])
+                   and any(attribute["id"] == "10103" for attribute in state["attributes"])
+                   for state in resolved)
+    from .panellog import GAPS as PANEL_GAPS
+    coverage_gaps = [gap for gap in document["gaps"] if gap not in PANEL_GAPS]
+
+    def anchor_of(state):
+        for attribute in state["attributes"]:
+            if attribute["id"] == "10103":
+                return Fraction(_decimal(attribute["raw_values"][0]))
+        return None
+
+    tied = any(state is not cohort
+               and (state["timestamp"], state["frame"]) == (cohort["timestamp"], cohort["frame"])
+               and anchor_of(state) is not None
+               and abs(anchor_of(state) - Fraction(expected_spell_dps)) > Fraction(1, 2)
+               for state in resolved)
+    rejected = document.get("rejected")
+    unknown = not conflict and (
+        bool(coverage_gaps)
+        or tied
+        or any((state["timestamp"], state["frame"]) >= (cohort["timestamp"], cohort["frame"])
+               and anchor_of(state) is None for state in resolved)
+        or not isinstance(rejected, list)
+        or bool(rejected)
+        or any((state["timestamp"], state["frame"]) >= (cohort["timestamp"], cohort["frame"])
+               for state in partial))
+    if conflict:
+        issues.append(CONFLICT_WARNING)
     rows = []
     for attribute in cohort["attributes"]:
         if attribute["id"] not in _KNOWN:
@@ -246,5 +275,8 @@ def select(document, expected_spell_dps):
                                           attribute["id"] not in _KNOWN for attribute in cohort["attributes"]),
                                       "cohort": {"timestamp": cohort["timestamp"], "frame": cohort["frame"]},
                                       "identity_verified": False, "source_sha256": document["source"]["sha256"],
+                                      "newer_state_conflict": True if conflict else (None if unknown else False),
+                                      "stale_selection_warning": (CONFLICT_WARNING if conflict
+                                                                  else UNKNOWN_WARNING if unknown else None),
                                       "numeric_policy": policy(_POLICY)},
             "issues": issues}
